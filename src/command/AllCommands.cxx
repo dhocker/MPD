@@ -81,8 +81,8 @@ handle_not_commands(Client &client, Request request, Response &response);
 // be added or removed at run time. One possible use of this
 // dynamic ability might be to allow command handler plugins to be defined in
 // the config file. 
-static std::map<std::string, const command&> command_map;
-typedef std::map<std::string, const command&>::iterator command_map_iterator;
+static std::map<std::string, const command> command_map;
+typedef std::map<std::string, const command>::iterator command_map_iterator;
 
 void 
 insert_command(
@@ -92,16 +92,14 @@ insert_command(
 	int max,
 	CommandResult (*handler)(Client &client, Request request, Response &response))
 {
-	// This instance is never freed. It is held in the map forever.
-	// As a result, it could appear to be a memory leak when the app is shutdown.
-	command *c = new command;
-	c->cmd = cmd;
-	c->permission = permission;
-	c->min = min;
-	c->max = max;
-	c->handler = handler;
+	command c;
+	c.cmd = cmd;
+	c.permission = permission;
+	c.min = min;
+	c.max = max;
+	c.handler = handler;
 	std::string key(cmd);
-	command_map.insert(std::pair<std::string, const command&>(key, *c));
+	command_map.insert(std::pair<std::string, const command>(key, c));
 }
 
 bool

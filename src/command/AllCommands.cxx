@@ -19,7 +19,7 @@
 
 #include "config.h"
 #include "AllCommands.hxx"
-//#include "Request.hxx"
+#include "Request.hxx"
 #include "QueueCommands.hxx"
 #include "TagCommands.hxx"
 #include "PlayerCommands.hxx"
@@ -35,7 +35,7 @@
 #include "tag/TagType.h"
 #include "Partition.hxx"
 #include "client/Client.hxx"
-//#include "client/Response.hxx"
+#include "client/Response.hxx"
 #include "util/Macros.hxx"
 #include "util/Tokenizer.hxx"
 #include "util/Error.hxx"

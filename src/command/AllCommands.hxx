@@ -21,10 +21,10 @@
 #define MPD_ALL_COMMANDS_HXX
 
 #include "CommandResult.hxx"
-#include "Request.hxx"
-#include "client/Response.hxx"
 
 class Client;
+class Request;
+class Response;
 
 void
 command_init();

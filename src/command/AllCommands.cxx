@@ -19,7 +19,7 @@
 
 #include "config.h"
 #include "AllCommands.hxx"
-#include "Request.hxx"
+//#include "Request.hxx"
 #include "QueueCommands.hxx"
 #include "TagCommands.hxx"
 #include "PlayerCommands.hxx"
@@ -35,7 +35,7 @@
 #include "tag/TagType.h"
 #include "Partition.hxx"
 #include "client/Client.hxx"
-#include "client/Response.hxx"
+//#include "client/Response.hxx"
 #include "util/Macros.hxx"
 #include "util/Tokenizer.hxx"
 #include "util/Error.hxx"
@@ -75,136 +75,6 @@ handle_commands(Client &client, Request request, Response &response);
 static CommandResult
 handle_not_commands(Client &client, Request request, Response &response);
 
-#ifdef no_map_use	
-/**
- * The command registry.
- *
- * This array must be sorted!
- * If the std::map change is used, ordering is not required. However, it
- * does make the list easier to manage.
- */
-static constexpr struct command mpd_commands[] = {
-	{ "add", PERMISSION_ADD, 1, 1, handle_add },
-	{ "addid", PERMISSION_ADD, 1, 2, handle_addid },
-	{ "addtagid", PERMISSION_ADD, 3, 3, handle_addtagid },
-	{ "channels", PERMISSION_READ, 0, 0, handle_channels },
-	{ "clear", PERMISSION_CONTROL, 0, 0, handle_clear },
-	{ "clearerror", PERMISSION_CONTROL, 0, 0, handle_clearerror },
-	{ "cleartagid", PERMISSION_ADD, 1, 2, handle_cleartagid },
-	{ "close", PERMISSION_NONE, -1, -1, handle_close },
-	{ "commands", PERMISSION_NONE, 0, 0, handle_commands },
-	{ "config", PERMISSION_ADMIN, 0, 0, handle_config },
-	{ "consume", PERMISSION_CONTROL, 1, 1, handle_consume },
-#ifdef ENABLE_DATABASE
-	{ "count", PERMISSION_READ, 2, -1, handle_count },
-#endif
-	{ "crossfade", PERMISSION_CONTROL, 1, 1, handle_crossfade },
-	{ "currentsong", PERMISSION_READ, 0, 0, handle_currentsong },
-	{ "decoders", PERMISSION_READ, 0, 0, handle_decoders },
-	{ "delete", PERMISSION_CONTROL, 1, 1, handle_delete },
-	{ "deleteid", PERMISSION_CONTROL, 1, 1, handle_deleteid },
-	{ "disableoutput", PERMISSION_ADMIN, 1, 1, handle_disableoutput },
-	{ "enableoutput", PERMISSION_ADMIN, 1, 1, handle_enableoutput },
-#ifdef ENABLE_DATABASE
-	{ "find", PERMISSION_READ, 2, -1, handle_find },
-	{ "findadd", PERMISSION_ADD, 2, -1, handle_findadd},
-#endif
-	{ "idle", PERMISSION_READ, 0, -1, handle_idle },
-	{ "kill", PERMISSION_ADMIN, -1, -1, handle_kill },
-#ifdef ENABLE_DATABASE
-	{ "list", PERMISSION_READ, 1, -1, handle_list },
-	{ "listall", PERMISSION_READ, 0, 1, handle_listall },
-	{ "listallinfo", PERMISSION_READ, 0, 1, handle_listallinfo },
-#endif
-	{ "listfiles", PERMISSION_READ, 0, 1, handle_listfiles },
-#ifdef ENABLE_DATABASE
-	{ "listmounts", PERMISSION_READ, 0, 0, handle_listmounts },
-#endif
-#ifdef ENABLE_NEIGHBOR_PLUGINS
-	{ "listneighbors", PERMISSION_READ, 0, 0, handle_listneighbors },
-#endif
-	{ "listplaylist", PERMISSION_READ, 1, 1, handle_listplaylist },
-	{ "listplaylistinfo", PERMISSION_READ, 1, 1, handle_listplaylistinfo },
-	{ "listplaylists", PERMISSION_READ, 0, 0, handle_listplaylists },
-	{ "load", PERMISSION_ADD, 1, 2, handle_load },
-	{ "lsinfo", PERMISSION_READ, 0, 1, handle_lsinfo },
-	{ "mixrampdb", PERMISSION_CONTROL, 1, 1, handle_mixrampdb },
-	{ "mixrampdelay", PERMISSION_CONTROL, 1, 1, handle_mixrampdelay },
-#ifdef ENABLE_DATABASE
-	{ "mount", PERMISSION_ADMIN, 2, 2, handle_mount },
-#endif
-	{ "move", PERMISSION_CONTROL, 2, 2, handle_move },
-	{ "moveid", PERMISSION_CONTROL, 2, 2, handle_moveid },
-	{ "next", PERMISSION_CONTROL, 0, 0, handle_next },
-	{ "notcommands", PERMISSION_NONE, 0, 0, handle_not_commands },
-	{ "outputs", PERMISSION_READ, 0, 0, handle_devices },
-	{ "password", PERMISSION_NONE, 1, 1, handle_password },
-	{ "pause", PERMISSION_CONTROL, 0, 1, handle_pause },
-	{ "ping", PERMISSION_NONE, 0, 0, handle_ping },
-	{ "play", PERMISSION_CONTROL, 0, 1, handle_play },
-	{ "playid", PERMISSION_CONTROL, 0, 1, handle_playid },
-	{ "playlist", PERMISSION_READ, 0, 0, handle_playlist },
-	{ "playlistadd", PERMISSION_CONTROL, 2, 2, handle_playlistadd },
-	{ "playlistclear", PERMISSION_CONTROL, 1, 1, handle_playlistclear },
-	{ "playlistdelete", PERMISSION_CONTROL, 2, 2, handle_playlistdelete },
-	{ "playlistfind", PERMISSION_READ, 2, -1, handle_playlistfind },
-	{ "playlistid", PERMISSION_READ, 0, 1, handle_playlistid },
-	{ "playlistinfo", PERMISSION_READ, 0, 1, handle_playlistinfo },
-	{ "playlistmove", PERMISSION_CONTROL, 3, 3, handle_playlistmove },
-	{ "playlistsearch", PERMISSION_READ, 2, -1, handle_playlistsearch },
-	{ "plchanges", PERMISSION_READ, 1, 1, handle_plchanges },
-	{ "plchangesposid", PERMISSION_READ, 1, 1, handle_plchangesposid },
-	{ "previous", PERMISSION_CONTROL, 0, 0, handle_previous },
-	{ "prio", PERMISSION_CONTROL, 2, -1, handle_prio },
-	{ "prioid", PERMISSION_CONTROL, 2, -1, handle_prioid },
-	{ "random", PERMISSION_CONTROL, 1, 1, handle_random },
-	{ "rangeid", PERMISSION_ADD, 2, 2, handle_rangeid },
-	{ "readcomments", PERMISSION_READ, 1, 1, handle_read_comments },
-	{ "readmessages", PERMISSION_READ, 0, 0, handle_read_messages },
-	{ "rename", PERMISSION_CONTROL, 2, 2, handle_rename },
-	{ "repeat", PERMISSION_CONTROL, 1, 1, handle_repeat },
-	{ "replay_gain_mode", PERMISSION_CONTROL, 1, 1,
-	  handle_replay_gain_mode },
-	{ "replay_gain_status", PERMISSION_READ, 0, 0,
-	  handle_replay_gain_status },
-	{ "rescan", PERMISSION_CONTROL, 0, 1, handle_rescan },
-	{ "rm", PERMISSION_CONTROL, 1, 1, handle_rm },
-	{ "save", PERMISSION_CONTROL, 1, 1, handle_save },
-#ifdef ENABLE_DATABASE
-	{ "search", PERMISSION_READ, 2, -1, handle_search },
-	{ "searchadd", PERMISSION_ADD, 2, -1, handle_searchadd },
-	{ "searchaddpl", PERMISSION_CONTROL, 3, -1, handle_searchaddpl },
-#endif
-	{ "seek", PERMISSION_CONTROL, 2, 2, handle_seek },
-	{ "seekcur", PERMISSION_CONTROL, 1, 1, handle_seekcur },
-	{ "seekid", PERMISSION_CONTROL, 2, 2, handle_seekid },
-	{ "sendmessage", PERMISSION_CONTROL, 2, 2, handle_send_message },
-	{ "setvol", PERMISSION_CONTROL, 1, 1, handle_setvol },
-	{ "shuffle", PERMISSION_CONTROL, 0, 1, handle_shuffle },
-	{ "single", PERMISSION_CONTROL, 1, 1, handle_single },
-	{ "stats", PERMISSION_READ, 0, 0, handle_stats },
-	{ "status", PERMISSION_READ, 0, 0, handle_status },
-#ifdef ENABLE_SQLITE
-	{ "sticker", PERMISSION_ADMIN, 3, -1, handle_sticker },
-#endif
-	{ "stop", PERMISSION_CONTROL, 0, 0, handle_stop },
-	{ "subscribe", PERMISSION_READ, 1, 1, handle_subscribe },
-	{ "swap", PERMISSION_CONTROL, 2, 2, handle_swap },
-	{ "swapid", PERMISSION_CONTROL, 2, 2, handle_swapid },
-	{ "tagtypes", PERMISSION_READ, 0, 0, handle_tagtypes },
-	{ "toggleoutput", PERMISSION_ADMIN, 1, 1, handle_toggleoutput },
-#ifdef ENABLE_DATABASE
-	{ "unmount", PERMISSION_ADMIN, 1, 1, handle_unmount },
-#endif
-	{ "unsubscribe", PERMISSION_READ, 1, 1, handle_unsubscribe },
-	{ "update", PERMISSION_CONTROL, 0, 1, handle_update },
-	{ "urlhandlers", PERMISSION_READ, 0, 0, handle_urlhandlers },
-	{ "volume", PERMISSION_CONTROL, 1, 1, handle_volume },
-};
-
-static constexpr unsigned num_commands = ARRAY_SIZE(mpd_commands);
-#endif
-
 // Map of all commands. Maps are maitained in binary tree format,
 // so we do not have to worry about keeping the list in order.
 // Using a map for the command registry allows new commands to
@@ -214,7 +84,7 @@ static constexpr unsigned num_commands = ARRAY_SIZE(mpd_commands);
 static std::map<std::string, const command&> command_map;
 typedef std::map<std::string, const command&>::iterator command_map_iterator;
 
-static void 
+void 
 insert_command(
 	const char *cmd,
 	unsigned permission,
@@ -232,6 +102,13 @@ insert_command(
 	c->handler = handler;
 	std::string key(cmd);
 	command_map.insert(std::pair<std::string, const command&>(key, *c));
+}
+
+bool
+	remove_command(const char *cmd)
+{
+	std::string key(cmd);
+	return command_map.erase(key) > 0;
 }
 
 static void
@@ -390,22 +267,12 @@ static CommandResult
 PrintAvailableCommands(Response &r, const Partition &partition,
 		     unsigned permission)
 {
-#ifdef no_map_use
-	for (unsigned i = 0; i < command_map.size(); ++i) {
-		const struct command *cmd = &commands[i];
-
-		if (cmd->permission == (permission & cmd->permission) &&
-		    command_available(partition, cmd))
-			r.Format("command: %s\n", cmd->cmd);
-	}
-#else
 	for (command_map_iterator it = command_map.begin(); it != command_map.end(); it++) {
 		if (it->second.permission == (permission & it->second.permission) &&
 			command_available(partition, it->second)) {
 			r.Format("command: %s\n", it->second.cmd);
 		}
 	}
-#endif
 
 	return CommandResult::OK;
 }
@@ -413,20 +280,11 @@ PrintAvailableCommands(Response &r, const Partition &partition,
 static CommandResult
 PrintUnavailableCommands(Response &r, unsigned permission)
 {
-#ifdef no_map_use
-	for (unsigned i = 0; i < command_map.size(); ++i) {
-		const struct command *cmd = &commands[i];
-
-		if (cmd->permission != (permission & cmd->permission))
-			r.Format("command: %s\n", cmd->cmd);
-	}
-#else
 	for (command_map_iterator it = command_map.begin(); it != command_map.end(); it++) {
 		if (it->second.permission != (permission & it->second.permission)) {
 			r.Format("command: %s\n", it->second.cmd);
 		}
 	}
-#endif
 
 	return CommandResult::OK;
 }
@@ -450,14 +308,6 @@ command_init()
 {
 	// Build a map of the commands. The map is automatically sorted by key.
 	build_command_map();
-
-#ifdef no_map_use	
-#ifndef NDEBUG
-	/* ensure that the command list is sorted */
-	for (unsigned i = 0; i < command_map.size() - 1; ++i)
-		assert(strcmp(mpd_commands[i].cmd, mpd_commands[i + 1].cmd) < 0);
-#endif
-#endif
 }
 
 void
@@ -468,28 +318,11 @@ command_finish()
 static const struct command *
 command_lookup(const char *name)
 {
-#ifdef no_map_use	
-	unsigned a = 0, b = command_map.size(), i;
-
-	/* binary search */
-	do {
-		i = (a + b) / 2;
-
-		const auto cmp = strcmp(name, commands[i].cmd);
-		if (cmp == 0)
-			return &commands[i];
-		else if (cmp < 0)
-			b = i;
-		else if (cmp > 0)
-			a = i + 1;
-	} while (a < b);
-#else
 	std::string key(name);
 	command_map_iterator it = command_map.find(key);
 	if (it != command_map.end()) {
 		return &(it->second);
 	}
-#endif
 
 	return nullptr;
 }

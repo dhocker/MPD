@@ -21,6 +21,8 @@
 #define MPD_ALL_COMMANDS_HXX
 
 #include "CommandResult.hxx"
+#include "Request.hxx"
+#include "client/Response.hxx"
 
 class Client;
 
@@ -32,5 +34,16 @@ command_finish();
 
 CommandResult
 command_process(Client &client, unsigned num, char *line);
+
+void 
+insert_command(
+	const char *cmd,
+	unsigned permission,
+	int min,
+	int max,
+	CommandResult (*handler)(Client &client, Request request, Response &response));
+
+bool
+	remove_command(const char *cmd);
 
 #endif

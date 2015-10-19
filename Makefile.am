@@ -391,6 +391,7 @@ libutil_a_SOURCES = \
 	src/util/Macros.hxx \
 	src/util/Cast.hxx \
 	src/util/Clamp.hxx \
+	src/util/DeleteDisposer.hxx \
 	src/util/Alloc.cxx src/util/Alloc.hxx \
 	src/util/VarSize.hxx \
 	src/util/Error.cxx src/util/Error.hxx \
@@ -401,7 +402,7 @@ libutil_a_SOURCES = \
 	src/util/CharUtil.hxx \
 	src/util/NumberParser.hxx \
 	src/util/StringPointer.hxx \
-	src/util/StringView.hxx \
+	src/util/StringView.cxx src/util/StringView.hxx \
 	src/util/AllocatedString.cxx src/util/AllocatedString.hxx \
 	src/util/StringUtil.cxx src/util/StringUtil.hxx \
 	src/util/WStringUtil.cxx src/util/WStringUtil.hxx \
@@ -1583,6 +1584,7 @@ noinst_PROGRAMS = \
 	test/dump_playlist \
 	test/run_decoder \
 	test/read_tags \
+	test/ReadApeTags \
 	test/run_filter \
 	test/run_output \
 	test/run_convert \
@@ -1861,6 +1863,13 @@ test_read_tags_SOURCES = test/read_tags.cxx \
 	src/ReplayGainInfo.cxx \
 	src/AudioFormat.cxx src/CheckAudioFormat.cxx \
 	$(DECODER_SRC)
+
+test_ReadApeTags_LDADD = \
+	$(TAG_LIBS) \
+	$(FS_LIBS) \
+	$(ICU_LDADD) \
+	libutil.a
+test_ReadApeTags_SOURCES = test/ReadApeTags.cxx
 
 if ENABLE_ID3TAG
 test_dump_rva2_LDADD = \

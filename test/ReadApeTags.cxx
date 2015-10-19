@@ -18,31 +18,47 @@
  */
 
 #include "config.h"
-#include "ClientList.hxx"
-#include "ClientInternal.hxx"
-#include "util/DeleteDisposer.hxx"
+#include "tag/ApeLoader.hxx"
+#include "fs/Path.hxx"
+#include "util/StringView.hxx"
 
-#include <assert.h>
+#include <stdlib.h>
+#include <stdio.h>
 
-void
-ClientList::Remove(Client &client)
+#ifdef HAVE_LOCALE_H
+#include <locale.h>
+#endif
+
+static bool
+MyApeTagCallback(gcc_unused unsigned long flags,
+		 const char *key, StringView value)
 {
-	assert(!list.empty());
-
-	list.erase(list.iterator_to(client));
+	if ((flags & (0x3 << 1)) == 0)
+		// UTF-8
+		printf("\"%s\"=\"%.*s\"\n", key, (int)value.size, value.data);
+	else
+		printf("\"%s\"=0x%lx\n", key, flags);
+	return true;
 }
 
-void
-ClientList::CloseAll()
+int
+main(int argc, char **argv)
 {
-	list.clear_and_dispose(DeleteDisposer());
-}
+#ifdef HAVE_LOCALE_H
+	/* initialize locale */
+	setlocale(LC_CTYPE,"");
+#endif
 
-void
-ClientList::IdleAdd(unsigned flags)
-{
-	assert(flags != 0);
+	if (argc != 2) {
+		fprintf(stderr, "Usage: ReadApeTags FILE\n");
+		return EXIT_FAILURE;
+	}
 
-	for (auto &client : list)
-		client.IdleAdd(flags);
+	const Path path = Path::FromFS(argv[1]);
+	if (!tag_ape_scan(path, MyApeTagCallback)) {
+		fprintf(stderr, "error\n");
+		return EXIT_FAILURE;
+	}
+
+	return EXIT_SUCCESS;
 }

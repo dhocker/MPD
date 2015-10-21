@@ -176,7 +176,7 @@ handle_lsinfo(Client &client, Request args, Response &r)
 			return print_error(r, error);
 
 		DetachedSong song(path_utf8);
-		if (!song.Update()) {
+		if (!song.LoadFile(path_fs)) {
 			r.Error(ACK_ERROR_NO_EXIST, "No such file");
 			return CommandResult::ERROR;
 		}
@@ -200,7 +200,7 @@ handle_lsinfo(Client &client, Request args, Response &r)
 	}
 
 #ifdef ENABLE_DATABASE
-	CommandResult result = handle_lsinfo2(client, args, r);
+	CommandResult result = handle_lsinfo2(client, uri, r);
 	if (result != CommandResult::OK)
 		return result;
 #endif
@@ -283,6 +283,7 @@ handle_update(Client &client, Request args, Response &r, bool discard)
 	if (db != nullptr)
 		return handle_update(r, *db, path, discard);
 #else
+	(void)client;
 	(void)args;
 	(void)discard;
 #endif

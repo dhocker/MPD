@@ -17,39 +17,9 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-#ifndef MPD_FFMPEG_IO_HXX
-#define MPD_FFMPEG_IO_HXX
+#ifndef MPD_FLAC_PLAYLIST_PLUGIN_HXX
+#define MPD_FLAC_PLAYLIST_PLUGIN_HXX
 
-#include "check.h"
-
-extern "C" {
-#include "libavformat/avio.h"
-}
-
-#include <stdint.h>
-
-class InputStream;
-struct Decoder;
-
-struct AvioStream {
-	Decoder *const decoder;
-	InputStream &input;
-
-	AVIOContext *io;
-
-	AvioStream(Decoder *_decoder, InputStream &_input)
-		:decoder(_decoder), input(_input), io(nullptr) {}
-
-	~AvioStream();
-
-	bool Open();
-
-private:
-	int Read(void *buffer, int size);
-	int64_t Seek(int64_t pos, int whence);
-
-	static int _Read(void *opaque, uint8_t *buf, int size);
-	static int64_t _Seek(void *opaque, int64_t pos, int whence);
-};
+extern const struct playlist_plugin flac_playlist_plugin;
 
 #endif

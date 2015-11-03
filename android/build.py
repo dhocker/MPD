@@ -30,7 +30,7 @@ ndk_platform = 'android-14'
 
 # select the NDK compiler
 gcc_version = '4.9'
-llvm_version = '3.5'
+llvm_version = '3.6'
 
 # the path to the MPD sources
 mpd_path = os.path.abspath(os.path.join(os.path.dirname(sys.argv[0]) or '.', '..'))
@@ -347,8 +347,8 @@ thirdparty_libs = [
     ),
 
     FfmpegProject(
-        'http://ffmpeg.org/releases/ffmpeg-2.6.2.tar.bz2',
-        'e75d598921285d6775f20164a91936ac',
+        'http://ffmpeg.org/releases/ffmpeg-2.8.1.tar.xz',
+        '5af71aec0c8f99a018b02061acbe7f90',
         'lib/libavcodec.a',
         [
             '--disable-shared', '--enable-static',
@@ -371,8 +371,8 @@ thirdparty_libs = [
     ),
 
     AutotoolsProject(
-        'http://curl.haxx.se/download/curl-7.42.1.tar.lzma',
-        'f1e460020a99da039b153e4bf0cd8600',
+        'http://curl.haxx.se/download/curl-7.45.0.tar.lzma',
+        'c9a0a77f71fdc6b0f925bc3e79eb77f6',
         'lib/libcurl.a',
         [
             '--disable-shared', '--enable-static',
@@ -393,8 +393,8 @@ thirdparty_libs = [
     ),
 
     BoostProject(
-        'http://netcologne.dl.sourceforge.net/project/boost/boost/1.58.0/boost_1_58_0.tar.bz2',
-        'b8839650e61e9c1c0a89f371dd475546',
+        'http://netcologne.dl.sourceforge.net/project/boost/boost/1.59.0/boost_1_59_0.tar.bz2',
+        '6aa9a5c6a4ca1016edd0ed1178e3cb87',
         'include/boost/version.hpp',
     ),
 ]

@@ -40,12 +40,6 @@
 
 static constexpr Domain player_domain("player");
 
-enum class CrossFadeState : int8_t {
-	DISABLED = -1,
-	UNKNOWN = 0,
-	ENABLED = 1
-};
-
 class Player {
 	PlayerControl &pc;
 
@@ -96,14 +90,33 @@ class Player {
 	DetachedSong *song;
 
 	/**
-	 * is cross fading enabled?
+	 * Is cross-fading to the next song enabled?
 	 */
-	CrossFadeState xfade_state;
+	enum class CrossFadeState : uint8_t {
+		/**
+		 * The initial state: we don't know yet if we will
+		 * cross-fade; it will be determined soon.
+		 */
+		UNKNOWN,
 
-	/**
-	 * has cross-fading begun?
-	 */
-	bool cross_fading;
+		/**
+		 * Cross-fading is disabled for the transition to the
+		 * next song.
+		 */
+		DISABLED,
+
+		/**
+		 * Cross-fading is enabled (but may not yet be in
+		 * progress), will start near the end of the current
+		 * song.
+		 */
+		ENABLED,
+
+		/**
+		 * Currently cross-fading to the next song.
+		 */
+		ACTIVE,
+	} xfade_state;
 
 	/**
 	 * The number of chunks used for crossfading.
@@ -143,23 +156,32 @@ public:
 		 output_open(false),
 		 song(nullptr),
 		 xfade_state(CrossFadeState::UNKNOWN),
-		 cross_fading(false),
 		 cross_fade_chunks(0),
 		 cross_fade_tag(nullptr),
 		 elapsed_time(SongTime::zero()) {}
 
 private:
+	/**
+	 * Reset cross-fading to the initial state.  A check to
+	 * re-enable it at an appropriate time will be scheduled.
+	 */
+	void ResetCrossFade() {
+		xfade_state = CrossFadeState::UNKNOWN;
+	}
+
 	void ClearAndDeletePipe() {
 		pipe->Clear(buffer);
 		delete pipe;
 	}
 
 	void ClearAndReplacePipe(MusicPipe *_pipe) {
+		ResetCrossFade();
 		ClearAndDeletePipe();
 		pipe = _pipe;
 	}
 
 	void ReplacePipe(MusicPipe *_pipe) {
+		ResetCrossFade();
 		delete pipe;
 		pipe = _pipe;
 	}
@@ -173,7 +195,7 @@ private:
 
 	/**
 	 * The decoder has acknowledged the "START" command (see
-	 * player::WaitForDecoder()).  This function checks if the decoder
+	 * ActivateDecoder()).  This function checks if the decoder
 	 * initialization has completed yet.
 	 *
 	 * The player lock is not held.
@@ -218,14 +240,27 @@ private:
 	bool SeekDecoder();
 
 	/**
-	 * After the decoder has been started asynchronously, wait for
-	 * the "START" command to finish.  The decoder may not be
-	 * initialized yet, i.e. there is no audio_format information
-	 * yet.
+	 * Check if the decoder has reported an error, and forward it
+	 * to PlayerControl::SetError().
+	 *
+	 * @return false if an error has occurred
+	 */
+	bool ForwardDecoderError();
+
+	/**
+	 * After the decoder has been started asynchronously, activate
+	 * it for playback.  That is, make the currently decoded song
+	 * active (assign it to #song), clear PlayerControl::next_song
+	 * and #queued, initialize #elapsed_time, and set
+	 * #decoder_starting.
+	 *
+	 * When returning, the decoder may not have completed startup
+	 * yet, therefore we don't know the audio format yet.  To
+	 * finish decoder startup, call CheckDecoderStartup().
 	 *
 	 * The player lock is not held.
 	 */
-	bool WaitForDecoder();
+	void ActivateDecoder();
 
 	/**
 	 * Wrapper for MultipleOutputs::Open().  Upon failure, it
@@ -263,10 +298,8 @@ private:
 	 * sending chunks from the next one.
 	 *
 	 * The player lock is not held.
-	 *
-	 * @return true on success, false on error (playback will be stopped)
 	 */
-	bool SongBorder();
+	void SongBorder();
 
 public:
 	/*
@@ -314,11 +347,28 @@ Player::StopDecoder()
 			delete dc.pipe;
 
 		dc.pipe = nullptr;
+
+		/* just in case we've been cross-fading: cancel it
+		   now, because we just deleted the new song's decoder
+		   pipe */
+		ResetCrossFade();
 	}
 }
 
 bool
-Player::WaitForDecoder()
+Player::ForwardDecoderError()
+{
+	Error error = dc.GetError();
+	if (error.IsDefined()) {
+		pc.SetError(PlayerError::DECODER, std::move(error));
+		return false;
+	}
+
+	return true;
+}
+
+void
+Player::ActivateDecoder()
 {
 	assert(queued || pc.command == PlayerCommand::SEEK);
 	assert(pc.next_song != nullptr);
@@ -326,22 +376,12 @@ Player::WaitForDecoder()
 	queued = false;
 
 	pc.Lock();
-	Error error = dc.GetError();
-	if (error.IsDefined()) {
-		pc.SetError(PlayerError::DECODER, std::move(error));
-
-		delete pc.next_song;
-		pc.next_song = nullptr;
-
-		pc.Unlock();
-
-		return false;
-	}
-
 	pc.ClearTaggedSong();
 
 	delete song;
 	song = pc.next_song;
+	pc.next_song = nullptr;
+
 	elapsed_time = SongTime::zero();
 
 	/* set the "starting" flag, which will be cleared by
@@ -349,19 +389,14 @@ Player::WaitForDecoder()
 	decoder_starting = true;
 
 	/* update PlayerControl's song information */
-	pc.total_time = pc.next_song->GetDuration();
+	pc.total_time = song->GetDuration();
 	pc.bit_rate = 0;
 	pc.audio_format.Clear();
-
-	/* clear the queued song */
-	pc.next_song = nullptr;
 
 	pc.Unlock();
 
 	/* call syncPlaylistWithQueue() in the main thread */
 	pc.listener.OnPlayerSync();
-
-	return true;
 }
 
 /**
@@ -431,10 +466,8 @@ Player::CheckDecoderStartup()
 
 	pc.Lock();
 
-	Error error = dc.GetError();
-	if (error.IsDefined()) {
+	if (!ForwardDecoderError()) {
 		/* the decoder failed */
-		pc.SetError(PlayerError::DECODER, std::move(error));
 		pc.Unlock();
 
 		return false;
@@ -532,11 +565,7 @@ Player::SeekDecoder()
 
 		/* re-start the decoder */
 		StartDecoder(*pipe);
-		if (!WaitForDecoder()) {
-			/* decoder failure */
-			player_command_finished(pc);
-			return false;
-		}
+		ActivateDecoder();
 	} else {
 		if (!IsDecoderAtCurrentSong()) {
 			/* the decoder is already decoding the "next" song,
@@ -578,7 +607,7 @@ Player::SeekDecoder()
 
 	player_command_finished(pc);
 
-	xfade_state = CrossFadeState::UNKNOWN;
+	assert(xfade_state == CrossFadeState::UNKNOWN);
 
 	/* re-fill the buffer after seeking */
 	buffering = true;
@@ -756,22 +785,27 @@ Player::PlayNextChunk()
 		   another chunk */
 		return true;
 
-	unsigned cross_fade_position;
+	/* activate cross-fading? */
+	if (xfade_state == CrossFadeState::ENABLED &&
+	    IsDecoderAtNextSong() &&
+	    pipe->GetSize() <= cross_fade_chunks) {
+		/* beginning of the cross fade - adjust
+		   cross_fade_chunks which might be bigger than the
+		   remaining number of chunks in the old song */
+		cross_fade_chunks = pipe->GetSize();
+		xfade_state = CrossFadeState::ACTIVE;
+	}
+
 	MusicChunk *chunk = nullptr;
-	if (xfade_state == CrossFadeState::ENABLED && IsDecoderAtNextSong() &&
-	    (cross_fade_position = pipe->GetSize()) <= cross_fade_chunks) {
+	if (xfade_state == CrossFadeState::ACTIVE) {
 		/* perform cross fade */
+
+		assert(IsDecoderAtNextSong());
+
+		unsigned cross_fade_position = pipe->GetSize();
+		assert(cross_fade_position <= cross_fade_chunks);
+
 		MusicChunk *other_chunk = dc.pipe->Shift();
-
-		if (!cross_fading) {
-			/* beginning of the cross fade - adjust
-			   crossFadeChunks which might be bigger than
-			   the remaining number of chunks in the old
-			   song */
-			cross_fade_chunks = cross_fade_position;
-			cross_fading = true;
-		}
-
 		if (other_chunk != nullptr) {
 			chunk = pipe->Shift();
 			assert(chunk != nullptr);
@@ -834,7 +868,7 @@ Player::PlayNextChunk()
 
 	/* insert the postponed tag if cross-fading is finished */
 
-	if (xfade_state != CrossFadeState::ENABLED && cross_fade_tag != nullptr) {
+	if (xfade_state != CrossFadeState::ACTIVE && cross_fade_tag != nullptr) {
 		chunk->tag = Tag::MergeReplace(chunk->tag, cross_fade_tag);
 		cross_fade_tag = nullptr;
 	}
@@ -881,19 +915,16 @@ Player::PlayNextChunk()
 	return true;
 }
 
-inline bool
+inline void
 Player::SongBorder()
 {
-	xfade_state = CrossFadeState::UNKNOWN;
-
 	FormatDefault(player_domain, "played \"%s\"", song->GetURI());
 
 	ReplacePipe(dc.pipe);
 
 	pc.outputs.SongBorder();
 
-	if (!WaitForDecoder())
-		return false;
+	ActivateDecoder();
 
 	pc.Lock();
 
@@ -907,8 +938,6 @@ Player::SongBorder()
 
 	if (border_pause)
 		idle_add(IDLE_PLAYER);
-
-	return true;
 }
 
 inline void
@@ -917,14 +946,7 @@ Player::Run()
 	pipe = new MusicPipe();
 
 	StartDecoder(*pipe);
-	if (!WaitForDecoder()) {
-		assert(song == nullptr);
-
-		StopDecoder();
-		player_command_finished(pc);
-		delete pipe;
-		return;
-	}
+	ActivateDecoder();
 
 	pc.Lock();
 	pc.state = PlayerState::PLAY;
@@ -1016,10 +1038,9 @@ Player::Run()
 							play_audio_format,
 							buffer.GetSize() -
 							pc.buffered_before_play);
-			if (cross_fade_chunks > 0) {
+			if (cross_fade_chunks > 0)
 				xfade_state = CrossFadeState::ENABLED;
-				cross_fading = false;
-			} else
+			else
 				/* cross fading is disabled or the
 				   next song is too short */
 				xfade_state = CrossFadeState::DISABLED;
@@ -1052,8 +1073,7 @@ Player::Run()
 		} else if (IsDecoderAtNextSong()) {
 			/* at the beginning of a new song */
 
-			if (!SongBorder())
-				break;
+			SongBorder();
 		} else if (dc.LockIsIdle()) {
 			/* check the size of the pipe again, because
 			   the decoder thread may have added something

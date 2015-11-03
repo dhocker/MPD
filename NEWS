@@ -5,6 +5,7 @@ ver 0.20 (not yet released)
   - report song duration with milliseconds precision
   - "sticker find" can match sticker values
   - drop the "file:///" prefix for absolute file paths
+  - add range parameter to command "plchanges" and "plchangesposid"
 * tags
   - ape, ogg: drop support for non-standard tag "album artist"
     affected filetypes: vorbis, flac, opus & all files with ape2 tags
@@ -14,12 +15,15 @@ ver 0.20 (not yet released)
 * decoder
   - ffmpeg: support ReplayGain and MixRamp
   - ffmpeg: support stream tags
+  - gme: add option "accuracy"
   - mad: reduce memory usage while scanning tags
   - mpcdec: read the bit rate
 * playlist
   - cue: don't skip pregap
   - embcue: fix last track
+  - flac: new plugin which reads the "CUESHEET" metadata block
 * output
+  - alsa: fix multi-channel order
   - jack: reduce CPU usage
   - pulse: set channel map to WAVE-EX
   - recorder: record tags
@@ -39,6 +43,17 @@ ver 0.20 (not yet released)
   - proxy: add TCP keepalive option
 * update
   - apply .mpdignore matches to subdirectories
+
+ver 0.19.11 (2015/10/27)
+* tags
+  - ape: fix buffer overflow
+* decoder
+  - ffmpeg: fix crash due to wrong avio_alloc_context() call
+  - gme: don't loop forever, fall back to GME's default play length
+* encoder
+  - flac: fix crash with 32 bit playback
+* mixer
+  - fix mixer lag after enabling/disabling output
 
 ver 0.19.10 (2015/06/21)
 * input

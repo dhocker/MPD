@@ -168,6 +168,7 @@ libmpd_a_SOURCES = \
 	src/ReplayGainConfig.cxx src/ReplayGainConfig.hxx \
 	src/ReplayGainInfo.cxx src/ReplayGainInfo.hxx \
 	src/DetachedSong.cxx src/DetachedSong.hxx \
+	src/LocateUri.cxx src/LocateUri.hxx \
 	src/SongUpdate.cxx \
 	src/SongLoader.cxx src/SongLoader.hxx \
 	src/SongPrint.cxx src/SongPrint.hxx \
@@ -536,6 +537,7 @@ libpcm_a_SOURCES = \
 	src/pcm/Neon.hxx \
 	src/pcm/FormatConverter.cxx src/pcm/FormatConverter.hxx \
 	src/pcm/ChannelsConverter.cxx src/pcm/ChannelsConverter.hxx \
+	src/pcm/Order.cxx src/pcm/Order.hxx \
 	src/pcm/Resampler.hxx \
 	src/pcm/GlueResampler.cxx src/pcm/GlueResampler.hxx \
 	src/pcm/FallbackResampler.cxx src/pcm/FallbackResampler.hxx \
@@ -1478,6 +1480,12 @@ PLAYLIST_LIBS = \
 	$(EXPAT_LIBS) \
 	$(FLAC_LIBS)
 
+if ENABLE_FLAC
+libplaylist_plugins_a_SOURCES += \
+	src/playlist/plugins/FlacPlaylistPlugin.cxx \
+	src/playlist/plugins/FlacPlaylistPlugin.hxx
+endif
+
 if ENABLE_CUE
 libplaylist_plugins_a_SOURCES += \
 	src/playlist/cue/CueParser.cxx src/playlist/cue/CueParser.hxx \
@@ -2141,6 +2149,7 @@ test_test_translate_song_SOURCES = \
 	src/PlaylistError.cxx \
 	src/DetachedSong.cxx \
 	src/SongLoader.cxx \
+	src/LocateUri.cxx \
 	src/Log.cxx \
 	test/test_translate_song.cxx
 test_test_translate_song_CPPFLAGS = $(AM_CPPFLAGS) $(CPPUNIT_CFLAGS) -DCPPUNIT_HAVE_RTTI=0

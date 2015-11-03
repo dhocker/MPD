@@ -17,39 +17,21 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-#ifndef MPD_FFMPEG_IO_HXX
-#define MPD_FFMPEG_IO_HXX
+#ifndef MPD_PCM_ORDER_HXX
+#define MPD_PCM_ORDER_HXX
 
 #include "check.h"
+#include "AudioFormat.hxx"
 
-extern "C" {
-#include "libavformat/avio.h"
-}
+class PcmBuffer;
+template<typename T> struct ConstBuffer;
 
-#include <stdint.h>
-
-class InputStream;
-struct Decoder;
-
-struct AvioStream {
-	Decoder *const decoder;
-	InputStream &input;
-
-	AVIOContext *io;
-
-	AvioStream(Decoder *_decoder, InputStream &_input)
-		:decoder(_decoder), input(_input), io(nullptr) {}
-
-	~AvioStream();
-
-	bool Open();
-
-private:
-	int Read(void *buffer, int size);
-	int64_t Seek(int64_t pos, int whence);
-
-	static int _Read(void *opaque, uint8_t *buf, int size);
-	static int64_t _Seek(void *opaque, int64_t pos, int whence);
-};
+/**
+ * Convert the given buffer from FLAC channel order
+ * (https://xiph.org/flac/format.html) to ALSA channel order.
+ */
+ConstBuffer<void>
+ToAlsaChannelOrder(PcmBuffer &buffer, ConstBuffer<void> src,
+		   SampleFormat sample_format, unsigned channels);
 
 #endif

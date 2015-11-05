@@ -324,9 +324,7 @@ Player::StartDecoder(MusicPipe &_pipe)
 	assert(queued || pc.command == PlayerCommand::SEEK);
 	assert(pc.next_song != nullptr);
 
-	SongTime start_time = pc.next_song->GetStartTime();
-	if (pc.command == PlayerCommand::SEEK)
-		start_time += pc.seek_time;
+	SongTime start_time = pc.next_song->GetStartTime() + pc.seek_time;
 
 	dc.Start(new DetachedSong(*pc.next_song),
 		 start_time, pc.next_song->GetEndTime(),
@@ -382,7 +380,7 @@ Player::ActivateDecoder()
 	song = pc.next_song;
 	pc.next_song = nullptr;
 
-	elapsed_time = SongTime::zero();
+	elapsed_time = pc.seek_time;
 
 	/* set the "starting" flag, which will be cleared by
 	   player_check_decoder_startup() */
@@ -950,9 +948,6 @@ Player::Run()
 
 	pc.Lock();
 	pc.state = PlayerState::PLAY;
-
-	if (pc.command == PlayerCommand::SEEK)
-		elapsed_time = pc.seek_time;
 
 	pc.CommandFinished();
 

@@ -203,6 +203,25 @@ private:
 	bool CheckDecoderStartup();
 
 	/**
+	 * Call CheckDecoderStartup() repeatedly until the decoder has
+	 * finished startup.  Returns false on decoder error (and
+	 * finishes the #PlayerCommand).
+	 *
+	 * This method does not check for commands.  It is only
+	 * allowed to be used while a command is being handled.
+	 */
+	bool WaitDecoderStartup() {
+		while (decoder_starting) {
+			if (!CheckDecoderStartup()) {
+				pc.LockCommandFinished();
+				return false;
+			}
+		}
+
+		return true;
+	}
+
+	/**
 	 * Stop the decoder and clears (and frees) its music pipe.
 	 *
 	 * Player lock is not held.
@@ -309,14 +328,6 @@ public:
 	 */
 	void Run();
 };
-
-static void
-player_command_finished(PlayerControl &pc)
-{
-	pc.Lock();
-	pc.CommandFinished();
-	pc.Unlock();
-}
 
 void
 Player::StartDecoder(MusicPipe &_pipe)
@@ -564,6 +575,9 @@ Player::SeekDecoder()
 		/* re-start the decoder */
 		StartDecoder(*pipe);
 		ActivateDecoder();
+
+		if (!WaitDecoderStartup())
+			return false;
 	} else {
 		if (!IsDecoderAtCurrentSong()) {
 			/* the decoder is already decoding the "next" song,
@@ -574,36 +588,33 @@ Player::SeekDecoder()
 		delete pc.next_song;
 		pc.next_song = nullptr;
 		queued = false;
-	}
 
-	/* wait for the decoder to complete initialization */
+		/* wait for the decoder to complete initialization
+		   (just in case that happens to be still in
+		   progress) */
 
-	while (decoder_starting) {
-		if (!CheckDecoderStartup()) {
+		if (!WaitDecoderStartup())
+			return false;
+
+		/* send the SEEK command */
+
+		SongTime where = pc.seek_time;
+		if (!pc.total_time.IsNegative()) {
+			const SongTime total_time(pc.total_time);
+			if (where > total_time)
+				where = total_time;
+		}
+
+		if (!dc.Seek(where + start_time)) {
 			/* decoder failure */
-			player_command_finished(pc);
+			pc.LockCommandFinished();
 			return false;
 		}
+
+		elapsed_time = where;
 	}
 
-	/* send the SEEK command */
-
-	SongTime where = pc.seek_time;
-	if (!pc.total_time.IsNegative()) {
-		const SongTime total_time(pc.total_time);
-		if (where > total_time)
-			where = total_time;
-	}
-
-	if (!dc.Seek(where + start_time)) {
-		/* decoder failure */
-		player_command_finished(pc);
-		return false;
-	}
-
-	elapsed_time = where;
-
-	player_command_finished(pc);
+	pc.LockCommandFinished();
 
 	assert(xfade_state == CrossFadeState::UNKNOWN);
 
@@ -1190,7 +1201,7 @@ player_task(void *arg)
 
 			pc.outputs.Close();
 
-			player_command_finished(pc);
+			pc.LockCommandFinished();
 			return;
 
 		case PlayerCommand::CANCEL:

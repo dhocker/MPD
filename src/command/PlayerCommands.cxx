@@ -100,9 +100,9 @@ handle_pause(Client &client, Request args, Response &r)
 		if (!args.Parse(0, pause_flag, r))
 			return CommandResult::ERROR;
 
-		client.player_control.SetPause(pause_flag);
+		client.player_control.LockSetPause(pause_flag);
 	} else
-		client.player_control.Pause();
+		client.player_control.LockPause();
 
 	return CommandResult::OK;
 }
@@ -113,7 +113,7 @@ handle_status(Client &client, gcc_unused Request args, Response &r)
 	const char *state = nullptr;
 	int song;
 
-	const auto player_status = client.player_control.GetStatus();
+	const auto player_status = client.player_control.LockGetStatus();
 
 	switch (player_status.state) {
 	case PlayerState::STOP:
@@ -284,7 +284,7 @@ CommandResult
 handle_clearerror(Client &client, gcc_unused Request args,
 		  gcc_unused Response &r)
 {
-	client.player_control.ClearError();
+	client.player_control.LockClearError();
 	return CommandResult::OK;
 }
 
@@ -296,9 +296,10 @@ handle_seek(Client &client, Request args, Response &r)
 	if (!args.Parse(0, song, r) || !args.Parse(1, seek_time, r))
 		return CommandResult::ERROR;
 
-	PlaylistResult result =
-		client.partition.SeekSongPosition(song, seek_time);
-	return print_playlist_result(r, result);
+	Error error;
+	return client.partition.SeekSongPosition(song, seek_time, error)
+		? CommandResult::OK
+		: print_error(r, error);
 }
 
 CommandResult
@@ -311,9 +312,10 @@ handle_seekid(Client &client, Request args, Response &r)
 	if (!args.Parse(1, seek_time, r))
 		return CommandResult::ERROR;
 
-	PlaylistResult result =
-		client.partition.SeekSongId(id, seek_time);
-	return print_playlist_result(r, result);
+	Error error;
+	return client.partition.SeekSongId(id, seek_time, error)
+		? CommandResult::OK
+		: print_error(r, error);
 }
 
 CommandResult
@@ -325,9 +327,10 @@ handle_seekcur(Client &client, Request args, Response &r)
 	if (!ParseCommandArg(r, seek_time, p))
 		return CommandResult::ERROR;
 
-	PlaylistResult result =
-		client.partition.SeekCurrent(seek_time, relative);
-	return print_playlist_result(r, result);
+	Error error;
+	return client.partition.SeekCurrent(seek_time, relative, error)
+		? CommandResult::OK
+		: print_error(r, error);
 }
 
 CommandResult

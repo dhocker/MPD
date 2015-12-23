@@ -25,6 +25,8 @@
 #include "util/Error.hxx"
 #include "Log.hxx"
 
+#include <system_error>
+
 #include <assert.h>
 #include <string.h>
 #include <errno.h>
@@ -154,4 +156,22 @@ print_error(Response &r, const Error &error)
 
 	r.Error(ToAck(error), error.GetMessage());
 	return CommandResult::ERROR;
+}
+
+void
+PrintError(Response &r, const std::exception &e)
+{
+	LogError(e);
+
+	try {
+		throw e;
+	} catch (const ProtocolError &pe) {
+		r.Error(pe.GetCode(), pe.what());
+	} catch (const PlaylistError &pe) {
+		r.Error(ToAck(pe.GetCode()), pe.what());
+	} catch (const std::system_error &) {
+		r.Error(ACK_ERROR_SYSTEM, e.what());
+	} catch (...) {
+		r.Error(ACK_ERROR_UNKNOWN, e.what());
+	}
 }

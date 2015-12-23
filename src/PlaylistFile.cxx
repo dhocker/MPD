@@ -232,18 +232,17 @@ SavePlaylistFile(const PlaylistFileContents &contents, const char *utf8path,
 	if (path_fs.IsNull())
 		return false;
 
-	FileOutputStream fos(path_fs, error);
-	if (!fos.IsDefined()) {
-		TranslatePlaylistError(error);
-		return false;
-	}
+	FileOutputStream fos(path_fs);
 
 	BufferedOutputStream bos(fos);
 
 	for (const auto &uri_utf8 : contents)
 		playlist_print_uri(bos, uri_utf8.c_str());
 
-	return bos.Flush(error) && fos.Commit(error);
+	bos.Flush();
+
+	fos.Commit();
+	return true;
 }
 
 PlaylistFileContents
@@ -255,11 +254,7 @@ LoadPlaylistFile(const char *utf8path, Error &error)
 	if (path_fs.IsNull())
 		return contents;
 
-	TextFile file(path_fs, error);
-	if (file.HasFailed()) {
-		TranslatePlaylistError(error);
-		return contents;
-	}
+	TextFile file(path_fs);
 
 	char *s;
 	while ((s = file.ReadLine()) != nullptr) {
@@ -403,11 +398,7 @@ spl_append_song(const char *utf8path, const DetachedSong &song, Error &error)
 	if (path_fs.IsNull())
 		return false;
 
-	AppendFileOutputStream fos(path_fs, error);
-	if (!fos.IsDefined()) {
-		TranslatePlaylistError(error);
-		return false;
-	}
+	AppendFileOutputStream fos(path_fs);
 
 	if (fos.Tell() / (MPD_PATH_MAX + 1) >= playlist_max_length) {
 		error.Set(playlist_domain, int(PlaylistResult::TOO_LARGE),
@@ -419,8 +410,8 @@ spl_append_song(const char *utf8path, const DetachedSong &song, Error &error)
 
 	playlist_print_song(bos, song);
 
-	if (!bos.Flush(error) || !fos.Commit(error))
-		return false;
+	bos.Flush();
+	fos.Commit();
 
 	idle_add(IDLE_STORED_PLAYLIST);
 	return true;

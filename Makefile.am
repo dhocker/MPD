@@ -389,6 +389,7 @@ endif
 # Generic utility library
 
 libutil_a_SOURCES = \
+	src/util/RuntimeError.hxx \
 	src/util/Macros.hxx \
 	src/util/Cast.hxx \
 	src/util/Clamp.hxx \
@@ -464,6 +465,7 @@ libnet_a_SOURCES = \
 
 libsystem_a_SOURCES = \
 	src/system/ByteOrder.hxx \
+	src/system/Error.hxx \
 	src/system/FatalError.cxx src/system/FatalError.hxx \
 	src/system/FileDescriptor.cxx src/system/FileDescriptor.hxx \
 	src/system/fd_util.c src/system/fd_util.h \
@@ -604,6 +606,7 @@ libfs_a_CPPFLAGS = $(AM_CPPFLAGS) $(ZLIB_CFLAGS)
 if ENABLE_ZLIB
 libfs_a_SOURCES += \
 	src/lib/zlib/Domain.cxx src/lib/zlib/Domain.hxx \
+	src/lib/zlib/Error.cxx src/lib/zlib/Error.hxx \
 	src/fs/io/GunzipReader.cxx src/fs/io/GunzipReader.hxx \
 	src/fs/io/AutoGunzipReader.cxx src/fs/io/AutoGunzipReader.hxx \
 	src/fs/io/GzipOutputStream.cxx src/fs/io/GzipOutputStream.hxx
@@ -1304,6 +1307,7 @@ liboutput_plugins_a_SOURCES = \
 
 MIXER_LIBS = \
 	libmixer_plugins.a \
+	$(ALSA_LIBS) \
 	$(PULSE_LIBS2)
 
 MIXER_API_SRC = \
@@ -1757,7 +1761,8 @@ noinst_PROGRAMS += test/run_gzip test/run_gunzip
 test_run_gzip_LDADD = \
 	libutil.a \
 	$(FS_LIBS)
-test_run_gzip_SOURCES = test/run_gzip.cxx
+test_run_gzip_SOURCES = test/run_gzip.cxx \
+	src/Log.cxx src/LogBackend.cxx
 
 test_run_gunzip_SOURCES = test/run_gunzip.cxx \
 	src/Log.cxx src/LogBackend.cxx

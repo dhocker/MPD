@@ -28,8 +28,7 @@ class Response;
 class Path;
 
 CommandResult
-handle_listfiles_local(Response &response,
-		       const char *path_utf8, Path path_fs);
+handle_listfiles_local(Response &response, Path path_fs);
 
 CommandResult
 handle_read_comments(Client &client, Request request, Response &response);

@@ -51,8 +51,13 @@ public:
 	}
 
 	static PlaylistError NoSuchSong() {
-		return PlaylistError(PlaylistResult::BAD_RANGE,
+		return PlaylistError(PlaylistResult::NO_SUCH_SONG,
 				     "No such song");
+	}
+
+	static PlaylistError NoSuchList() {
+		return PlaylistError(PlaylistResult::NO_SUCH_LIST,
+				     "No such playlist");
 	}
 
 	static PlaylistError BadRange() {

@@ -111,14 +111,8 @@ static inline std::system_error
 FormatErrno(int code, const char *fmt, Args&&... args)
 {
 	char buffer[512];
-	const auto end = buffer + sizeof(buffer);
-	size_t length = snprintf(buffer, sizeof(buffer) - 128,
-				 fmt, std::forward<Args>(args)...);
-	char *p = buffer + length;
-	*p++ = ':';
-	*p++ = ' ';
-
-	CopyString(p, strerror(code), end - p);
+	snprintf(buffer, sizeof(buffer),
+		 fmt, std::forward<Args>(args)...);
 	return MakeErrno(code, buffer);
 }
 
@@ -141,6 +135,19 @@ IsFileNotFound(const std::system_error &e)
 #else
 	return e.code().category() == std::system_category() &&
 		e.code().value() == ENOENT;
+#endif
+}
+
+gcc_pure
+static inline bool
+IsAccessDenied(const std::system_error &e)
+{
+#ifdef WIN32
+	return e.code().category() == std::system_category() &&
+		e.code().value() == ERROR_ACCESS_DENIED;
+#else
+	return e.code().category() == std::system_category() &&
+		e.code().value() == EACCES;
 #endif
 }
 

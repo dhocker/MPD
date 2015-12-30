@@ -158,20 +158,53 @@ print_error(Response &r, const Error &error)
 	return CommandResult::ERROR;
 }
 
-void
-PrintError(Response &r, const std::exception &e)
+gcc_pure
+static enum ack
+ToAck(std::exception_ptr ep)
 {
-	LogError(e);
+	try {
+		std::rethrow_exception(ep);
+	} catch (const ProtocolError &pe) {
+		return pe.GetCode();
+	} catch (const PlaylistError &pe) {
+		return ToAck(pe.GetCode());
+	} catch (const std::system_error &e) {
+		return ACK_ERROR_SYSTEM;
+#if defined(__GLIBCXX__) && __GLIBCXX__ < 20151204
+	} catch (const std::exception &e) {
+#else
+	} catch (...) {
+#endif
+		try {
+#if defined(__GLIBCXX__) && __GLIBCXX__ < 20151204
+			/* workaround for g++ 4.x: no overload for
+			   rethrow_exception(exception_ptr) */
+			std::rethrow_if_nested(e);
+#else
+			std::rethrow_if_nested(ep);
+#endif
+			return ACK_ERROR_UNKNOWN;
+		} catch (...) {
+			return ToAck(std::current_exception());
+		}
+	}
+}
+
+void
+PrintError(Response &r, std::exception_ptr ep)
+{
+	try {
+		std::rethrow_exception(ep);
+	} catch (const std::exception &e) {
+		LogError(e);
+	} catch (...) {
+	}
 
 	try {
-		throw e;
-	} catch (const ProtocolError &pe) {
-		r.Error(pe.GetCode(), pe.what());
-	} catch (const PlaylistError &pe) {
-		r.Error(ToAck(pe.GetCode()), pe.what());
-	} catch (const std::system_error &) {
-		r.Error(ACK_ERROR_SYSTEM, e.what());
+		std::rethrow_exception(ep);
+	} catch (const std::exception &e) {
+		r.Error(ToAck(ep), e.what());
 	} catch (...) {
-		r.Error(ACK_ERROR_UNKNOWN, e.what());
+		r.Error(ACK_ERROR_UNKNOWN, "Unknown error");
 	}
 }

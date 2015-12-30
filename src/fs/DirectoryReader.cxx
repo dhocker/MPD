@@ -18,35 +18,25 @@
  */
 
 #include "config.h"
-#include "DatabasePlaylist.hxx"
-#include "DatabaseSong.hxx"
-#include "Selection.hxx"
-#include "PlaylistFile.hxx"
-#include "Interface.hxx"
-#include "DetachedSong.hxx"
-#include "storage/StorageInterface.hxx"
+#include "DirectoryReader.hxx"
+#include "system/Error.hxx"
 
-#include <functional>
+#ifdef WIN32
 
-static bool
-AddSong(const Storage &storage, const char *playlist_path_utf8,
-	const LightSong &song)
+DirectoryReader::DirectoryReader(Path dir)
+	:handle(FindFirstFile(MakeWildcardPath(dir.c_str()), &data))
 {
-	spl_append_song(playlist_path_utf8,
-			DatabaseDetachSong(storage, song));
-	return true;
+	if (handle == INVALID_HANDLE_VALUE)
+		throw FormatLastError("Failed to open %s", dir.c_str());
 }
 
-bool
-search_add_to_playlist(const Database &db, const Storage &storage,
-		       const char *uri, const char *playlist_path_utf8,
-		       const SongFilter *filter,
-		       Error &error)
-{
-	const DatabaseSelection selection(uri, true, filter);
+#else
 
-	using namespace std::placeholders;
-	const auto f = std::bind(AddSong, std::ref(storage),
-				 playlist_path_utf8, _1);
-	return db.Visit(selection, f, error);
+DirectoryReader::DirectoryReader(Path dir)
+	:dirp(opendir(dir.c_str()))
+{
+	if (dirp == nullptr)
+		throw FormatErrno("Failed to open %s", dir.c_str());
 }
+
+#endif

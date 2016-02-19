@@ -244,6 +244,7 @@ UPNP_SOURCES = \
 	src/lib/upnp/ixmlwrap.cxx src/lib/upnp/ixmlwrap.hxx \
 	src/lib/upnp/Callback.hxx \
 	src/lib/upnp/Util.cxx src/lib/upnp/Util.hxx \
+	src/lib/upnp/UniqueIxml.hxx \
 	src/lib/upnp/WorkQueue.hxx \
 	src/lib/upnp/Action.hxx
 
@@ -396,6 +397,7 @@ libutil_a_SOURCES = \
 	src/util/DeleteDisposer.hxx \
 	src/util/Alloc.cxx src/util/Alloc.hxx \
 	src/util/VarSize.hxx \
+	src/util/ScopeExit.hxx \
 	src/util/Error.cxx src/util/Error.hxx \
 	src/util/Domain.hxx \
 	src/util/ReusableArray.hxx \
@@ -866,6 +868,8 @@ libtag_a_SOURCES =\
 
 if ENABLE_ID3TAG
 libtag_a_SOURCES += \
+	src/tag/Id3Load.cxx src/tag/Id3Load.hxx \
+	src/tag/Id3Unique.hxx \
 	src/tag/TagId3.cxx src/tag/TagId3.hxx \
 	src/tag/TagRva2.cxx src/tag/TagRva2.hxx \
 	src/tag/Riff.cxx src/tag/Riff.hxx \

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2003-2015 The Music Player Daemon Project
+ * Copyright (C) 2003-2016 The Music Player Daemon Project
  * http://www.musicpd.org
  *
  * This program is free software; you can redistribute it and/or modify
@@ -17,16 +17,24 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-#include "config.h"
-#include "MemorySongEnumerator.hxx"
+#ifndef MPD_UPNP_UNIQUE_XML_HXX
+#define MPD_UPNP_UNIQUE_XML_HXX
 
-std::unique_ptr<DetachedSong>
-MemorySongEnumerator::NextSong()
-{
-	if (songs.empty())
-		return nullptr;
+#include <upnp/ixml.h>
 
-	std::unique_ptr<DetachedSong> result(new DetachedSong(std::move(songs.front())));
-	songs.pop_front();
-	return result;
-}
+#include <memory>
+
+struct UpnpIxmlDeleter {
+	void operator()(IXML_Document *doc) {
+		ixmlDocument_free(doc);
+	}
+
+	void operator()(IXML_NodeList *nl) {
+		ixmlNodeList_free(nl);
+	}
+};
+
+typedef std::unique_ptr<IXML_Document, UpnpIxmlDeleter> UniqueIxmlDocument;
+typedef std::unique_ptr<IXML_NodeList, UpnpIxmlDeleter> UniqueIxmlNodeList;
+
+#endif

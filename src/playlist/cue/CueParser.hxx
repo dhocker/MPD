@@ -21,10 +21,12 @@
 #define MPD_CUE_PARSER_HXX
 
 #include "check.h"
+#include "DetachedSong.hxx"
 #include "tag/TagBuilder.hxx"
 #include "Compiler.h"
 
 #include <string>
+#include <memory>
 
 class DetachedSong;
 struct Tag;
@@ -55,7 +57,7 @@ class CueParser {
 		 * Ignore everything until the next "TRACK".
 		 */
 		IGNORE_TRACK,
-	} state;
+	} state = HEADER;
 
 	/**
 	 * Tags read from the CUE header.
@@ -74,31 +76,28 @@ class CueParser {
 	/**
 	 * The song currently being edited.
 	 */
-	DetachedSong *current;
+	std::unique_ptr<DetachedSong> current;
 
 	/**
 	 * The previous song.  It is remembered because its end_time
 	 * will be set to the current song's start time.
 	 */
-	DetachedSong *previous;
+	std::unique_ptr<DetachedSong> previous;
 
 	/**
 	 * A song that is completely finished and can be returned to
 	 * the caller via cue_parser_get().
 	 */
-	DetachedSong *finished;
+	std::unique_ptr<DetachedSong> finished;
 
 	/**
 	 * Tracks whether cue_parser_finish() has been called.  If
 	 * true, then all remaining (partial) results will be
 	 * delivered by cue_parser_get().
 	 */
-	bool end;
+	bool end = false;
 
 public:
-	CueParser();
-	~CueParser();
-
 	/**
 	 * Feed a text line from the CUE file into the parser.  Call
 	 * cue_parser_get() after this to see if a song has been finished.
@@ -119,7 +118,7 @@ public:
 	 * @return a song object that must be freed by the caller, or NULL if
 	 * no song was finished at this time
 	 */
-	DetachedSong *Get();
+	std::unique_ptr<DetachedSong> Get();
 
 private:
 	gcc_pure

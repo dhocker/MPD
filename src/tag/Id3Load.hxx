@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2003-2015 The Music Player Daemon Project
+ * Copyright (C) 2003-2016 The Music Player Daemon Project
  * http://www.musicpd.org
  *
  * This program is free software; you can redistribute it and/or modify
@@ -17,16 +17,23 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-#include "config.h"
-#include "MemorySongEnumerator.hxx"
+#ifndef MPD_TAG_ID3_LOAD_HXX
+#define MPD_TAG_ID3_LOAD_HXX
 
-std::unique_ptr<DetachedSong>
-MemorySongEnumerator::NextSong()
-{
-	if (songs.empty())
-		return nullptr;
+#include "check.h"
+#include "Id3Unique.hxx"
 
-	std::unique_ptr<DetachedSong> result(new DetachedSong(std::move(songs.front())));
-	songs.pop_front();
-	return result;
-}
+class Path;
+class Error;
+
+/**
+ * Loads the ID3 tags from the file into a libid3tag object.  The
+ * return value must be freed with id3_tag_delete().
+ *
+ * @return nullptr on error or if no ID3 tag was found in the file (no
+ * Error will be set)
+ */
+UniqueId3Tag
+tag_id3_load(Path path_fs, Error &error);
+
+#endif

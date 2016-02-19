@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2003-2015 The Music Player Daemon Project
+ * Copyright (C) 2003-2016 The Music Player Daemon Project
  * http://www.musicpd.org
  *
  * This program is free software; you can redistribute it and/or modify
@@ -27,7 +27,6 @@ class Path;
 struct tag_handler;
 struct Tag;
 struct id3_tag;
-class Error;
 
 #ifdef ENABLE_ID3TAG
 
@@ -37,16 +36,6 @@ tag_id3_scan(Path path_fs,
 
 Tag *
 tag_id3_import(id3_tag *);
-
-/**
- * Loads the ID3 tags from the file into a libid3tag object.  The
- * return value must be freed with id3_tag_delete().
- *
- * @return nullptr on error or if no ID3 tag was found in the file (no
- * Error will be set)
- */
-struct id3_tag *
-tag_id3_load(Path path_fs, Error &error);
 
 /**
  * Import all tags from the provided id3_tag *tag

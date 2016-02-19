@@ -69,7 +69,7 @@ public:
 		delete parser;
 	}
 
-	virtual DetachedSong *NextSong() override;
+	virtual std::unique_ptr<DetachedSong> NextSong() override;
 };
 
 static void
@@ -124,10 +124,10 @@ embcue_playlist_open_uri(const char *uri,
 	return playlist;
 }
 
-DetachedSong *
+std::unique_ptr<DetachedSong>
 EmbeddedCuePlaylist::NextSong()
 {
-	DetachedSong *song = parser->Get();
+	auto song = parser->Get();
 	if (song != nullptr) {
 		song->SetURI(filename);
 		return song;

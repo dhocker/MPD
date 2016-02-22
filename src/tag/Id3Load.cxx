@@ -36,6 +36,8 @@
 
 static constexpr Domain id3_domain("id3");
 
+static constexpr size_t ID3V1_SIZE = 128;
+
 gcc_pure
 static inline bool
 tag_is_id3v1(struct id3_tag *tag)
@@ -94,6 +96,17 @@ ReadId3Tag(FILE *file)
 }
 
 static UniqueId3Tag
+ReadId3v1Tag(FILE *file)
+{
+	id3_byte_t buffer[ID3V1_SIZE];
+
+	if (fread(buffer, 1, ID3V1_SIZE, file) != ID3V1_SIZE)
+		return nullptr;
+
+	return UniqueId3Tag(id3_tag_parse(buffer, ID3V1_SIZE));
+}
+
+static UniqueId3Tag
 tag_id3_read(FILE *file, long offset, int whence)
 {
 	if (fseek(file, offset, whence) != 0)
@@ -136,11 +149,18 @@ tag_id3_find_from_beginning(FILE *stream)
 static UniqueId3Tag
 tag_id3_find_from_end(FILE *stream)
 {
+	off_t offset = -(off_t)ID3V1_SIZE;
+
 	/* Get an id3v1 tag from the end of file for later use */
-	auto v1tag = tag_id3_read(stream, -128, SEEK_END);
+	if (fseek(stream, offset, SEEK_END) != 0)
+		return nullptr;
+
+	auto v1tag = ReadId3v1Tag(stream);
+	if (!v1tag)
+		offset = 0;
 
 	/* Get the id3v2 tag size from the footer (located before v1tag) */
-	int tagsize = get_id3v2_footer_size(stream, (v1tag ? -128 : 0) - 10, SEEK_END);
+	int tagsize = get_id3v2_footer_size(stream, offset - ID3_TAG_QUERYSIZE, SEEK_END);
 	if (tagsize >= 0)
 		return v1tag;
 

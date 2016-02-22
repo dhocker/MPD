@@ -17,19 +17,13 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-#include "config.h"
-#include "CloseSongEnumerator.hxx"
-#include "input/InputStream.hxx"
-#include "DetachedSong.hxx"
+#ifndef MPD_INPUT_STREAM_PTR_HXX
+#define MPD_INPUT_STREAM_PTR_HXX
 
-CloseSongEnumerator::~CloseSongEnumerator()
-{
-	delete other;
-	delete is;
-}
+#include <memory>
 
-std::unique_ptr<DetachedSong>
-CloseSongEnumerator::NextSong()
-{
-	return other->NextSong();
-}
+class InputStream;
+
+typedef std::unique_ptr<InputStream> InputStreamPtr;
+
+#endif

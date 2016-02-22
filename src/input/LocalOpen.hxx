@@ -21,8 +21,8 @@
 #define MPD_INPUT_LOCAL_OPEN_HXX
 
 #include "check.h"
+#include "Ptr.hxx"
 
-class InputStream;
 class Path;
 class Mutex;
 class Cond;
@@ -32,7 +32,7 @@ class Error;
  * Open a "local" file.  This is a wrapper for the input plugins
  * "file" and "archive".
  */
-InputStream *
+InputStreamPtr
 OpenLocalInputStream(Path path, Mutex &mutex, Cond &cond, Error &error);
 
 #endif

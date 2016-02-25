@@ -13,6 +13,7 @@ ver 0.20 (not yet released)
     (most importantly some mp3s)
   - id3: remove the "id3v1_encoding" setting; by definition, all ID3v1 tags
     are ISO-Latin-1
+  - ape: support APE replay gain on remote files
 * decoder
   - improved error logging
   - report I/O errors to clients
@@ -47,11 +48,13 @@ ver 0.20 (not yet released)
 * update
   - apply .mpdignore matches to subdirectories
 
-ver 0.19.13 (not yet released)
+ver 0.19.13 (2016/02/23)
 * tags
   - aiff, riff: fix ID3 chunk padding
 * decoder
   - ffmpeg: support the TAK codec
+* fix disappearing duration of remote songs during playback
+* initialize supplementary groups with glibc 2.19+
 
 ver 0.19.12 (2015/12/15)
 * fix assertion failure on malformed UTF-8 tag

@@ -23,7 +23,6 @@
 #include "Tag.hxx"
 #include "TagTable.hxx"
 #include "TagHandler.hxx"
-#include "fs/Path.hxx"
 #include "util/StringView.hxx"
 
 #include <string>
@@ -77,7 +76,7 @@ ForEachValue(const char *value, const char *end, C &&callback)
 static bool
 tag_ape_import_item(unsigned long flags,
 		    const char *key, StringView value,
-		    const struct tag_handler *handler, void *handler_ctx)
+		    const TagHandler &handler, void *handler_ctx)
 {
 	/* we only care about utf-8 text tags */
 	if ((flags & (0x3 << 1)) != 0)
@@ -86,10 +85,10 @@ tag_ape_import_item(unsigned long flags,
 	const auto begin = value.begin();
 	const auto end = value.end();
 
-	if (handler->pair != nullptr)
+	if (handler.pair != nullptr)
 		ForEachValue(begin, end, [handler, handler_ctx,
 					  key](const char *_value) {
-				handler->pair(key, _value, handler_ctx);
+				handler.pair(key, _value, handler_ctx);
 			});
 
 	TagType type = tag_ape_name_parse(key);
@@ -106,8 +105,8 @@ tag_ape_import_item(unsigned long flags,
 }
 
 bool
-tag_ape_scan2(Path path_fs,
-	      const struct tag_handler *handler, void *handler_ctx)
+tag_ape_scan2(InputStream &is,
+	      const TagHandler &handler, void *handler_ctx)
 {
 	bool recognized = false;
 
@@ -119,5 +118,5 @@ tag_ape_scan2(Path path_fs,
 		return true;
 	};
 
-	return tag_ape_scan(path_fs, callback) && recognized;
+	return tag_ape_scan(is, callback) && recognized;
 }

@@ -20,15 +20,17 @@
 #include "config.h"
 #include "ApeLoader.hxx"
 #include "system/ByteOrder.hxx"
-#include "fs/FileSystem.hxx"
+#include "input/InputStream.hxx"
 #include "util/StringView.hxx"
+#include "util/Error.hxx"
+
+#include <memory>
 
 #include <stdint.h>
 #include <assert.h>
-#include <stdio.h>
 #include <string.h>
 
-struct ape_footer {
+struct ApeFooter {
 	unsigned char id[8];
 	uint32_t version;
 	uint32_t length;
@@ -37,13 +39,18 @@ struct ape_footer {
 	unsigned char reserved[8];
 };
 
-static bool
-ape_scan_internal(FILE *fp, ApeTagCallback callback)
+bool
+tag_ape_scan(InputStream &is, ApeTagCallback callback)
 {
+	const ScopeLock protect(is.mutex);
+
+	if (!is.KnownSize() || !is.CheapSeeking())
+		return false;
+
 	/* determine if file has an apeV2 tag */
-	struct ape_footer footer;
-	if (fseek(fp, -(long)sizeof(footer), SEEK_END) ||
-	    fread(&footer, 1, sizeof(footer), fp) != sizeof(footer) ||
+	ApeFooter footer;
+	if (!is.Seek(is.GetSize() - sizeof(footer), IgnoreError()) ||
+	    !is.ReadFull(&footer, sizeof(footer), IgnoreError()) ||
 	    memcmp(footer.id, "APETAGEX", sizeof(footer.id)) != 0 ||
 	    FromLE32(footer.version) != 2000)
 		return false;
@@ -53,22 +60,20 @@ ape_scan_internal(FILE *fp, ApeTagCallback callback)
 	if (remaining <= sizeof(footer) + 10 ||
 	    /* refuse to load more than one megabyte of tag data */
 	    remaining > 1024 * 1024 ||
-	    fseek(fp, -(long)remaining, SEEK_END))
+	    !is.Seek(is.GetSize() - remaining, IgnoreError()))
 		return false;
 
 	/* read tag into buffer */
 	remaining -= sizeof(footer);
 	assert(remaining > 10);
 
-	char *buffer = new char[remaining];
-	if (fread(buffer, 1, remaining, fp) != remaining) {
-		delete[] buffer;
+	std::unique_ptr<char[]> buffer(new char[remaining]);
+	if (!is.ReadFull(buffer.get(), remaining, IgnoreError()))
 		return false;
-	}
 
 	/* read tags */
 	unsigned n = FromLE32(footer.count);
-	const char *p = buffer;
+	const char *p = buffer.get();
 	while (n-- && remaining > 10) {
 		size_t size = FromLE32(*(const uint32_t *)p);
 		p += 4;
@@ -97,18 +102,5 @@ ape_scan_internal(FILE *fp, ApeTagCallback callback)
 		remaining -= size;
 	}
 
-	delete[] buffer;
 	return true;
-}
-
-bool
-tag_ape_scan(Path path_fs, ApeTagCallback callback)
-{
-	FILE *fp = FOpen(path_fs, PATH_LITERAL("rb"));
-	if (fp == nullptr)
-		return false;
-
-	bool success = ape_scan_internal(fp, callback);
-	fclose(fp);
-	return success;
 }

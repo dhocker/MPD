@@ -17,22 +17,26 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-#ifndef MPD_TAG_FILE_HXX
-#define MPD_TAG_FILE_HXX
+#ifndef MPD_TAG_GENERIC_HXX
+#define MPD_TAG_GENERIC_HXX
 
 #include "check.h"
 
-class Path;
 struct TagHandler;
+class InputStream;
+class Path;
 
 /**
- * Scan the tags of a song file.  Invokes matching decoder plugins,
- * but does not invoke the special "APE" and "ID3" scanners.
- *
- * @return true if the file was recognized (even if no metadata was
- * found)
+ * Attempts to scan APE or ID3 tags from the specified stream.  The
+ * stream does not need to be rewound.
  */
 bool
-tag_file_scan(Path path, const TagHandler &handler, void *handler_ctx);
+ScanGenericTags(InputStream &is, const TagHandler &handler, void *ctx);
+
+/**
+ * Attempts to scan APE or ID3 tags from the specified file.
+ */
+bool
+ScanGenericTags(Path path, const TagHandler &handler, void *ctx);
 
 #endif

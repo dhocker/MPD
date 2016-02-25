@@ -31,8 +31,7 @@
 #include "util/UriUtil.hxx"
 #include "util/Error.hxx"
 #include "tag/TagHandler.hxx"
-#include "tag/ApeTag.hxx"
-#include "tag/TagId3.hxx"
+#include "tag/Generic.hxx"
 #include "TagStream.hxx"
 #include "TagFile.hxx"
 #include "storage/StorageInterface.hxx"
@@ -148,7 +147,7 @@ print_pair(const char *key, const char *value, void *ctx)
 		r.Format("%s: %s\n", key, value);
 }
 
-static constexpr tag_handler print_comment_handler = {
+static constexpr TagHandler print_comment_handler = {
 	nullptr,
 	nullptr,
 	print_pair,
@@ -174,8 +173,7 @@ read_file_comments(Response &r, const Path path_fs)
 		return CommandResult::ERROR;
 	}
 
-	tag_ape_scan2(path_fs, &print_comment_handler, &r);
-	tag_id3_scan(path_fs, &print_comment_handler, &r);
+	ScanGenericTags(path_fs, print_comment_handler, &r);
 
 	return CommandResult::OK;
 

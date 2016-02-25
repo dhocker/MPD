@@ -29,8 +29,7 @@
 #include "../SongEnumerator.hxx"
 #include "../cue/CueParser.hxx"
 #include "tag/TagHandler.hxx"
-#include "tag/TagId3.hxx"
-#include "tag/ApeTag.hxx"
+#include "tag/Generic.hxx"
 #include "DetachedSong.hxx"
 #include "TagFile.hxx"
 #include "fs/Traits.hxx"
@@ -82,7 +81,7 @@ embcue_tag_pair(const char *name, const char *value, void *ctx)
 		playlist->cuesheet = value;
 }
 
-static const struct tag_handler embcue_tag_handler = {
+static constexpr TagHandler embcue_tag_handler = {
 	nullptr,
 	nullptr,
 	embcue_tag_pair,
@@ -104,11 +103,8 @@ embcue_playlist_open_uri(const char *uri,
 	const auto playlist = new EmbeddedCuePlaylist();
 
 	tag_file_scan(path_fs, embcue_tag_handler, playlist);
-	if (playlist->cuesheet.empty()) {
-		tag_ape_scan2(path_fs, &embcue_tag_handler, playlist);
-		if (playlist->cuesheet.empty())
-			tag_id3_scan(path_fs, &embcue_tag_handler, playlist);
-	}
+	if (playlist->cuesheet.empty())
+		ScanGenericTags(path_fs, embcue_tag_handler, playlist);
 
 	if (playlist->cuesheet.empty()) {
 		/* no "CUESHEET" tag found */

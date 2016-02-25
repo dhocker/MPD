@@ -862,6 +862,7 @@ libtag_a_SOURCES =\
 	src/tag/VorbisComment.cxx src/tag/VorbisComment.hxx \
 	src/tag/ReplayGain.cxx src/tag/ReplayGain.hxx \
 	src/tag/MixRamp.cxx src/tag/MixRamp.hxx \
+	src/tag/Generic.cxx src/tag/Generic.hxx \
 	src/tag/ApeLoader.cxx src/tag/ApeLoader.hxx \
 	src/tag/ApeReplayGain.cxx src/tag/ApeReplayGain.hxx \
 	src/tag/ApeTag.cxx src/tag/ApeTag.hxx
@@ -1882,14 +1883,24 @@ test_read_tags_SOURCES = test/read_tags.cxx \
 
 test_ReadApeTags_LDADD = \
 	$(TAG_LIBS) \
+	$(INPUT_LIBS) \
+	$(ARCHIVE_LIBS) \
 	$(FS_LIBS) \
 	$(ICU_LDADD) \
+	libsystem.a \
 	libutil.a
-test_ReadApeTags_SOURCES = test/ReadApeTags.cxx
+test_ReadApeTags_SOURCES = \
+	src/Log.cxx src/LogBackend.cxx \
+	test/ReadApeTags.cxx
 
 if ENABLE_ID3TAG
 test_dump_rva2_LDADD = \
 	$(TAG_LIBS) \
+	$(INPUT_LIBS) \
+	$(ARCHIVE_LIBS) \
+	$(FS_LIBS) \
+	$(ICU_LDADD) \
+	libsystem.a \
 	libutil.a
 test_dump_rva2_SOURCES = \
 	src/Log.cxx src/LogBackend.cxx \

@@ -18,50 +18,38 @@
  */
 
 #include "config.h"
-#include "tag/ApeLoader.hxx"
+#include "Generic.hxx"
+#include "TagId3.hxx"
+#include "ApeTag.hxx"
+#include "fs/Path.hxx"
 #include "thread/Mutex.hxx"
 #include "thread/Cond.hxx"
-#include "fs/Path.hxx"
-#include "Log.hxx"
 #include "input/InputStream.hxx"
 #include "input/LocalOpen.hxx"
-#include "util/StringView.hxx"
+#include "Log.hxx"
 #include "util/Error.hxx"
 
-#include <stdlib.h>
-#include <stdio.h>
+#include <stdexcept>
 
-#ifdef HAVE_LOCALE_H
-#include <locale.h>
-#endif
-
-static bool
-MyApeTagCallback(gcc_unused unsigned long flags,
-		 const char *key, StringView value)
+bool
+ScanGenericTags(InputStream &is, const TagHandler &handler, void *ctx)
 {
-	if ((flags & (0x3 << 1)) == 0)
-		// UTF-8
-		printf("\"%s\"=\"%.*s\"\n", key, (int)value.size, value.data);
-	else
-		printf("\"%s\"=0x%lx\n", key, flags);
-	return true;
+	if (tag_ape_scan2(is, handler, ctx))
+		return true;
+
+#ifdef ENABLE_ID3TAG
+	if (!is.Rewind(IgnoreError()))
+		return false;
+
+	return tag_id3_scan(is, handler, ctx);
+#else
+	return false;
+#endif
 }
 
-int
-main(int argc, char **argv)
-{
-#ifdef HAVE_LOCALE_H
-	/* initialize locale */
-	setlocale(LC_CTYPE,"");
-#endif
-
-	if (argc != 2) {
-		fprintf(stderr, "Usage: ReadApeTags FILE\n");
-		return EXIT_FAILURE;
-	}
-
-	const Path path = Path::FromFS(argv[1]);
-
+bool
+ScanGenericTags(Path path, const TagHandler &handler, void *ctx)
+try {
 	Mutex mutex;
 	Cond cond;
 
@@ -69,13 +57,11 @@ main(int argc, char **argv)
 	auto is = OpenLocalInputStream(path, mutex, cond, error);
 	if (!is) {
 		LogError(error);
-		return EXIT_FAILURE;
+		return false;
 	}
 
-	if (!tag_ape_scan(*is, MyApeTagCallback)) {
-		fprintf(stderr, "error\n");
-		return EXIT_FAILURE;
-	}
-
-	return EXIT_SUCCESS;
+	return ScanGenericTags(*is, handler, ctx);
+} catch (const std::runtime_error &e) {
+	LogError(e);
+	return false;
 }

@@ -28,6 +28,7 @@
 
 struct StringView;
 class Path;
+class InputStream;
 
 typedef std::function<bool(unsigned long flags, const char *key,
 			   StringView value)> ApeTagCallback;
@@ -35,11 +36,10 @@ typedef std::function<bool(unsigned long flags, const char *key,
 /**
  * Scans the APE tag values from a file.
  *
- * @param path_fs the path of the file in filesystem encoding
  * @return false if the file could not be opened or if no APE tag is
  * present
  */
 bool
-tag_ape_scan(Path path_fs, ApeTagCallback callback);
+tag_ape_scan(InputStream &is, ApeTagCallback callback);
 
 #endif

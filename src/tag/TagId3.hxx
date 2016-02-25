@@ -21,18 +21,15 @@
 #define MPD_TAG_ID3_HXX
 
 #include "check.h"
-#include "Compiler.h"
 
-class Path;
-struct tag_handler;
+class InputStream;
+struct TagHandler;
 struct Tag;
 struct id3_tag;
 
-#ifdef ENABLE_ID3TAG
-
 bool
-tag_id3_scan(Path path_fs,
-	     const tag_handler *handler, void *handler_ctx);
+tag_id3_scan(InputStream &is,
+	     const TagHandler &handler, void *handler_ctx);
 
 Tag *
 tag_id3_import(id3_tag *);
@@ -43,20 +40,6 @@ tag_id3_import(id3_tag *);
  */
 void
 scan_id3_tag(id3_tag *tag,
-	     const tag_handler *handler, void *handler_ctx);
-
-#else
-
-#include "fs/Path.hxx"
-
-static inline bool
-tag_id3_scan(gcc_unused Path path_fs,
-	     gcc_unused const tag_handler *handler,
-	     gcc_unused void *handler_ctx)
-{
-	return false;
-}
-
-#endif
+	     const TagHandler &handler, void *handler_ctx);
 
 #endif

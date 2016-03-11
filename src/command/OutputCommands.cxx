@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2003-2015 The Music Player Daemon Project
+ * Copyright 2003-2016 The Music Player Daemon Project
  * http://www.musicpd.org
  *
  * This program is free software; you can redistribute it and/or modify
@@ -25,7 +25,6 @@
 #include "client/Client.hxx"
 #include "client/Response.hxx"
 #include "Partition.hxx"
-#include "util/ConstBuffer.hxx"
 
 CommandResult
 handle_enableoutput(Client &client, Request args, Response &r)

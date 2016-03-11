@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2003-2015 The Music Player Daemon Project
+ * Copyright 2003-2016 The Music Player Daemon Project
  * http://www.musicpd.org
  *
  * This program is free software; you can redistribute it and/or modify
@@ -230,21 +230,26 @@ handle_mount(Client &client, Request args, Response &r)
 	}
 
 	composite.Mount(local_uri, storage);
-	idle_add(IDLE_MOUNT);
+	client.partition.EmitIdle(IDLE_MOUNT);
 
 #ifdef ENABLE_DATABASE
 	Database *_db = client.partition.instance.database;
 	if (_db != nullptr && _db->IsPlugin(simple_db_plugin)) {
 		SimpleDatabase &db = *(SimpleDatabase *)_db;
 
-		if (!db.Mount(local_uri, remote_uri, error)) {
+		try {
+			if (!db.Mount(local_uri, remote_uri, error)) {
+				composite.Unmount(local_uri);
+				return print_error(r, error);
+			}
+		} catch (...) {
 			composite.Unmount(local_uri);
-			return print_error(r, error);
+			throw;
 		}
 
 		// TODO: call Instance::OnDatabaseModified()?
 		// TODO: trigger database update?
-		idle_add(IDLE_DATABASE);
+		client.partition.EmitIdle(IDLE_DATABASE);
 	}
 #endif
 
@@ -282,7 +287,7 @@ handle_unmount(Client &client, Request args, Response &r)
 
 		if (db.Unmount(local_uri))
 			// TODO: call Instance::OnDatabaseModified()?
-			idle_add(IDLE_DATABASE);
+			client.partition.EmitIdle(IDLE_DATABASE);
 	}
 #endif
 
@@ -291,7 +296,7 @@ handle_unmount(Client &client, Request args, Response &r)
 		return CommandResult::ERROR;
 	}
 
-	idle_add(IDLE_MOUNT);
+	client.partition.EmitIdle(IDLE_MOUNT);
 
 	return CommandResult::OK;
 }

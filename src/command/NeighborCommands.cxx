@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2003-2015 The Music Player Daemon Project
+ * Copyright 2003-2016 The Music Player Daemon Project
  * http://www.musicpd.org
  *
  * This program is free software; you can redistribute it and/or modify
@@ -26,12 +26,8 @@
 #include "Partition.hxx"
 #include "neighbor/Glue.hxx"
 #include "neighbor/Info.hxx"
-#include "util/ConstBuffer.hxx"
 
-#include <set>
 #include <string>
-
-#include <assert.h>
 
 bool
 neighbor_commands_available(const Instance &instance)

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2003-2015 The Music Player Daemon Project
+ * Copyright 2003-2016 The Music Player Daemon Project
  * http://www.musicpd.org
  *
  * This program is free software; you can redistribute it and/or modify
@@ -20,7 +20,9 @@
 #ifndef MPD_PARTITION_HXX
 #define MPD_PARTITION_HXX
 
+#include "event/MaskMonitor.hxx"
 #include "queue/Playlist.hxx"
+#include "queue/Listener.hxx"
 #include "output/MultipleOutputs.hxx"
 #include "mixer/Listener.hxx"
 #include "player/Control.hxx"
@@ -36,8 +38,13 @@ class SongLoader;
  * A partition of the Music Player Daemon.  It is a separate unit with
  * a playlist, a player, outputs etc.
  */
-struct Partition final : private PlayerListener, private MixerListener {
+struct Partition final : QueueListener, PlayerListener, MixerListener {
+	static constexpr unsigned TAG_MODIFIED = 0x1;
+	static constexpr unsigned SYNC_WITH_PLAYER = 0x2;
+
 	Instance &instance;
+
+	CallbackMaskMonitor<Partition> global_events;
 
 	struct playlist playlist;
 
@@ -48,10 +55,13 @@ struct Partition final : private PlayerListener, private MixerListener {
 	Partition(Instance &_instance,
 		  unsigned max_length,
 		  unsigned buffer_chunks,
-		  unsigned buffered_before_play)
-		:instance(_instance), playlist(max_length),
-		 outputs(*this),
-		 pc(*this, outputs, buffer_chunks, buffered_before_play) {}
+		  unsigned buffered_before_play);
+
+	void EmitGlobalEvent(unsigned mask) {
+		global_events.OrMask(mask);
+	}
+
+	void EmitIdle(unsigned mask);
 
 	void ClearQueue() {
 		playlist.Clear(pc);
@@ -123,20 +133,20 @@ struct Partition final : private PlayerListener, private MixerListener {
 		playlist.Stop(pc);
 	}
 
-	void PlayPosition(int position) {
-		playlist.PlayPosition(pc, position);
+	bool PlayPosition(int position, Error &error) {
+		return playlist.PlayPosition(pc, position, error);
 	}
 
-	void PlayId(int id) {
-		playlist.PlayId(pc, id);
+	bool PlayId(int id, Error &error) {
+		return playlist.PlayId(pc, id, error);
 	}
 
-	void PlayNext() {
-		playlist.PlayNext(pc);
+	bool PlayNext(Error &error) {
+		return playlist.PlayNext(pc, error);
 	}
 
-	void PlayPrevious() {
-		playlist.PlayPrevious(pc);
+	bool PlayPrevious(Error &error) {
+		return playlist.PlayPrevious(pc, error);
 	}
 
 	bool SeekSongPosition(unsigned song_position,
@@ -201,12 +211,20 @@ struct Partition final : private PlayerListener, private MixerListener {
 	void SyncWithPlayer();
 
 private:
+	/* virtual methods from class QueueListener */
+	void OnQueueModified() override;
+	void OnQueueOptionsChanged() override;
+	void OnQueueSongStarted() override;
+
 	/* virtual methods from class PlayerListener */
-	virtual void OnPlayerSync() override;
-	virtual void OnPlayerTagModified() override;
+	void OnPlayerSync() override;
+	void OnPlayerTagModified() override;
 
 	/* virtual methods from class MixerListener */
-	virtual void OnMixerVolumeChanged(Mixer &mixer, int volume) override;
+	void OnMixerVolumeChanged(Mixer &mixer, int volume) override;
+
+	/* callback for #global_events */
+	void OnGlobalEvent(unsigned mask);
 };
 
 #endif

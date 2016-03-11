@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2003-2015 The Music Player Daemon Project
+ * Copyright 2003-2016 The Music Player Daemon Project
  * http://www.musicpd.org
  *
  * This program is free software; you can redistribute it and/or modify
@@ -24,8 +24,6 @@
 #include "FlacIOHandle.hxx"
 
 #include <FLAC/metadata.h>
-
-#include <assert.h>
 
 struct TagHandler;
 class MixRampInfo;

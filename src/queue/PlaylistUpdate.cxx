@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2003-2015 The Music Player Daemon Project
+ * Copyright 2003-2016 The Music Player Daemon Project
  * http://www.musicpd.org
  *
  * This program is free software; you can redistribute it and/or modify
@@ -22,8 +22,6 @@
 #include "db/Interface.hxx"
 #include "db/LightSong.hxx"
 #include "DetachedSong.hxx"
-#include "tag/Tag.hxx"
-#include "Idle.hxx"
 #include "util/Error.hxx"
 
 static bool
@@ -66,8 +64,6 @@ playlist::DatabaseModified(const Database &db)
 		}
 	}
 
-	if (modified) {
-		queue.IncrementVersion();
-		idle_add(IDLE_PLAYLIST);
-	}
+	if (modified)
+		OnModified();
 }

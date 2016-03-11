@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2003-2015 The Music Player Daemon Project
+ * Copyright 2003-2016 The Music Player Daemon Project
  * http://www.musicpd.org
  *
  * This program is free software; you can redistribute it and/or modify
@@ -97,7 +97,7 @@ public:
 	 * success, this object gains ownership of the given #Database
 	 */
 	gcc_nonnull_all
-	bool Mount(const char *uri, Database *db, Error &error);
+	void Mount(const char *uri, Database *db);
 
 	gcc_nonnull_all
 	bool Mount(const char *local_uri, const char *storage_uri,

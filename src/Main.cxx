@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2003-2015 The Music Player Daemon Project
+ * Copyright 2003-2016 The Music Player Daemon Project
  * http://www.musicpd.org
  *
  * This program is free software; you can redistribute it and/or modify
@@ -22,7 +22,6 @@
 #include "Instance.hxx"
 #include "CommandLine.hxx"
 #include "PlaylistFile.hxx"
-#include "PlaylistGlobal.hxx"
 #include "MusicChunk.hxx"
 #include "StateFile.hxx"
 #include "player/Thread.hxx"
@@ -38,7 +37,6 @@
 #include "Idle.hxx"
 #include "Log.hxx"
 #include "LogInit.hxx"
-#include "GlobalEvents.hxx"
 #include "input/Init.hxx"
 #include "event/Loop.hxx"
 #include "IOThread.hxx"
@@ -51,9 +49,7 @@
 #include "pcm/PcmConvert.hxx"
 #include "unix/SignalHandlers.hxx"
 #include "system/FatalError.hxx"
-#include "util/UriUtil.hxx"
 #include "util/Error.hxx"
-#include "thread/Id.hxx"
 #include "thread/Slack.hxx"
 #include "lib/icu/Init.hxx"
 #include "config/ConfigGlobal.hxx"
@@ -131,8 +127,6 @@ Context *context;
 
 Instance *instance;
 
-static StateFile *state_file;
-
 #ifdef ENABLE_DAEMON
 
 static bool
@@ -192,7 +186,7 @@ glue_db_init_and_load(void)
 {
 	Error error;
 	instance->database =
-		CreateConfiguredDatabase(*instance->event_loop, *instance,
+		CreateConfiguredDatabase(instance->event_loop, *instance,
 					 error);
 	if (instance->database == nullptr) {
 		if (error.IsDefined())
@@ -227,7 +221,7 @@ glue_db_init_and_load(void)
 		return true;
 
 	SimpleDatabase &db = *(SimpleDatabase *)instance->database;
-	instance->update = new UpdateService(*instance->event_loop, db,
+	instance->update = new UpdateService(instance->event_loop, db,
 					     static_cast<CompositeStorage &>(*instance->storage),
 					     *instance);
 
@@ -287,10 +281,10 @@ glue_state_file_init(Error &error)
 		config_get_unsigned(ConfigOption::STATE_FILE_INTERVAL,
 				    StateFile::DEFAULT_INTERVAL);
 
-	state_file = new StateFile(std::move(path_fs), interval,
-				   *instance->partition,
-				   *instance->event_loop);
-	state_file->Read();
+	instance->state_file = new StateFile(std::move(path_fs), interval,
+					     *instance->partition,
+					     instance->event_loop);
+	instance->state_file->Read();
 	return true;
 }
 
@@ -370,35 +364,17 @@ initialize_decoder_and_player(void)
 					    buffered_before_play);
 }
 
-/**
- * Handler for GlobalEvents::IDLE.
- */
-static void
-idle_event_emitted(void)
+void
+Instance::OnIdle(unsigned flags)
 {
 	/* send "idle" notifications to all subscribed
 	   clients */
-	unsigned flags = idle_get();
-	if (flags != 0)
-		instance->client_list->IdleAdd(flags);
+	client_list->IdleAdd(flags);
 
 	if (flags & (IDLE_PLAYLIST|IDLE_PLAYER|IDLE_MIXER|IDLE_OUTPUT) &&
 	    state_file != nullptr)
 		state_file->CheckModified();
 }
-
-#ifdef WIN32
-
-/**
- * Handler for GlobalEvents::SHUTDOWN.
- */
-static void
-shutdown_event_emitted(void)
-{
-	instance->event_loop->Break();
-}
-
-#endif
 
 #ifndef ANDROID
 
@@ -483,7 +459,6 @@ int mpd_main(int argc, char *argv[])
 	}
 
 	instance = new Instance();
-	instance->event_loop = new EventLoop();
 
 #ifdef ENABLE_NEIGHBOR_PLUGINS
 	instance->neighbors = new NeighborGlue();
@@ -504,7 +479,7 @@ int mpd_main(int argc, char *argv[])
 
 	initialize_decoder_and_player();
 
-	if (!listen_global_init(*instance->event_loop, *instance->partition,
+	if (!listen_global_init(instance->event_loop, *instance->partition,
 				error)) {
 		LogError(error);
 		return EXIT_FAILURE;
@@ -536,12 +511,6 @@ static int mpd_main_after_fork(struct options options)
 try {
 	Error error;
 
-	GlobalEvents::Initialize(*instance->event_loop);
-	GlobalEvents::Register(GlobalEvents::IDLE, idle_event_emitted);
-#ifdef WIN32
-	GlobalEvents::Register(GlobalEvents::SHUTDOWN, shutdown_event_emitted);
-#endif
-
 	if (!ConfigureFS(error)) {
 		LogError(error);
 		return EXIT_FAILURE;
@@ -553,7 +522,6 @@ try {
 	}
 
 	initPermissions();
-	playlist_global_init();
 	spl_global_init();
 #ifdef ENABLE_ARCHIVE
 	archive_plugin_init_all();
@@ -574,7 +542,7 @@ try {
 
 	command_init();
 	initAudioConfig();
-	instance->partition->outputs.Configure(*instance->event_loop,
+	instance->partition->outputs.Configure(instance->event_loop,
 					       instance->partition->pc);
 	client_manager_init();
 	replay_gain_global_init();
@@ -593,7 +561,7 @@ try {
 #ifndef ANDROID
 	setup_log_output(options.log_stderr);
 
-	SignalHandlersInit(*instance->event_loop);
+	SignalHandlersInit(instance->event_loop);
 #endif
 
 	io_thread_start();
@@ -604,7 +572,7 @@ try {
 		FatalError(error);
 #endif
 
-	ZeroconfInit(*instance->event_loop);
+	ZeroconfInit(instance->event_loop);
 
 	StartPlayerThread(instance->partition->pc);
 
@@ -630,7 +598,7 @@ try {
 #ifdef ENABLE_INOTIFY
 		if (instance->storage != nullptr &&
 		    instance->update != nullptr)
-			mpd_inotify_init(*instance->event_loop,
+			mpd_inotify_init(instance->event_loop,
 					 *instance->storage,
 					 *instance->update,
 					 config_get_unsigned(ConfigOption::AUTO_UPDATE_DEPTH,
@@ -661,7 +629,7 @@ try {
 #endif
 
 	/* run the main loop */
-	instance->event_loop->Run();
+	instance->event_loop.Run();
 
 #ifdef WIN32
 	win32_app_stopping();
@@ -676,9 +644,9 @@ try {
 		instance->update->CancelAllAsync();
 #endif
 
-	if (state_file != nullptr) {
-		state_file->Write();
-		delete state_file;
+	if (instance->state_file != nullptr) {
+		instance->state_file->Write();
+		delete instance->state_file;
 	}
 
 	instance->partition->pc.Kill();
@@ -708,8 +676,6 @@ try {
 	sticker_global_finish();
 #endif
 
-	GlobalEvents::Deinitialize();
-
 	playlist_list_global_finish();
 	input_stream_global_finish();
 
@@ -730,7 +696,6 @@ try {
 #ifndef ANDROID
 	SignalHandlersFinish();
 #endif
-	delete instance->event_loop;
 	delete instance;
 	instance = nullptr;
 
@@ -774,7 +739,7 @@ JNIEXPORT void JNICALL
 Java_org_musicpd_Bridge_shutdown(JNIEnv *, jclass)
 {
 	if (instance != nullptr)
-		instance->event_loop->Break();
+		instance->Shutdown();
 }
 
 #endif

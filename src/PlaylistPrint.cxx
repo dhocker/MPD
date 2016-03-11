@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2003-2015 The Music Player Daemon Project
+ * Copyright 2003-2016 The Music Player Daemon Project
  * http://www.musicpd.org
  *
  * This program is free software; you can redistribute it and/or modify
@@ -20,19 +20,15 @@
 #include "config.h"
 #include "PlaylistPrint.hxx"
 #include "PlaylistFile.hxx"
+#include "PlaylistError.hxx"
 #include "queue/Playlist.hxx"
 #include "queue/QueuePrint.hxx"
 #include "SongPrint.hxx"
 #include "Partition.hxx"
 #include "Instance.hxx"
 #include "db/Interface.hxx"
-#include "client/Client.hxx"
 #include "client/Response.hxx"
-#include "input/InputStream.hxx"
-#include "DetachedSong.hxx"
-#include "fs/Traits.hxx"
 #include "util/Error.hxx"
-#include "thread/Cond.hxx"
 
 #define SONG_FILE "file: "
 #define SONG_TIME "Time: "
@@ -46,7 +42,7 @@ playlist_print_uris(Response &r, Partition &partition,
 	queue_print_uris(r, partition, queue, 0, queue.GetLength());
 }
 
-bool
+void
 playlist_print_info(Response &r, Partition &partition,
 		    const playlist &playlist,
 		    unsigned start, unsigned end)
@@ -59,13 +55,12 @@ playlist_print_info(Response &r, Partition &partition,
 
 	if (start > end)
 		/* an invalid "start" offset is fatal */
-		return false;
+		throw PlaylistError::BadRange();
 
 	queue_print_info(r, partition, queue, start, end);
-	return true;
 }
 
-bool
+void
 playlist_print_id(Response &r, Partition &partition, const playlist &playlist,
 		  unsigned id)
 {
@@ -74,10 +69,10 @@ playlist_print_id(Response &r, Partition &partition, const playlist &playlist,
 	position = playlist.queue.IdToPosition(id);
 	if (position < 0)
 		/* no such song */
-		return false;
+		throw PlaylistError::NoSuchSong();
 
-	return playlist_print_info(r, partition,
-				   playlist, position, position + 1);
+	playlist_print_info(r, partition,
+			    playlist, position, position + 1);
 }
 
 bool

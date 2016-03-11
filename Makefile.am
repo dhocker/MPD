@@ -95,6 +95,7 @@ libmpd_a_SOURCES = \
 	src/command/OtherCommands.cxx src/command/OtherCommands.hxx \
 	src/command/CommandListBuilder.cxx src/command/CommandListBuilder.hxx \
 	src/Idle.cxx src/Idle.hxx \
+	src/IdleFlags.cxx src/IdleFlags.hxx \
 	src/decoder/DecoderError.cxx src/decoder/DecoderError.hxx \
 	src/decoder/DecoderThread.cxx src/decoder/DecoderThread.hxx \
 	src/decoder/DecoderCommand.hxx \
@@ -131,7 +132,6 @@ libmpd_a_SOURCES = \
 	src/IOThread.cxx src/IOThread.hxx \
 	src/Instance.cxx src/Instance.hxx \
 	src/win32/Win32Main.cxx \
-	src/GlobalEvents.cxx src/GlobalEvents.hxx \
 	src/MixRampInfo.hxx \
 	src/MusicBuffer.cxx src/MusicBuffer.hxx \
 	src/MusicPipe.cxx src/MusicPipe.hxx \
@@ -144,7 +144,6 @@ libmpd_a_SOURCES = \
 	src/player/Control.cxx src/player/Control.hxx \
 	src/player/Listener.hxx \
 	src/PlaylistError.cxx src/PlaylistError.hxx \
-	src/PlaylistGlobal.cxx src/PlaylistGlobal.hxx \
 	src/PlaylistPrint.cxx src/PlaylistPrint.hxx \
 	src/PlaylistSave.cxx src/PlaylistSave.hxx \
 	src/playlist/PlaylistStream.cxx src/playlist/PlaylistStream.hxx \
@@ -165,6 +164,7 @@ libmpd_a_SOURCES = \
 	src/queue/PlaylistEdit.cxx \
 	src/queue/PlaylistTag.cxx \
 	src/queue/PlaylistState.cxx src/queue/PlaylistState.hxx \
+	src/queue/Listener.hxx \
 	src/ReplayGainConfig.cxx src/ReplayGainConfig.hxx \
 	src/ReplayGainInfo.cxx src/ReplayGainInfo.hxx \
 	src/DetachedSong.cxx src/DetachedSong.hxx \
@@ -240,7 +240,6 @@ UPNP_SOURCES = \
 	src/lib/upnp/Device.cxx src/lib/upnp/Device.hxx \
 	src/lib/upnp/ContentDirectoryService.cxx src/lib/upnp/ContentDirectoryService.hxx \
 	src/lib/upnp/Discovery.cxx src/lib/upnp/Discovery.hxx \
-	src/lib/upnp/Domain.cxx src/lib/upnp/Domain.hxx \
 	src/lib/upnp/ixmlwrap.cxx src/lib/upnp/ixmlwrap.hxx \
 	src/lib/upnp/Callback.hxx \
 	src/lib/upnp/Util.cxx src/lib/upnp/Util.hxx \
@@ -392,6 +391,7 @@ endif
 libutil_a_SOURCES = \
 	src/util/RuntimeError.hxx \
 	src/util/Macros.hxx \
+	src/util/BoundMethod.hxx \
 	src/util/Cast.hxx \
 	src/util/Clamp.hxx \
 	src/util/DeleteDisposer.hxx \
@@ -491,6 +491,7 @@ libevent_a_SOURCES = \
 	src/event/TimeoutMonitor.hxx src/event/TimeoutMonitor.cxx \
 	src/event/IdleMonitor.hxx src/event/IdleMonitor.cxx \
 	src/event/DeferredMonitor.hxx src/event/DeferredMonitor.cxx \
+	src/event/MaskMonitor.hxx src/event/MaskMonitor.cxx \
 	src/event/SocketMonitor.cxx src/event/SocketMonitor.hxx \
 	src/event/BufferedSocket.cxx src/event/BufferedSocket.hxx \
 	src/event/FullyBufferedSocket.cxx src/event/FullyBufferedSocket.hxx \
@@ -607,7 +608,6 @@ libfs_a_CPPFLAGS = $(AM_CPPFLAGS) $(ZLIB_CFLAGS)
 
 if ENABLE_ZLIB
 libfs_a_SOURCES += \
-	src/lib/zlib/Domain.cxx src/lib/zlib/Domain.hxx \
 	src/lib/zlib/Error.cxx src/lib/zlib/Error.hxx \
 	src/fs/io/GunzipReader.cxx src/fs/io/GunzipReader.hxx \
 	src/fs/io/AutoGunzipReader.cxx src/fs/io/AutoGunzipReader.hxx \
@@ -2244,7 +2244,7 @@ endif
 #
 
 man_MANS = doc/mpd.1 doc/mpd.conf.5
-doc_DATA = AUTHORS COPYING NEWS README doc/mpdconf.example
+doc_DATA = AUTHORS COPYING NEWS README.md doc/mpdconf.example
 
 DOCBOOK_FILES = doc/protocol.xml doc/user.xml doc/developer.xml
 

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2003-2015 The Music Player Daemon Project
+ * Copyright 2003-2016 The Music Player Daemon Project
  * http://www.musicpd.org
  *
  * This program is free software; you can redistribute it and/or modify
@@ -21,24 +21,25 @@
 #include "PlaylistQueue.hxx"
 #include "PlaylistAny.hxx"
 #include "PlaylistSong.hxx"
+#include "PlaylistError.hxx"
 #include "queue/Playlist.hxx"
 #include "SongEnumerator.hxx"
 #include "DetachedSong.hxx"
 #include "thread/Mutex.hxx"
 #include "thread/Cond.hxx"
 #include "fs/Traits.hxx"
-#include "util/Error.hxx"
 
 #ifdef ENABLE_DATABASE
 #include "SongLoader.hxx"
 #endif
 
-bool
+#include <memory>
+
+void
 playlist_load_into_queue(const char *uri, SongEnumerator &e,
 			 unsigned start_index, unsigned end_index,
 			 playlist &dest, PlayerControl &pc,
-			 const SongLoader &loader,
-			 Error &error)
+			 const SongLoader &loader)
 {
 	const std::string base_uri = uri != nullptr
 		? PathTraitsUTF8::GetParent(uri)
@@ -58,39 +59,28 @@ playlist_load_into_queue(const char *uri, SongEnumerator &e,
 			continue;
 		}
 
-		unsigned id = dest.AppendSong(pc, std::move(*song), error);
-		if (id == 0)
-			return false;
+		dest.AppendSong(pc, std::move(*song));
 	}
-
-	return true;
 }
 
-bool
+void
 playlist_open_into_queue(const char *uri,
 			 unsigned start_index, unsigned end_index,
 			 playlist &dest, PlayerControl &pc,
-			 const SongLoader &loader,
-			 Error &error)
+			 const SongLoader &loader)
 {
 	Mutex mutex;
 	Cond cond;
 
-	auto playlist = playlist_open_any(uri,
+	std::unique_ptr<SongEnumerator> playlist(playlist_open_any(uri,
 #ifdef ENABLE_DATABASE
-					  loader.GetStorage(),
+								   loader.GetStorage(),
 #endif
-					  mutex, cond);
-	if (playlist == nullptr) {
-		error.Set(playlist_domain, int(PlaylistResult::NO_SUCH_LIST),
-			  "No such playlist");
-		return false;
-	}
+								   mutex, cond));
+	if (playlist == nullptr)
+		throw PlaylistError::NoSuchList();
 
-	bool result =
-		playlist_load_into_queue(uri, *playlist,
-					 start_index, end_index,
-					 dest, pc, loader, error);
-	delete playlist;
-	return result;
+	playlist_load_into_queue(uri, *playlist,
+				 start_index, end_index,
+				 dest, pc, loader);
 }

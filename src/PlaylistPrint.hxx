@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2003-2015 The Music Player Daemon Project
+ * Copyright 2003-2016 The Music Player Daemon Project
  * http://www.musicpd.org
  *
  * This program is free software; you can redistribute it and/or modify
@@ -25,9 +25,7 @@
 struct playlist;
 struct Partition;
 class SongFilter;
-class Client;
 class Response;
-class Error;
 
 /**
  * Sends the whole playlist to the client, song URIs only.
@@ -41,8 +39,10 @@ playlist_print_uris(Response &r, Partition &partition,
  * information about the songs.  The "end" offset is decreased
  * automatically if it is too large; passing UINT_MAX is allowed.
  * This function however fails when the start offset is invalid.
+ *
+ * Throws #PlaylistError if the range is invalid.
  */
-bool
+void
 playlist_print_info(Response &r, Partition &partition,
 		    const playlist &playlist,
 		    unsigned start, unsigned end);
@@ -50,9 +50,9 @@ playlist_print_info(Response &r, Partition &partition,
 /**
  * Sends the song with the specified id to the client.
  *
- * @return true on suite, false if there is no such song
+ * Throws #PlaylistError if the range is invalid.
  */
-bool
+void
 playlist_print_id(Response &r, Partition &partition,
 		  const playlist &playlist, unsigned id);
 

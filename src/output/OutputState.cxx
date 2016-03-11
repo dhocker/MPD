@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2003-2015 The Music Player Daemon Project
+ * Copyright 2003-2016 The Music Player Daemon Project
  * http://www.musicpd.org
  *
  * This program is free software; you can redistribute it and/or modify
@@ -31,7 +31,6 @@
 #include "fs/io/BufferedOutputStream.hxx"
 #include "util/StringCompare.hxx"
 
-#include <assert.h>
 #include <stdlib.h>
 
 #define AUDIO_DEVICE_STATE "audio_device_state:"

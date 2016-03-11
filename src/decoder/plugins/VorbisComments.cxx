@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2003-2015 The Music Player Daemon Project
+ * Copyright 2003-2016 The Music Player Daemon Project
  * http://www.musicpd.org
  *
  * This program is free software; you can redistribute it and/or modify
@@ -26,11 +26,7 @@
 #include "tag/VorbisComment.hxx"
 #include "tag/ReplayGain.hxx"
 #include "ReplayGainInfo.hxx"
-#include "util/ASCII.hxx"
 #include "util/DivideString.hxx"
-
-#include <stddef.h>
-#include <stdlib.h>
 
 bool
 vorbis_comments_to_replay_gain(ReplayGainInfo &rgi, char **comments)

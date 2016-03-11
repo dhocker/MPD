@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2003-2015 The Music Player Daemon Project
+ * Copyright 2003-2016 The Music Player Daemon Project
  * http://www.musicpd.org
  *
  * This program is free software; you can redistribute it and/or modify
@@ -38,7 +38,7 @@ ScanGenericTags(InputStream &is, const TagHandler &handler, void *ctx)
 		return true;
 
 #ifdef ENABLE_ID3TAG
-	if (!is.Rewind(IgnoreError()))
+	if (!is.LockRewind(IgnoreError()))
 		return false;
 
 	return tag_id3_scan(is, handler, ctx);

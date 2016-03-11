@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2003-2015 The Music Player Daemon Project
+ * Copyright 2003-2016 The Music Player Daemon Project
  * http://www.musicpd.org
  *
  * This program is free software; you can redistribute it and/or modify
@@ -25,13 +25,14 @@
 
 #include "config.h"
 #include "Playlist.hxx"
+#include "Listener.hxx"
 #include "PlaylistError.hxx"
 #include "player/Control.hxx"
-#include "util/UriUtil.hxx"
 #include "util/Error.hxx"
 #include "DetachedSong.hxx"
 #include "SongLoader.hxx"
-#include "Idle.hxx"
+
+#include <memory>
 
 #include <stdlib.h>
 
@@ -46,7 +47,7 @@ playlist::OnModified()
 
 	queue.IncrementVersion();
 
-	idle_add(IDLE_PLAYLIST);
+	listener.OnQueueModified();
 }
 
 void
@@ -90,15 +91,13 @@ playlist::CommitBulk(PlayerControl &pc)
 }
 
 unsigned
-playlist::AppendSong(PlayerControl &pc, DetachedSong &&song, Error &error)
+playlist::AppendSong(PlayerControl &pc, DetachedSong &&song)
 {
 	unsigned id;
 
-	if (queue.IsFull()) {
-		error.Set(playlist_domain, int(PlaylistResult::TOO_LARGE),
-			  "Playlist is too large");
-		return 0;
-	}
+	if (queue.IsFull())
+		throw PlaylistError(PlaylistResult::TOO_LARGE,
+				    "Playlist is too large");
 
 	const DetachedSong *const queued_song = GetQueuedSong();
 
@@ -128,14 +127,11 @@ playlist::AppendURI(PlayerControl &pc, const SongLoader &loader,
 		    const char *uri,
 		    Error &error)
 {
-	DetachedSong *song = loader.LoadSong(uri, error);
+	std::unique_ptr<DetachedSong> song(loader.LoadSong(uri, error));
 	if (song == nullptr)
 		return 0;
 
-	unsigned result = AppendSong(pc, std::move(*song), error);
-	delete song;
-
-	return result;
+	return AppendSong(pc, std::move(*song));
 }
 
 void
@@ -242,7 +238,8 @@ playlist::DeleteInternal(PlayerControl &pc,
 
 		if (current >= 0 && !paused)
 			/* play the song after the deleted one */
-			PlayOrder(pc, current);
+			/* TODO: log error? */
+			PlayOrder(pc, current, IgnoreError());
 		else {
 			/* stop the player */
 
@@ -420,26 +417,20 @@ playlist::Shuffle(PlayerControl &pc, unsigned start, unsigned end)
 	OnModified();
 }
 
-bool
+void
 playlist::SetSongIdRange(PlayerControl &pc, unsigned id,
-			 SongTime start, SongTime end,
-			 Error &error)
+			 SongTime start, SongTime end)
 {
 	assert(end.IsZero() || start < end);
 
 	int position = queue.IdToPosition(id);
-	if (position < 0) {
-		error.Set(playlist_domain, int(PlaylistResult::NO_SUCH_SONG),
-			  "No such song");
-		return false;
-	}
+	if (position < 0)
+		throw PlaylistError::NoSuchSong();
 
 	if (playing) {
-		if (position == current) {
-			error.Set(playlist_domain, int(PlaylistResult::DENIED),
-				  "Cannot edit the current song");
-			return false;
-		}
+		if (position == current)
+			throw PlaylistError(PlaylistResult::DENIED,
+					    "Cannot edit the current song");
 
 		if (position == queued) {
 			/* if we're manipulating the "queued" song,
@@ -456,12 +447,9 @@ playlist::SetSongIdRange(PlayerControl &pc, unsigned id,
 	if (!duration.IsNegative()) {
 		/* validate the offsets */
 
-		if (start > duration) {
-			error.Set(playlist_domain,
-				  int(PlaylistResult::BAD_RANGE),
-				  "Invalid start offset");
-			return false;
-		}
+		if (start > duration)
+			throw PlaylistError(PlaylistResult::BAD_RANGE,
+					    "Invalid start offset");
 
 		if (end >= duration)
 			end = SongTime::zero();
@@ -475,5 +463,4 @@ playlist::SetSongIdRange(PlayerControl &pc, unsigned id,
 	UpdateQueuedSong(pc, nullptr);
 	queue.ModifyAtPosition(position);
 	OnModified();
-	return true;
 }

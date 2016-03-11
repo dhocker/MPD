@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2003-2015 The Music Player Daemon Project
+ * Copyright 2003-2016 The Music Player Daemon Project
  * http://www.musicpd.org
  *
  * This program is free software; you can redistribute it and/or modify
@@ -39,8 +39,6 @@
 
 #include <assert.h>
 
-#include <sys/types.h>
-#include <unistd.h>
 #include <string.h>
 #include <errno.h>
 

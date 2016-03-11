@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2003-2015 The Music Player Daemon Project
+ * Copyright 2003-2016 The Music Player Daemon Project
  * http://www.musicpd.org
  *
  * This program is free software; you can redistribute it and/or modify
@@ -30,7 +30,6 @@
 
 #include <sys/stat.h>
 #include <fcntl.h>
-#include <errno.h>
 
 static constexpr Domain file_domain("file");
 
@@ -81,7 +80,7 @@ try {
 				   std::move(reader), info.GetSize(),
 				   mutex, cond);
 } catch (const std::exception &e) {
-	error.Set(e);
+	error.Set(std::current_exception());
 	return nullptr;
 }
 
@@ -102,7 +101,7 @@ try {
 	offset = new_offset;
 	return true;
 } catch (const std::exception &e) {
-	error.Set(e);
+	error.Set(std::current_exception());
 	return false;
 }
 
@@ -113,7 +112,7 @@ try {
 	offset += nbytes;
 	return nbytes;
 } catch (const std::exception &e) {
-	error.Set(e);
+	error.Set(std::current_exception());
 	return 0;
 }
 

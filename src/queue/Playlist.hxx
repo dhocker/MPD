@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2003-2015 The Music Player Daemon Project
+ * Copyright 2003-2016 The Music Player Daemon Project
  * http://www.musicpd.org
  *
  * This program is free software; you can redistribute it and/or modify
@@ -21,7 +21,6 @@
 #define MPD_PLAYLIST_HXX
 
 #include "queue/Queue.hxx"
-#include "PlaylistError.hxx"
 
 enum TagType : uint8_t;
 struct PlayerControl;
@@ -31,12 +30,15 @@ class Error;
 class SongLoader;
 class SongTime;
 class SignedSongTime;
+class QueueListener;
 
 struct playlist {
 	/**
 	 * The song queue - it contains the "real" playlist.
 	 */
-	struct Queue queue;
+	Queue queue;
+
+	QueueListener &listener;
 
 	/**
 	 * This value is true if the player is currently playing (or
@@ -86,8 +88,11 @@ struct playlist {
 	 */
 	int queued;
 
-	playlist(unsigned max_length)
-		:queue(max_length), playing(false),
+	playlist(unsigned max_length,
+		 QueueListener &_listener)
+		:queue(max_length),
+		 listener(_listener),
+		 playing(false),
 		 bulk_edit(false),
 		 current(-1), queued(-1) {
 	}
@@ -130,7 +135,8 @@ struct playlist {
 protected:
 	/**
 	 * Called by all editing methods after a modification.
-	 * Updates the queue version and emits #IDLE_PLAYLIST.
+	 * Updates the queue version and invokes
+	 * QueueListener::OnQueueModified().
 	 */
 	void OnModified();
 
@@ -195,11 +201,11 @@ public:
 #endif
 
 	/**
-	 * @return the new song id or 0 on error
+	 * Throws PlaylistError if the queue would be too large.
+	 *
+	 * @return the new song id
 	 */
-	unsigned AppendSong(PlayerControl &pc,
-			    DetachedSong &&song,
-			    Error &error);
+	unsigned AppendSong(PlayerControl &pc, DetachedSong &&song);
 
 	/**
 	 * @return the new song id or 0 on error
@@ -254,25 +260,23 @@ public:
 	 * Sets the start_time and end_time attributes on the song
 	 * with the specified id.
 	 */
-	bool SetSongIdRange(PlayerControl &pc, unsigned id,
-			    SongTime start, SongTime end,
-			    Error &error);
+	void SetSongIdRange(PlayerControl &pc, unsigned id,
+			    SongTime start, SongTime end);
 
-	bool AddSongIdTag(unsigned id, TagType tag_type, const char *value,
-			  Error &error);
-	bool ClearSongIdTag(unsigned id, TagType tag_type, Error &error);
+	void AddSongIdTag(unsigned id, TagType tag_type, const char *value);
+	void ClearSongIdTag(unsigned id, TagType tag_type);
 
 	void Stop(PlayerControl &pc);
 
-	void PlayPosition(PlayerControl &pc, int position);
+	bool PlayPosition(PlayerControl &pc, int position, Error &error);
 
-	void PlayOrder(PlayerControl &pc, int order);
+	bool PlayOrder(PlayerControl &pc, int order, Error &error);
 
-	void PlayId(PlayerControl &pc, int id);
+	bool PlayId(PlayerControl &pc, int id, Error &error);
 
-	void PlayNext(PlayerControl &pc);
+	bool PlayNext(PlayerControl &pc, Error &error);
 
-	void PlayPrevious(PlayerControl &pc);
+	bool PlayPrevious(PlayerControl &pc, Error &error);
 
 	bool SeekSongOrder(PlayerControl &pc,
 			   unsigned song_order,

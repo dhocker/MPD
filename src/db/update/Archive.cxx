@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2003-2015 The Music Player Daemon Project
+ * Copyright 2003-2016 The Music Player Daemon Project
  * http://www.musicpd.org
  *
  * This program is free software; you can redistribute it and/or modify
@@ -36,7 +36,6 @@
 
 #include <string>
 
-#include <sys/stat.h>
 #include <string.h>
 
 static Directory *
@@ -61,7 +60,8 @@ LockFindSong(Directory &directory, const char *name)
 }
 
 void
-UpdateWalk::UpdateArchiveTree(Directory &directory, const char *name)
+UpdateWalk::UpdateArchiveTree(ArchiveFile &archive, Directory &directory,
+			      const char *name)
 {
 	const char *tmp = strchr(name, '/');
 	if (tmp) {
@@ -72,7 +72,7 @@ UpdateWalk::UpdateArchiveTree(Directory &directory, const char *name)
 		subdir->device = DEVICE_INARCHIVE;
 
 		//create directories first
-		UpdateArchiveTree(*subdir, tmp + 1);
+		UpdateArchiveTree(archive, *subdir, tmp + 1);
 	} else {
 		if (StringIsEmpty(name)) {
 			LogWarning(update_domain,
@@ -83,7 +83,7 @@ UpdateWalk::UpdateArchiveTree(Directory &directory, const char *name)
 		//add file
 		Song *song = LockFindSong(directory, name);
 		if (song == nullptr) {
-			song = Song::LoadFile(storage, name, directory);
+			song = Song::LoadFromArchive(archive, name, directory);
 			if (song != nullptr) {
 				{
 					const ScopeDatabaseLock protect;
@@ -94,22 +94,31 @@ UpdateWalk::UpdateArchiveTree(Directory &directory, const char *name)
 				FormatDefault(update_domain, "added %s/%s",
 					      directory.GetPath(), name);
 			}
+		} else {
+			if (!song->UpdateFileInArchive(archive)) {
+				FormatDebug(update_domain,
+					    "deleting unrecognized file %s/%s",
+					    directory.GetPath(), name);
+				editor.LockDeleteSong(directory, song);
+			}
 		}
 	}
 }
 
 class UpdateArchiveVisitor final : public ArchiveVisitor {
 	UpdateWalk &walk;
+	ArchiveFile &archive;
 	Directory *directory;
 
  public:
-	UpdateArchiveVisitor(UpdateWalk &_walk, Directory *_directory)
-		:walk(_walk), directory(_directory) {}
+	UpdateArchiveVisitor(UpdateWalk &_walk, ArchiveFile &_archive,
+			     Directory *_directory)
+		:walk(_walk), archive(_archive), directory(_directory) {}
 
 	virtual void VisitArchiveEntry(const char *path_utf8) override {
 		FormatDebug(update_domain,
 			    "adding archive file: %s", path_utf8);
-		walk.UpdateArchiveTree(*directory, path_utf8);
+		walk.UpdateArchiveTree(archive, *directory, path_utf8);
 	}
 };
 
@@ -165,7 +174,7 @@ UpdateWalk::UpdateArchiveFile(Directory &parent, const char *name,
 
 	directory->mtime = info.mtime;
 
-	UpdateArchiveVisitor visitor(*this, directory);
+	UpdateArchiveVisitor visitor(*this, *file, directory);
 	file->Visit(visitor);
 	file->Close();
 }

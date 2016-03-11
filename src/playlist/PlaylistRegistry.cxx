@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2003-2015 The Music Player Daemon Project
+ * Copyright 2003-2016 The Music Player Daemon Project
  * http://www.musicpd.org
  *
  * This program is free software; you can redistribute it and/or modify
@@ -37,7 +37,6 @@
 #include "util/Macros.hxx"
 #include "config/ConfigGlobal.hxx"
 #include "config/Block.hxx"
-#include "Log.hxx"
 
 #include <assert.h>
 #include <string.h>

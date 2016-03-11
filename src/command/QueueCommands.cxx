@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2003-2015 The Music Player Daemon Project
+ * Copyright 2003-2016 The Music Player Daemon Project
  * http://www.musicpd.org
  *
  * This program is free software; you can redistribute it and/or modify
@@ -35,30 +35,22 @@
 #include "BulkEdit.hxx"
 #include "util/ConstBuffer.hxx"
 #include "util/StringAPI.hxx"
-#include "util/UriUtil.hxx"
 #include "util/NumberParser.hxx"
 #include "util/Error.hxx"
-#include "fs/AllocatedPath.hxx"
 
+#include <memory>
 #include <limits>
-
-#include <string.h>
 
 static CommandResult
 AddUri(Client &client, const LocatedUri &uri, Response &r)
 {
 	Error error;
-	DetachedSong *song = SongLoader(client).LoadSong(uri, error);
+	std::unique_ptr<DetachedSong> song(SongLoader(client).LoadSong(uri, error));
 	if (song == nullptr)
 		return print_error(r, error);
 
 	auto &partition = client.partition;
-	unsigned id = partition.playlist.AppendSong(partition.pc,
-						    std::move(*song), error);
-	delete song;
-	if (id == 0)
-		return print_error(r, error);
-
+	partition.playlist.AppendSong(partition.pc, std::move(*song));
 	return CommandResult::OK;
 }
 
@@ -186,12 +178,8 @@ handle_rangeid(Client &client, Request args, Response &r)
 		return CommandResult::ERROR;
 	}
 
-	Error error;
-	if (!client.partition.playlist.SetSongIdRange(client.partition.pc,
-						      id, start, end,
-						      error))
-		return print_error(r, error);
-
+	client.partition.playlist.SetSongIdRange(client.partition.pc,
+						 id, start, end);
 	return CommandResult::OK;
 }
 
@@ -259,11 +247,8 @@ handle_playlistinfo(Client &client, Request args, Response &r)
 {
 	RangeArg range = args.ParseOptional(0, RangeArg::All());
 
-	if (!playlist_print_info(r, client.partition, client.playlist,
-				 range.start, range.end))
-		return print_playlist_result(r,
-					     PlaylistResult::BAD_RANGE);
-
+	playlist_print_info(r, client.partition, client.playlist,
+			    range.start, range.end);
 	return CommandResult::OK;
 }
 
@@ -272,10 +257,8 @@ handle_playlistid(Client &client, Request args, Response &r)
 {
 	if (!args.IsEmpty()) {
 		unsigned id = args.ParseUnsigned(0);
-		bool ret = playlist_print_id(r, client.partition,
-					     client.playlist, id);
-		if (!ret)
-			return print_playlist_result(r, PlaylistResult::NO_SUCH_SONG);
+		playlist_print_id(r, client.partition,
+				  client.playlist, id);
 	} else {
 		playlist_print_info(r, client.partition, client.playlist,
 				    0, std::numeric_limits<unsigned>::max());

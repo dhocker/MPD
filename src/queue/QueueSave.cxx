@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2003-2015 The Music Player Daemon Project
+ * Copyright 2003-2016 The Music Player Daemon Project
  * http://www.musicpd.org
  *
  * This program is free software; you can redistribute it and/or modify
@@ -23,13 +23,11 @@
 #include "PlaylistError.hxx"
 #include "DetachedSong.hxx"
 #include "SongSave.hxx"
-#include "SongLoader.hxx"
 #include "playlist/PlaylistSong.hxx"
 #include "fs/io/TextFile.hxx"
 #include "fs/io/BufferedOutputStream.hxx"
 #include "util/StringCompare.hxx"
 #include "util/Error.hxx"
-#include "fs/Traits.hxx"
 #include "Log.hxx"
 
 #include <stdlib.h>

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2003-2015 The Music Player Daemon Project
+ * Copyright 2003-2016 The Music Player Daemon Project
  * http://www.musicpd.org
  *
  * This program is free software; you can redistribute it and/or modify
@@ -22,7 +22,6 @@
 #include "Request.hxx"
 #include "SongPrint.hxx"
 #include "db/Interface.hxx"
-#include "db/DatabaseGlue.hxx"
 #include "sticker/SongSticker.hxx"
 #include "sticker/StickerPrint.hxx"
 #include "sticker/StickerDatabase.hxx"
@@ -30,7 +29,6 @@
 #include "client/Client.hxx"
 #include "client/Response.hxx"
 #include "Partition.hxx"
-#include "Instance.hxx"
 #include "util/Error.hxx"
 #include "util/ConstBuffer.hxx"
 #include "util/StringAPI.hxx"

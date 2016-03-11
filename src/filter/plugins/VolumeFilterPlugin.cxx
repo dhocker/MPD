@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2003-2015 The Music Player Daemon Project
+ * Copyright 2003-2016 The Music Player Daemon Project
  * http://www.musicpd.org
  *
  * This program is free software; you can redistribute it and/or modify
@@ -25,10 +25,6 @@
 #include "pcm/Volume.hxx"
 #include "AudioFormat.hxx"
 #include "util/ConstBuffer.hxx"
-#include "util/Error.hxx"
-
-#include <assert.h>
-#include <string.h>
 
 class VolumeFilter final : public Filter {
 	PcmVolume pv;

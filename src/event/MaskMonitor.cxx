@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2003-2015 The Music Player Daemon Project
+ * Copyright 2003-2016 The Music Player Daemon Project
  * http://www.musicpd.org
  *
  * This program is free software; you can redistribute it and/or modify
@@ -17,10 +17,20 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-#ifndef MPD_PLAYLIST_GLOBAL_HXX
-#define MPD_PLAYLIST_GLOBAL_HXX
+#include "config.h"
+#include "MaskMonitor.hxx"
 
 void
-playlist_global_init();
+MaskMonitor::OrMask(unsigned new_mask)
+{
+	if (pending_mask.fetch_or(new_mask) == 0)
+		DeferredMonitor::Schedule();
+}
 
-#endif
+void
+MaskMonitor::RunDeferred()
+{
+	const unsigned mask = pending_mask.exchange(0);
+	if (mask != 0)
+		HandleMask(mask);
+}

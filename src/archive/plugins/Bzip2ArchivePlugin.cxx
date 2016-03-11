@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2003-2015 The Music Player Daemon Project
+ * Copyright 2003-2016 The Music Player Daemon Project
  * http://www.musicpd.org
  *
  * This program is free software; you can redistribute it and/or modify
@@ -27,12 +27,11 @@
 #include "../ArchiveFile.hxx"
 #include "../ArchiveVisitor.hxx"
 #include "input/InputStream.hxx"
-#include "input/InputPlugin.hxx"
 #include "input/LocalOpen.hxx"
+#include "thread/Cond.hxx"
 #include "util/RefCount.hxx"
 #include "util/Error.hxx"
 #include "util/Domain.hxx"
-#include "fs/Traits.hxx"
 #include "fs/Path.hxx"
 
 #include <bzlib.h>

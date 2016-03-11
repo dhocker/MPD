@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2003-2015 The Music Player Daemon Project
+ * Copyright 2003-2016 The Music Player Daemon Project
  * http://www.musicpd.org
  *
  * This program is free software; you can redistribute it and/or modify
@@ -31,8 +31,6 @@
 #include "tag/TagHandler.hxx"
 #include "tag/TagBuilder.hxx"
 #include "Log.hxx"
-
-#include <sys/stat.h>
 
 Directory *
 UpdateWalk::MakeDirectoryIfModified(Directory &parent, const char *name,

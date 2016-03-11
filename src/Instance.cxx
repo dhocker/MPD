@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2003-2015 The Music Player Daemon Project
+ * Copyright 2003-2016 The Music Player Daemon Project
  * http://www.musicpd.org
  *
  * This program is free software; you can redistribute it and/or modify
@@ -32,6 +32,9 @@
 #include "sticker/StickerDatabase.hxx"
 #include "sticker/SongSticker.hxx"
 #endif
+#endif
+
+#ifdef ENABLE_DATABASE
 
 Database *
 Instance::GetDatabase(Error &error)
@@ -42,22 +45,6 @@ Instance::GetDatabase(Error &error)
 	return database;
 }
 
-#endif
-
-void
-Instance::TagModified()
-{
-	partition->TagModified();
-}
-
-void
-Instance::SyncWithPlayer()
-{
-	partition->SyncWithPlayer();
-}
-
-#ifdef ENABLE_DATABASE
-
 void
 Instance::OnDatabaseModified()
 {
@@ -67,7 +54,6 @@ Instance::OnDatabaseModified()
 
 	stats_invalidate();
 	partition->DatabaseModified(*database);
-	idle_add(IDLE_DATABASE);
 }
 
 void
@@ -92,13 +78,13 @@ Instance::OnDatabaseSongRemoved(const LightSong &song)
 void
 Instance::FoundNeighbor(gcc_unused const NeighborInfo &info)
 {
-	idle_add(IDLE_NEIGHBOR);
+	partition->EmitIdle(IDLE_NEIGHBOR);
 }
 
 void
 Instance::LostNeighbor(gcc_unused const NeighborInfo &info)
 {
-	idle_add(IDLE_NEIGHBOR);
+	partition->EmitIdle(IDLE_NEIGHBOR);
 }
 
 #endif

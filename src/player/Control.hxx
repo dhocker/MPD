@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2003-2015 The Music Player Daemon Project
+ * Copyright 2003-2016 The Music Player Daemon Project
  * http://www.musicpd.org
  *
  * This program is free software; you can redistribute it and/or modify
@@ -311,7 +311,7 @@ public:
 	 * @param song the song to be queued; the given instance will
 	 * be owned and freed by the player
 	 */
-	void Play(DetachedSong *song);
+	bool Play(DetachedSong *song, Error &error);
 
 	/**
 	 * see PlayerCommand::CANCEL

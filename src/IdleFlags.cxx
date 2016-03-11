@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2003-2015 The Music Player Daemon Project
+ * Copyright 2003-2016 The Music Player Daemon Project
  * http://www.musicpd.org
  *
  * This program is free software; you can redistribute it and/or modify
@@ -18,31 +18,50 @@
  */
 
 /*
- * The manager of the global "struct playlist" instance (g_playlist).
+ * Support library for the "idle" command.
  *
  */
 
 #include "config.h"
-#include "PlaylistGlobal.hxx"
-#include "Main.hxx"
-#include "Instance.hxx"
-#include "GlobalEvents.hxx"
+#include "IdleFlags.hxx"
+#include "util/ASCII.hxx"
 
-static void
-playlist_tag_event(void)
+#include <assert.h>
+
+static const char *const idle_names[] = {
+	"database",
+	"stored_playlist",
+	"playlist",
+	"player",
+	"mixer",
+	"output",
+	"options",
+	"sticker",
+	"update",
+	"subscription",
+	"message",
+	"neighbor",
+	"mount",
+	nullptr
+};
+
+const char*const*
+idle_get_names(void)
 {
-	instance->TagModified();
+        return idle_names;
 }
 
-static void
-playlist_event(void)
+unsigned
+idle_parse_name(const char *name)
 {
-	instance->SyncWithPlayer();
-}
+#if !CLANG_CHECK_VERSION(3,6)
+	/* disabled on clang due to -Wtautological-pointer-compare */
+	assert(name != nullptr);
+#endif
 
-void
-playlist_global_init()
-{
-	GlobalEvents::Register(GlobalEvents::TAG, playlist_tag_event);
-	GlobalEvents::Register(GlobalEvents::PLAYLIST, playlist_event);
+	for (unsigned i = 0; idle_names[i] != nullptr; ++i)
+		if (StringEqualsCaseASCII(name, idle_names[i]))
+			return 1 << i;
+
+	return 0;
 }

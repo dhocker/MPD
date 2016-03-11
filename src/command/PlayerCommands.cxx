@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2003-2015 The Music Player Daemon Project
+ * Copyright 2003-2016 The Music Player Daemon Project
  * http://www.musicpd.org
  *
  * This program is free software; you can redistribute it and/or modify
@@ -28,9 +28,9 @@
 #include "mixer/Volume.hxx"
 #include "Partition.hxx"
 #include "Instance.hxx"
+#include "Idle.hxx"
 #include "AudioFormat.hxx"
 #include "ReplayGainConfig.hxx"
-#include "util/ConstBuffer.hxx"
 
 #ifdef ENABLE_DATABASE
 #include "db/update/Service.hxx"
@@ -60,16 +60,22 @@ CommandResult
 handle_play(Client &client, Request args, gcc_unused Response &r)
 {
 	int song = args.ParseOptional(0, -1);
-	client.partition.PlayPosition(song);
-	return CommandResult::OK;
+
+	Error error;
+	return client.partition.PlayPosition(song, error)
+		? CommandResult::OK
+		: print_error(r, error);
 }
 
 CommandResult
 handle_playid(Client &client, Request args, gcc_unused Response &r)
 {
 	int id = args.ParseOptional(0, -1);
-	client.partition.PlayId(id);
-	return CommandResult::OK;
+
+	Error error;
+	return client.partition.PlayId(id, error)
+		? CommandResult::OK
+		: print_error(r, error);
 }
 
 CommandResult
@@ -212,18 +218,24 @@ handle_next(Client &client, gcc_unused Request args, gcc_unused Response &r)
 	const bool single = playlist.queue.single;
 	playlist.queue.single = false;
 
-	client.partition.PlayNext();
+	Error error;
+	bool success = client.partition.PlayNext(error);
 
 	playlist.queue.single = single;
-	return CommandResult::OK;
+
+	return success
+		? CommandResult::OK
+		: print_error(r, error);
 }
 
 CommandResult
 handle_previous(Client &client, gcc_unused Request args,
 		gcc_unused Response &r)
 {
-	client.partition.PlayPrevious();
-	return CommandResult::OK;
+	Error error;
+	return client.partition.PlayPrevious(error)
+		? CommandResult::OK
+		: print_error(r, error);
 }
 
 CommandResult
@@ -337,6 +349,7 @@ handle_replay_gain_mode(Client &client, Request args, Response &r)
 	}
 
 	client.partition.outputs.SetReplayGainMode(replay_gain_get_real_mode(client.playlist.queue.random));
+	client.partition.EmitIdle(IDLE_OPTIONS);
 	return CommandResult::OK;
 }
 

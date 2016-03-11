@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2003-2015 The Music Player Daemon Project
+ * Copyright 2003-2016 The Music Player Daemon Project
  * http://www.musicpd.org
  *
  * This program is free software; you can redistribute it and/or modify
@@ -17,48 +17,27 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-#ifndef MPD_GLOBAL_EVENTS_HXX
-#define MPD_GLOBAL_EVENTS_HXX
+#ifndef MPD_QUEUE_LISTENER_HXX
+#define MPD_QUEUE_LISTENER_HXX
 
-#ifdef WIN32
-#include <windows.h>
-/* DELETE is a WIN32 macro that poisons our namespace; this is a
-   kludge to allow us to use it anyway */
-#ifdef DELETE
-#undef DELETE
+class QueueListener {
+public:
+	/**
+	 * Called after the queue has been modified.
+	 */
+	virtual void OnQueueModified() = 0;
+
+	/**
+	 * Called after a playback options have been changed.
+	 */
+	virtual void OnQueueOptionsChanged() = 0;
+
+	/**
+	 * Called after the player has started playing a new song.
+	 * This gets called by playlist::SyncWithPlayer() after it has
+	 * been notified by the player thread.
+	 */
+	virtual void OnQueueSongStarted() = 0;
+};
+
 #endif
-#endif
-
-class EventLoop;
-
-namespace GlobalEvents {
-	enum Event {
-		/** an idle event was emitted */
-		IDLE,
-
-		/** must call playlist_sync() */
-		PLAYLIST,
-
-		/** the current song's tag has changed */
-		TAG,
-
-#ifdef WIN32
-		/** shutdown requested */
-		SHUTDOWN,
-#endif
-
-		MAX
-	};
-
-	typedef void (*Handler)();
-
-	void Initialize(EventLoop &loop);
-
-	void Deinitialize();
-
-	void Register(Event event, Handler handler);
-
-	void Emit(Event event);
-}
-
-#endif /* MAIN_NOTIFY_H */

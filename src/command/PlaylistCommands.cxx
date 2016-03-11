@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2003-2015 The Music Player Daemon Project
+ * Copyright 2003-2016 The Music Player Daemon Project
  * http://www.musicpd.org
  *
  * This program is free software; you can redistribute it and/or modify
@@ -30,11 +30,9 @@
 #include "BulkEdit.hxx"
 #include "playlist/PlaylistQueue.hxx"
 #include "playlist/Print.hxx"
-#include "queue/Playlist.hxx"
 #include "TimePrint.hxx"
 #include "client/Client.hxx"
 #include "client/Response.hxx"
-#include "ls.hxx"
 #include "Mapper.hxx"
 #include "fs/AllocatedPath.hxx"
 #include "util/UriUtil.hxx"
@@ -66,7 +64,7 @@ handle_save(Client &client, Request args, gcc_unused Response &r)
 }
 
 CommandResult
-handle_load(Client &client, Request args, Response &r)
+handle_load(Client &client, Request args, gcc_unused Response &r)
 {
 	RangeArg range = args.ParseOptional(1, RangeArg::All());
 
@@ -74,12 +72,10 @@ handle_load(Client &client, Request args, Response &r)
 
 	Error error;
 	const SongLoader loader(client);
-	if (!playlist_open_into_queue(args.front(),
-				      range.start, range.end,
-				      client.playlist,
-				      client.player_control, loader, error))
-		return print_error(r, error);
-
+	playlist_open_into_queue(args.front(),
+				 range.start, range.end,
+				 client.playlist,
+				 client.player_control, loader);
 	return CommandResult::OK;
 }
 

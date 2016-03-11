@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2003-2015 The Music Player Daemon Project
+ * Copyright 2003-2016 The Music Player Daemon Project
  * http://www.musicpd.org
  *
  * This program is free software; you can redistribute it and/or modify
@@ -45,11 +45,10 @@ SongLoader::LoadFromDatabase(const char *uri, Error &error) const
 		return DatabaseDetachSong(*db, *storage, uri, error);
 #else
 	(void)uri;
+	(void)error;
 #endif
 
-	error.Set(playlist_domain, int(PlaylistResult::NO_SUCH_SONG),
-		  "No database");
-	return nullptr;
+	throw PlaylistError(PlaylistResult::NO_SUCH_SONG, "No database");
 }
 
 DetachedSong *
@@ -63,17 +62,15 @@ SongLoader::LoadFile(const char *path_utf8, Path path_fs, Error &error) const
 			   directory - obtain it from the database */
 			return LoadFromDatabase(suffix, error);
 	}
+#else
+	(void)error;
 #endif
 
-	DetachedSong *song = new DetachedSong(path_utf8);
-	if (!song->LoadFile(path_fs)) {
-		error.Set(playlist_domain, int(PlaylistResult::NO_SUCH_SONG),
-			  "No such file");
-		delete song;
-		return nullptr;
-	}
+	DetachedSong song(path_utf8);
+	if (!song.LoadFile(path_fs))
+		throw PlaylistError::NoSuchSong();
 
-	return song;
+	return new DetachedSong(std::move(song));
 }
 
 DetachedSong *

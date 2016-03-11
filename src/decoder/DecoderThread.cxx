@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2003-2015 The Music Player Daemon Project
+ * Copyright 2003-2016 The Music Player Daemon Project
  * http://www.musicpd.org
  *
  * This program is free software; you can redistribute it and/or modify
@@ -208,6 +208,8 @@ decoder_run_stream_plugin(Decoder &decoder, InputStream &is,
 	if (!decoder_check_plugin(plugin, is, suffix))
 		return false;
 
+	decoder.error.Clear();
+
 	tried_r = true;
 	return decoder_stream_decode(plugin, decoder, is);
 }
@@ -292,6 +294,8 @@ TryDecoderFile(Decoder &decoder, Path path_fs, const char *suffix,
 	if (!plugin.SupportsSuffix(suffix))
 		return false;
 
+	decoder.error.Clear();
+
 	DecoderControl &dc = decoder.dc;
 
 	if (plugin.file_decode != nullptr) {
@@ -368,7 +372,7 @@ decoder_run_song(DecoderControl &dc,
 	}
 
 	if (decoder.error.IsDefined()) {
-		/* copy the Error from sruct Decoder to
+		/* copy the Error from struct Decoder to
 		   DecoderControl */
 		dc.state = DecoderState::ERROR;
 		dc.error = std::move(decoder.error);

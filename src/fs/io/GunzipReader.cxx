@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2003-2015 The Music Player Daemon Project
+ * Copyright 2003-2016 The Music Player Daemon Project
  * http://www.musicpd.org
  *
  * This program is free software; you can redistribute it and/or modify
@@ -19,7 +19,6 @@
 
 #include "config.h"
 #include "GunzipReader.hxx"
-#include "lib/zlib/Domain.hxx"
 
 GunzipReader::GunzipReader(Reader &_next) throw(ZlibError)
 	:next(_next), eof(false)

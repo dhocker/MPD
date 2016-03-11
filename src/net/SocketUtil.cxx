@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2003-2015 The Music Player Daemon Project
+ * Copyright 2003-2016 The Music Player Daemon Project
  * http://www.musicpd.org
  *
  * This program is free software; you can redistribute it and/or modify
@@ -22,12 +22,6 @@
 #include "SocketAddress.hxx"
 #include "SocketError.hxx"
 #include "system/fd_util.h"
-
-#include <unistd.h>
-
-#ifdef HAVE_IPV6
-#include <string.h>
-#endif
 
 int
 socket_bind_listen(int domain, int type, int protocol,

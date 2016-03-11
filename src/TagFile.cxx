@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2003-2015 The Music Player Daemon Project
+ * Copyright 2003-2016 The Music Player Daemon Project
  * http://www.musicpd.org
  *
  * This program is free software; you can redistribute it and/or modify
@@ -19,8 +19,10 @@
 
 #include "config.h"
 #include "TagFile.hxx"
+#include "tag/Generic.hxx"
+#include "tag/TagHandler.hxx"
+#include "tag/TagBuilder.hxx"
 #include "fs/Path.hxx"
-#include "util/UriUtil.hxx"
 #include "util/Error.hxx"
 #include "decoder/DecoderList.hxx"
 #include "decoder/DecoderPlugin.hxx"
@@ -93,4 +95,16 @@ tag_file_scan(Path path_fs, const TagHandler &handler, void *handler_ctx)
 	return decoder_plugins_try([&](const DecoderPlugin &plugin){
 			return tfs.Scan(plugin);
 		});
+}
+
+bool
+tag_file_scan(Path path, TagBuilder &builder)
+{
+	if (!tag_file_scan(path, full_tag_handler, &builder))
+		return false;
+
+	if (builder.IsEmpty())
+		ScanGenericTags(path, full_tag_handler, &builder);
+
+	return true;
 }

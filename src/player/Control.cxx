@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2003-2015 The Music Player Daemon Project
+ * Copyright 2003-2016 The Music Player Daemon Project
  * http://www.musicpd.org
  *
  * This program is free software; you can redistribute it and/or modify
@@ -49,13 +49,20 @@ PlayerControl::~PlayerControl()
 	delete tagged_song;
 }
 
-void
-PlayerControl::Play(DetachedSong *song)
+bool
+PlayerControl::Play(DetachedSong *song, Error &error_r)
 {
 	assert(song != nullptr);
 
 	const ScopeLock protect(mutex);
-	SeekLocked(song, SongTime::zero(), IgnoreError());
+	bool success = SeekLocked(song, SongTime::zero(), error_r);
+
+	if (success && state == PlayerState::PAUSE)
+		/* if the player was paused previously, we need to
+		   unpause it */
+		PauseLocked();
+
+	return success;
 }
 
 void

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2003-2015 The Music Player Daemon Project
+ * Copyright 2003-2016 The Music Player Daemon Project
  * http://www.musicpd.org
  *
  * This program is free software; you can redistribute it and/or modify
@@ -196,7 +196,8 @@ playlist_state_restore(const char *line, TextFile &file,
 		if (state == PlayerState::STOP /* && config_option */)
 			playlist.current = current;
 		else if (seek_time.count() == 0)
-			playlist.PlayPosition(pc, current);
+			/* TODO: log error? */
+			playlist.PlayPosition(pc, current, IgnoreError());
 		else
 			playlist.SeekSongPosition(pc, current, seek_time,
 						  IgnoreError());

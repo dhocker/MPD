@@ -45,10 +45,15 @@ sticker_song_set_value(const LightSong &song,
 }
 
 bool
+sticker_song_delete(const char *uri, Error &error)
+{
+	return sticker_delete("song", uri, error);
+}
+
+bool
 sticker_song_delete(const LightSong &song, Error &error)
 {
-	const auto uri = song.GetURI();
-	return sticker_delete("song", uri.c_str(), error);
+	return sticker_song_delete(song.GetURI().c_str(), error);
 }
 
 bool
@@ -87,10 +92,11 @@ sticker_song_find_cb(const char *uri, const char *value, void *user_data)
 		return;
 
 	const Database *db = data->db;
-	const LightSong *song = db->GetSong(uri, IgnoreError());
-	if (song != nullptr) {
+	try {
+		const LightSong *song = db->GetSong(uri);
 		data->func(*song, value, data->user_data);
 		db->ReturnSong(song);
+	} catch (const std::runtime_error &e) {
 	}
 }
 

@@ -415,6 +415,7 @@ libutil_a_SOURCES = \
 	src/util/WStringAPI.hxx \
 	src/util/DivideString.cxx src/util/DivideString.hxx \
 	src/util/SplitString.cxx src/util/SplitString.hxx \
+	src/util/IterableSplitString.hxx \
 	src/util/FormatString.cxx src/util/FormatString.hxx \
 	src/util/Tokenizer.cxx src/util/Tokenizer.hxx \
 	src/util/TextFile.hxx \
@@ -733,7 +734,6 @@ libdb_plugins_a_SOURCES = \
 	src/db/plugins/simple/DatabaseSave.hxx \
 	src/db/plugins/simple/DirectorySave.cxx \
 	src/db/plugins/simple/DirectorySave.hxx \
-	src/db/plugins/LazyDatabase.cxx src/db/plugins/LazyDatabase.hxx \
 	src/db/plugins/simple/Directory.cxx \
 	src/db/plugins/simple/Directory.hxx \
 	src/db/plugins/simple/Song.cxx \

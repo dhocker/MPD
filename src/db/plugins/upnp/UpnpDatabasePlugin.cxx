@@ -80,10 +80,9 @@ public:
 				const ConfigBlock &block,
 				Error &error);
 
-	virtual bool Open(Error &error) override;
+	virtual void Open() override;
 	virtual void Close() override;
-	virtual const LightSong *GetSong(const char *uri_utf8,
-					 Error &error) const override;
+	virtual const LightSong *GetSong(const char *uri_utf8) const override;
 	void ReturnSong(const LightSong *song) const override;
 
 	virtual bool Visit(const DatabaseSelection &selection,
@@ -159,9 +158,6 @@ UpnpDatabase::Create(gcc_unused EventLoop &loop,
 		return nullptr;
 	}
 
-	/* libupnp loses its ability to receive multicast messages
-	   apparently due to daemonization; using the LazyDatabase
-	   wrapper works around this problem */
 	return db;
 }
 
@@ -171,8 +167,8 @@ UpnpDatabase::Configure(const ConfigBlock &, Error &)
 	return true;
 }
 
-bool
-UpnpDatabase::Open(gcc_unused Error &error)
+void
+UpnpDatabase::Open()
 {
 	UpnpClientGlobalInit(handle);
 
@@ -184,8 +180,6 @@ UpnpDatabase::Open(gcc_unused Error &error)
 		UpnpClientGlobalFinish();
 		throw;
 	}
-
-	return true;
 }
 
 void
@@ -207,7 +201,7 @@ UpnpDatabase::ReturnSong(const LightSong *_song) const
 // Get song info by path. We can receive either the id path, or the titles
 // one
 const LightSong *
-UpnpDatabase::GetSong(const char *uri, gcc_unused Error &error) const
+UpnpDatabase::GetSong(const char *uri) const
 {
 	auto vpath = stringToTokens(uri, "/", true);
 	if (vpath.size() < 2)

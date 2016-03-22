@@ -73,16 +73,17 @@ struct playlist {
 	unsigned error_count;
 
 	/**
-	 * The "current song pointer".  This is the song which is
-	 * played when we get the "play" command.  It is also the song
-	 * which is currently being played.
+	 * The "current song pointer" (the order number).  This is the
+	 * song which is played when we get the "play" command.  It is
+	 * also the song which is currently being played.
 	 */
 	int current;
 
 	/**
-	 * The "next" song to be played, when the current one
-	 * finishes.  The decoder thread may start decoding and
-	 * buffering it, while the "current" song is still playing.
+	 * The "next" song to be played (the order number), when the
+	 * current one finishes.  The decoder thread may start
+	 * decoding and buffering it, while the "current" song is
+	 * still playing.
 	 *
 	 * This variable is only valid if #playing is true.
 	 */
@@ -236,7 +237,13 @@ public:
 	 */
 	void DeleteRange(PlayerControl &pc, unsigned start, unsigned end);
 
-	void DeleteSong(PlayerControl &pc, const char *uri);
+	/**
+	 * Mark the given song as "stale", i.e. as not being available
+	 * anymore.  This gets called when a song is removed from the
+	 * database.  The method attempts to remove all instances of
+	 * this song from the queue.
+	 */
+	void StaleSong(PlayerControl &pc, const char *uri);
 
 	void Shuffle(PlayerControl &pc, unsigned start, unsigned end);
 
@@ -270,7 +277,7 @@ public:
 
 	bool PlayPosition(PlayerControl &pc, int position, Error &error);
 
-	bool PlayOrder(PlayerControl &pc, int order, Error &error);
+	bool PlayOrder(PlayerControl &pc, unsigned order, Error &error);
 
 	bool PlayId(PlayerControl &pc, int id, Error &error);
 

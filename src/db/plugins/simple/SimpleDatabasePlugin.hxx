@@ -107,11 +107,10 @@ public:
 	bool Unmount(const char *uri);
 
 	/* virtual methods from class Database */
-	virtual bool Open(Error &error) override;
+	virtual void Open() override;
 	virtual void Close() override;
 
-	const LightSong *GetSong(const char *uri_utf8,
-				 Error &error) const override;
+	const LightSong *GetSong(const char *uri_utf8) const override;
 	void ReturnSong(const LightSong *song) const override;
 
 	virtual bool Visit(const DatabaseSelection &selection,
@@ -136,8 +135,7 @@ public:
 private:
 	bool Configure(const ConfigBlock &block, Error &error);
 
-	gcc_pure
-	bool Check(Error &error) const;
+	void Check() const;
 
 	bool Load(Error &error);
 

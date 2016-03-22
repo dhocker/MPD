@@ -55,9 +55,10 @@ public:
 
 	/**
          * Open the database.  Read it into memory if applicable.
+	 *
+	 * Throws #DatabaseError or std::runtime_error on error.
 	 */
-	virtual bool Open(gcc_unused Error &error) {
-		return true;
+	virtual void Open() {
 	}
 
 	/**
@@ -72,8 +73,7 @@ public:
 	 * @param uri_utf8 the URI of the song within the music
 	 * directory (UTF-8)
 	 */
-	virtual const LightSong *GetSong(const char *uri_utf8,
-					 Error &error) const = 0;
+	virtual const LightSong *GetSong(const char *uri_utf8) const = 0;
 
 	/**
 	 * Mark the song object as "unused".  Call this on objects

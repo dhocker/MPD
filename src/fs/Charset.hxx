@@ -37,8 +37,11 @@ gcc_const
 const char *
 GetFSCharset();
 
-bool
-SetFSCharset(const char *charset, Error &error);
+/**
+ * Throws std::runtime_error on error.
+ */
+void
+SetFSCharset(const char *charset);
 
 void
 DeinitFSCharset();
@@ -49,7 +52,7 @@ DeinitFSCharset();
  */
 gcc_pure gcc_nonnull_all
 PathTraitsUTF8::string
-PathToUTF8(PathTraitsFS::const_pointer path_fs);
+PathToUTF8(PathTraitsFS::const_pointer_type path_fs);
 
 /**
  * Convert the path from UTF-8.
@@ -57,6 +60,6 @@ PathToUTF8(PathTraitsFS::const_pointer path_fs);
  */
 gcc_pure gcc_nonnull_all
 PathTraitsFS::string
-PathFromUTF8(PathTraitsUTF8::const_pointer path_utf8);
+PathFromUTF8(PathTraitsUTF8::const_pointer_type path_utf8);
 
 #endif

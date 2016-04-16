@@ -24,7 +24,7 @@
 #ifdef HAVE_ICU
 #include "Util.hxx"
 #include "Error.hxx"
-#include "util/WritableBuffer.hxx"
+#include "util/AllocatedArray.hxx"
 #include "util/ConstBuffer.hxx"
 #include "util/Error.hxx"
 
@@ -40,6 +40,8 @@
 #include "util/AllocatedString.hxx"
 #include <windows.h>
 #endif
+
+#include <memory>
 
 #include <assert.h>
 #include <string.h>
@@ -99,15 +101,10 @@ IcuCollate(const char *a, const char *b)
 	const auto au = UCharFromUTF8(a);
 	const auto bu = UCharFromUTF8(b);
 
-	int result = !au.IsNull() && !bu.IsNull()
-		? (int)ucol_strcoll(collator, au.data, au.size,
-				    bu.data, bu.size)
+	return !au.IsNull() && !bu.IsNull()
+		? (int)ucol_strcoll(collator, au.begin(), au.size(),
+				    bu.begin(), bu.size())
 		: strcasecmp(a, b);
-
-	delete[] au.data;
-	delete[] bu.data;
-
-	return result;
 #endif
 
 #elif defined(WIN32)
@@ -149,23 +146,18 @@ IcuCaseFold(const char *src)
 	if (u.IsNull())
 		return AllocatedString<>::Duplicate(src);
 
-	size_t folded_capacity = u.size * 2u;
-	UChar *folded = new UChar[folded_capacity];
+	AllocatedArray<UChar> folded(u.size() * 2u);
 
 	UErrorCode error_code = U_ZERO_ERROR;
-	size_t folded_length = u_strFoldCase(folded, folded_capacity,
-					     u.data, u.size,
+	size_t folded_length = u_strFoldCase(folded.begin(), folded.size(),
+					     u.begin(), u.size(),
 					     U_FOLD_CASE_DEFAULT,
 					     &error_code);
-	delete[] u.data;
-	if (folded_length == 0 || error_code != U_ZERO_ERROR) {
-		delete[] folded;
+	if (folded_length == 0 || error_code != U_ZERO_ERROR)
 		return AllocatedString<>::Duplicate(src);
-	}
 
-	auto result = UCharToUTF8({folded, folded_length});
-	delete[] folded;
-	return result;
+	folded.SetSize(folded_length);
+	return UCharToUTF8({folded.begin(), folded.size()});
 
 #elif defined(WIN32)
 	const auto u = MultiByteToWideChar(CP_UTF8, src);
@@ -179,17 +171,14 @@ IcuCaseFold(const char *src)
 	if (size <= 0)
 		return AllocatedString<>::Duplicate(src);
 
-	auto buffer = new wchar_t[size];
+	std::unique_ptr<wchar_t[]> buffer(new wchar_t[size]);
 	if (LCMapStringEx(LOCALE_NAME_INVARIANT,
 			  LCMAP_SORTKEY|LINGUISTIC_IGNORECASE,
-			  u.c_str(), -1, buffer, size,
-			  nullptr, nullptr, 0) <= 0) {
-		delete[] buffer;
+			  u.c_str(), -1, buffer.get(), size,
+			  nullptr, nullptr, 0) <= 0)
 		return AllocatedString<>::Duplicate(src);
-	}
 
-	auto result = WideCharToMultiByte(CP_UTF8, buffer);
-	delete[] buffer;
+	auto result = WideCharToMultiByte(CP_UTF8, buffer.get());
 	if (result.IsNull())
 		return AllocatedString<>::Duplicate(src);
 
@@ -197,20 +186,20 @@ IcuCaseFold(const char *src)
 
 #else
 	size_t size = strlen(src) + 1;
-	auto buffer = new char[size];
-	size_t nbytes = strxfrm(buffer, src, size);
+	std::unique_ptr<char[]> buffer(new char[size]);
+	size_t nbytes = strxfrm(buffer.get(), src, size);
 	if (nbytes >= size) {
 		/* buffer too small - reallocate and try again */
-		delete[] buffer;
+		buffer.reset();
 		size = nbytes + 1;
-		buffer = new char[size];
-		nbytes = strxfrm(buffer, src, size);
+		buffer.reset(new char[size]);
+		nbytes = strxfrm(buffer.get(), src, size);
 	}
 
 	assert(nbytes < size);
 	assert(buffer[nbytes] == 0);
 
-	return AllocatedString<>::Donate(buffer);
+	return AllocatedString<>::Donate(buffer.release());
 #endif
 }
 

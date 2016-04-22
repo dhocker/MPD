@@ -47,7 +47,7 @@ UCharFromUTF8(const char *src)
 		      src, src_length,
 		      &error_code);
 	if (U_FAILURE(error_code))
-		return {};
+		throw std::runtime_error(u_errorName(error_code));
 
 	dest.SetSize(dest_length);
 	return dest;
@@ -55,28 +55,6 @@ UCharFromUTF8(const char *src)
 
 AllocatedString<>
 UCharToUTF8(ConstBuffer<UChar> src)
-{
-	assert(!src.IsNull());
-
-	/* worst-case estimate */
-	size_t dest_capacity = 4 * src.size;
-
-	std::unique_ptr<char[]> dest(new char[dest_capacity + 1]);
-
-	UErrorCode error_code = U_ZERO_ERROR;
-	int32_t dest_length;
-	u_strToUTF8(dest.get(), dest_capacity, &dest_length,
-		    src.data, src.size,
-		    &error_code);
-	if (U_FAILURE(error_code))
-		return nullptr;
-
-	dest[dest_length] = 0;
-	return AllocatedString<>::Donate(dest.release());
-}
-
-AllocatedString<>
-UCharToUTF8Throw(ConstBuffer<UChar> src)
 {
 	assert(!src.IsNull());
 

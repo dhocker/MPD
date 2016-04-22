@@ -30,6 +30,7 @@
 #endif
 
 #include <algorithm>
+#include <stdexcept>
 
 #include <assert.h>
 #include <string.h>
@@ -101,9 +102,6 @@ PathToUTF8(PathTraitsFS::const_pointer_type path_fs)
 
 #ifdef WIN32
 	const auto buffer = WideCharToMultiByte(CP_UTF8, path_fs);
-	if (buffer.IsNull())
-		return PathTraitsUTF8::string();
-
 	return FixSeparators(PathTraitsUTF8::string(buffer.c_str()));
 #else
 #ifdef HAVE_FS_CHARSET
@@ -113,9 +111,6 @@ PathToUTF8(PathTraitsFS::const_pointer_type path_fs)
 #ifdef HAVE_FS_CHARSET
 
 	const auto buffer = fs_converter->ToUTF8(path_fs);
-	if (buffer.IsNull())
-		return PathTraitsUTF8::string();
-
 	return FixSeparators(PathTraitsUTF8::string(buffer.c_str()));
 #endif
 #endif
@@ -133,18 +128,12 @@ PathFromUTF8(PathTraitsUTF8::const_pointer_type path_utf8)
 
 #ifdef WIN32
 	const auto buffer = MultiByteToWideChar(CP_UTF8, path_utf8);
-	if (buffer.IsNull())
-		return PathTraitsFS::string();
-
 	return PathTraitsFS::string(buffer.c_str());
 #else
 	if (fs_converter == nullptr)
 		return path_utf8;
 
 	const auto buffer = fs_converter->FromUTF8(path_utf8);
-	if (buffer.IsNull())
-		return PathTraitsFS::string();
-
 	return PathTraitsFS::string(buffer.c_str());
 #endif
 }

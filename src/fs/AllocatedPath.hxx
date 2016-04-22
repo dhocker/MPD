@@ -46,7 +46,10 @@ class AllocatedPath {
 	string value;
 
 	AllocatedPath(std::nullptr_t):value() {}
-	AllocatedPath(const_pointer_type _value):value(_value) {}
+	explicit AllocatedPath(const_pointer_type _value):value(_value) {}
+
+	AllocatedPath(const_pointer_type _begin, const_pointer_type _end)
+		:value(_begin, _end) {}
 
 	AllocatedPath(string &&_value):value(std::move(_value)) {}
 
@@ -132,6 +135,12 @@ public:
 		return AllocatedPath(fs);
 	}
 
+	gcc_pure
+	static AllocatedPath FromFS(const_pointer_type _begin,
+				    const_pointer_type _end) {
+		return AllocatedPath(_begin, _end);
+	}
+
 	/**
 	 * Convert a C++ string that is already in the filesystem
 	 * character set to a #Path instance.
@@ -147,6 +156,13 @@ public:
 	 */
 	gcc_pure gcc_nonnull_all
 	static AllocatedPath FromUTF8(const char *path_utf8);
+
+	/**
+	 * Convert a UTF-8 C string to an #AllocatedPath instance.
+	 * Throws a std::runtime_error on error.
+	 */
+	gcc_pure gcc_nonnull_all
+	static AllocatedPath FromUTF8Throw(const char *path_utf8);
 
 	gcc_pure gcc_nonnull_all
 	static AllocatedPath FromUTF8(const char *path_utf8, Error &error);

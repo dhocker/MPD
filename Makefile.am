@@ -578,6 +578,30 @@ libpcm_a_SOURCES += \
 	src/pcm/SoxrResampler.cxx src/pcm/SoxrResampler.hxx
 endif
 
+# Xiph codec support library
+
+if HAVE_XIPH
+
+noinst_LIBRARIES += libxiph.a
+
+libxiph_a_SOURCES = \
+	src/lib/xiph/VorbisComments.cxx src/lib/xiph/VorbisComments.hxx \
+	src/lib/xiph/XiphTags.cxx src/lib/xiph/XiphTags.hxx
+libxiph_a_CPPFLAGS = $(AM_CPPFLAGS) \
+	$(OGG_CFLAGS)
+
+if HAVE_OGG
+libxiph_a_SOURCES += \
+	src/lib/xiph/OggSerial.cxx src/lib/xiph/OggSerial.hxx \
+	src/lib/xiph/OggUtil.cxx src/lib/xiph/OggUtil.hxx \
+	src/lib/xiph/OggSyncState.hxx \
+	src/lib/xiph/OggStream.hxx
+endif
+
+XIPH_LIBS = libxiph.a
+
+endif
+
 # File system library
 
 FS_LIBS = libfs.a
@@ -900,6 +924,7 @@ endif
 libdecoder_a_SOURCES = \
 	src/decoder/plugins/PcmDecoderPlugin.cxx \
 	src/decoder/plugins/PcmDecoderPlugin.hxx \
+	src/decoder/Reader.cxx src/decoder/Reader.hxx \
 	src/decoder/DecoderBuffer.cxx src/decoder/DecoderBuffer.hxx \
 	src/decoder/DecoderPlugin.cxx \
 	src/decoder/DecoderList.cxx src/decoder/DecoderList.hxx
@@ -924,6 +949,7 @@ libdecoder_a_CPPFLAGS = $(AM_CPPFLAGS) \
 
 DECODER_LIBS = \
 	libdecoder.a \
+	$(XIPH_LIBS) \
 	$(VORBIS_LIBS) $(TREMOR_LIBS) \
 	$(FLAC_LIBS) \
 	$(SNDFILE_LIBS) \
@@ -971,9 +997,6 @@ endif
 
 if ENABLE_OPUS
 libdecoder_a_SOURCES += \
-	src/decoder/plugins/OggUtil.cxx \
-	src/decoder/plugins/OggUtil.hxx \
-	src/decoder/plugins/OggSyncState.hxx \
 	src/decoder/plugins/OggFind.cxx src/decoder/plugins/OggFind.hxx \
 	src/decoder/plugins/OpusDomain.cxx src/decoder/plugins/OpusDomain.hxx \
 	src/decoder/plugins/OpusReader.hxx \
@@ -1004,14 +1027,12 @@ endif
 
 if HAVE_XIPH
 libdecoder_a_SOURCES += \
-	src/decoder/plugins/XiphTags.cxx src/decoder/plugins/XiphTags.hxx \
 	src/decoder/plugins/OggCodec.cxx src/decoder/plugins/OggCodec.hxx
 endif
 
 if ENABLE_VORBIS_DECODER
 libdecoder_a_SOURCES += \
 	src/decoder/plugins/VorbisDomain.cxx src/decoder/plugins/VorbisDomain.hxx \
-	src/decoder/plugins/VorbisComments.cxx src/decoder/plugins/VorbisComments.hxx \
 	src/decoder/plugins/VorbisDecoderPlugin.cxx src/decoder/plugins/VorbisDecoderPlugin.h
 endif
 
@@ -1104,6 +1125,7 @@ libencoder_plugins_a_CPPFLAGS = $(AM_CPPFLAGS) \
 
 ENCODER_LIBS = \
 	libencoder_plugins.a \
+	$(XIPH_LIBS) \
 	$(LAME_LIBS) \
 	$(TWOLAME_LIBS) \
 	$(FLAC_LIBS) \
@@ -1116,22 +1138,19 @@ libencoder_plugins_a_SOURCES = \
 	src/encoder/EncoderInterface.hxx \
 	src/encoder/EncoderPlugin.hxx \
 	src/encoder/ToOutputStream.cxx src/encoder/ToOutputStream.hxx \
-	src/encoder/plugins/OggStream.hxx \
 	src/encoder/plugins/NullEncoderPlugin.cxx \
 	src/encoder/plugins/NullEncoderPlugin.hxx \
 	src/encoder/EncoderList.cxx src/encoder/EncoderList.hxx
-
-if HAVE_OGG_ENCODER
-libencoder_plugins_a_SOURCES += \
-	src/encoder/plugins/OggSerial.cxx \
-	src/encoder/plugins/OggSerial.hxx \
-	src/encoder/plugins/OggStream.hxx
-endif
 
 if ENABLE_WAVE_ENCODER
 libencoder_plugins_a_SOURCES += \
 	src/encoder/plugins/WaveEncoderPlugin.cxx \
 	src/encoder/plugins/WaveEncoderPlugin.hxx
+endif
+
+if HAVE_OGG
+libencoder_plugins_a_SOURCES += \
+	src/encoder/plugins/OggEncoder.hxx
 endif
 
 if ENABLE_VORBISENC
@@ -1204,6 +1223,7 @@ libinput_a_SOURCES = \
 	src/input/Offset.hxx \
 	src/input/InputStream.cxx src/input/InputStream.hxx \
 	src/input/InputPlugin.hxx \
+	src/input/Reader.cxx src/input/Reader.hxx \
 	src/input/TextInputStream.cxx src/input/TextInputStream.hxx \
 	src/input/ThreadInputStream.cxx src/input/ThreadInputStream.hxx \
 	src/input/AsyncInputStream.cxx src/input/AsyncInputStream.hxx \
@@ -1806,10 +1826,11 @@ test_dump_text_file_SOURCES = test/dump_text_file.cxx \
 test_dump_playlist_LDADD = \
 	$(PLAYLIST_LIBS) \
 	$(FLAC_LIBS) \
-	$(INPUT_LIBS) \
-	$(ARCHIVE_LIBS) \
 	$(DECODER_LIBS) \
 	$(TAG_LIBS) \
+	$(XIPH_LIBS) \
+	$(INPUT_LIBS) \
+	$(ARCHIVE_LIBS) \
 	libconf.a \
 	libevent.a \
 	libthread.a \

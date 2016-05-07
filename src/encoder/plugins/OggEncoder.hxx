@@ -17,15 +17,43 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-#ifndef MPD_ENCODER_TO_OUTPUT_STREAM_HXX
-#define MPD_ENCODER_TO_OUTPUT_STREAM_HXX
+#ifndef MPD_OGG_ENCODER_HXX
+#define MPD_OGG_ENCODER_HXX
 
-#include "check.h"
+#include "config.h"
+#include "../EncoderAPI.hxx"
+#include "lib/xiph/OggStream.hxx"
+#include "lib/xiph/OggSerial.hxx"
 
-class OutputStream;
-class Encoder;
+#include <ogg/ogg.h>
 
-void
-EncoderToOutputStream(OutputStream &os, Encoder &encoder);
+/**
+ * An abstract base class which contains code common to all encoders
+ * with Ogg container output.
+ */
+class OggEncoder : public Encoder {
+protected:
+	OggStream stream;
+
+public:
+	OggEncoder(bool _implements_tag)
+		:Encoder(_implements_tag) {
+		stream.Initialize(GenerateOggSerial());
+	}
+
+	~OggEncoder() override {
+		stream.Deinitialize();
+	}
+
+	/* virtual methods from class Encoder */
+	bool Flush(Error &) override {
+		stream.Flush();
+		return true;
+	}
+
+	size_t Read(void *dest, size_t length) override {
+		return stream.PageOut(dest, length);
+	}
+};
 
 #endif

@@ -17,51 +17,35 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-#ifndef MPD_OGG_SYNC_STATE_HXX
-#define MPD_OGG_SYNC_STATE_HXX
+#ifndef MPD_OGG_PAGE_HXX
+#define MPD_OGG_PAGE_HXX
 
 #include "check.h"
 
 #include <ogg/ogg.h>
 
-#include <stddef.h>
+#include <assert.h>
+#include <string.h>
+#include <stdint.h>
 
-class Reader;
+static size_t
+ReadPage(const ogg_page &page, void *_buffer, size_t size)
+{
+	assert(page.header_len > 0 || page.body_len > 0);
 
-/**
- * Wrapper for an ogg_sync_state.
- */
-class OggSyncState {
-	ogg_sync_state oy;
+	size_t header_len = (size_t)page.header_len;
+	size_t body_len = (size_t)page.body_len;
+	assert(header_len <= size);
 
-	Reader &reader;
+	if (header_len + body_len > size)
+		/* TODO: better overflow handling */
+		body_len = size - header_len;
 
-public:
-	explicit OggSyncState(Reader &_reader)
-		:reader(_reader) {
-		ogg_sync_init(&oy);
-	}
+	uint8_t *buffer = (uint8_t *)_buffer;
+	memcpy(buffer, page.header, header_len);
+	memcpy(buffer + header_len, page.body, body_len);
 
-	~OggSyncState() {
-		ogg_sync_clear(&oy);
-	}
-
-	OggSyncState(const OggSyncState &) = delete;
-	OggSyncState &operator=(const OggSyncState &) = delete;
-
-	void Reset() {
-		ogg_sync_reset(&oy);
-	}
-
-	bool Feed(size_t size);
-
-	bool ExpectPage(ogg_page &page);
-
-	bool ExpectPageIn(ogg_stream_state &os);
-
-	bool ExpectPageSeek(ogg_page &page);
-
-	bool ExpectPageSeekIn(ogg_stream_state &os);
-};
+	return header_len + body_len;
+}
 
 #endif

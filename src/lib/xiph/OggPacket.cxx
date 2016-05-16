@@ -17,51 +17,19 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-#ifndef MPD_OGG_SYNC_STATE_HXX
-#define MPD_OGG_SYNC_STATE_HXX
+#include "config.h"
+#include "OggPacket.hxx"
+#include "OggSyncState.hxx"
+#include "OggStreamState.hxx"
 
-#include "check.h"
+bool
+OggReadPacket(OggSyncState &sync, OggStreamState &stream, ogg_packet &packet)
+{
+	while (true) {
+		if (stream.PacketOut(packet))
+			return true;
 
-#include <ogg/ogg.h>
-
-#include <stddef.h>
-
-class Reader;
-
-/**
- * Wrapper for an ogg_sync_state.
- */
-class OggSyncState {
-	ogg_sync_state oy;
-
-	Reader &reader;
-
-public:
-	explicit OggSyncState(Reader &_reader)
-		:reader(_reader) {
-		ogg_sync_init(&oy);
+		if (!sync.ExpectPageIn(stream))
+			return false;
 	}
-
-	~OggSyncState() {
-		ogg_sync_clear(&oy);
-	}
-
-	OggSyncState(const OggSyncState &) = delete;
-	OggSyncState &operator=(const OggSyncState &) = delete;
-
-	void Reset() {
-		ogg_sync_reset(&oy);
-	}
-
-	bool Feed(size_t size);
-
-	bool ExpectPage(ogg_page &page);
-
-	bool ExpectPageIn(ogg_stream_state &os);
-
-	bool ExpectPageSeek(ogg_page &page);
-
-	bool ExpectPageSeekIn(ogg_stream_state &os);
-};
-
-#endif
+}

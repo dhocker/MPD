@@ -17,10 +17,12 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-#ifndef MPD_OGG_SYNC_STATE_HXX
-#define MPD_OGG_SYNC_STATE_HXX
+#ifndef MPD_OGG_VISITOR_HXX
+#define MPD_OGG_VISITOR_HXX
 
 #include "check.h"
+#include "OggSyncState.hxx"
+#include "OggStreamState.hxx"
 
 #include <ogg/ogg.h>
 
@@ -29,39 +31,40 @@
 class Reader;
 
 /**
- * Wrapper for an ogg_sync_state.
+ * Abstract class which iterates over Ogg packets in a #Reader.
+ * Subclass it and implement the virtual methods.
  */
-class OggSyncState {
-	ogg_sync_state oy;
+class OggVisitor {
+	OggSyncState sync;
+	OggStreamState stream;
 
-	Reader &reader;
+	bool has_stream = false;
 
 public:
-	explicit OggSyncState(Reader &_reader)
-		:reader(_reader) {
-		ogg_sync_init(&oy);
+	explicit OggVisitor(Reader &reader)
+		:sync(reader), stream(0) {}
+
+	long GetSerialNo() const {
+		return stream.GetSerialNo();
 	}
 
-	~OggSyncState() {
-		ogg_sync_clear(&oy);
-	}
+	void Visit();
 
-	OggSyncState(const OggSyncState &) = delete;
-	OggSyncState &operator=(const OggSyncState &) = delete;
+	/**
+	 * Call this method after seeking the #Reader.
+	 */
+	void PostSeek();
 
-	void Reset() {
-		ogg_sync_reset(&oy);
-	}
+private:
+	void EndStream();
+	bool ReadNextPage();
+	void HandlePacket(const ogg_packet &packet);
+	void HandlePackets();
 
-	bool Feed(size_t size);
-
-	bool ExpectPage(ogg_page &page);
-
-	bool ExpectPageIn(ogg_stream_state &os);
-
-	bool ExpectPageSeek(ogg_page &page);
-
-	bool ExpectPageSeekIn(ogg_stream_state &os);
+protected:
+	virtual void OnOggBeginning(const ogg_packet &packet) = 0;
+	virtual void OnOggPacket(const ogg_packet &packet) = 0;
+	virtual void OnOggEnd() = 0;
 };
 
 #endif

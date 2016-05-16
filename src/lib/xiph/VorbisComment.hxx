@@ -17,51 +17,42 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-#ifndef MPD_OGG_SYNC_STATE_HXX
-#define MPD_OGG_SYNC_STATE_HXX
+#ifndef MPD_VORBIS_COMMENT_HXX
+#define MPD_VORBIS_COMMENT_HXX
 
 #include "check.h"
 
-#include <ogg/ogg.h>
-
-#include <stddef.h>
-
-class Reader;
+#include <vorbis/codec.h>
 
 /**
- * Wrapper for an ogg_sync_state.
+ * OO wrapper for a #vorbis_comment instance.
  */
-class OggSyncState {
-	ogg_sync_state oy;
-
-	Reader &reader;
+class VorbisComment {
+	vorbis_comment vc;
 
 public:
-	explicit OggSyncState(Reader &_reader)
-		:reader(_reader) {
-		ogg_sync_init(&oy);
+	VorbisComment() {
+		vorbis_comment_init(&vc);
 	}
 
-	~OggSyncState() {
-		ogg_sync_clear(&oy);
+	~VorbisComment() {
+		vorbis_comment_clear(&vc);
 	}
 
-	OggSyncState(const OggSyncState &) = delete;
-	OggSyncState &operator=(const OggSyncState &) = delete;
+	VorbisComment(const VorbisComment &) = delete;
+	VorbisComment &operator=(const VorbisComment &) = delete;
 
-	void Reset() {
-		ogg_sync_reset(&oy);
+	operator vorbis_comment &() {
+		return vc;
 	}
 
-	bool Feed(size_t size);
+	operator vorbis_comment *() {
+		return &vc;
+	}
 
-	bool ExpectPage(ogg_page &page);
-
-	bool ExpectPageIn(ogg_stream_state &os);
-
-	bool ExpectPageSeek(ogg_page &page);
-
-	bool ExpectPageSeekIn(ogg_stream_state &os);
+	void AddTag(const char *tag, const char *contents) {
+		vorbis_comment_add_tag(&vc, tag, contents);
+	}
 };
 
 #endif

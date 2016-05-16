@@ -244,7 +244,7 @@ OpusEncoder::DoEncode(bool eos, Error &error)
 bool
 OpusEncoder::End(Error &error)
 {
-	stream.Flush();
+	Flush();
 
 	memset(buffer + buffer_position, 0,
 	       buffer_size - buffer_position);
@@ -331,7 +331,7 @@ OpusEncoder::GenerateHead()
 	packet.granulepos = 0;
 	packet.packetno = packetno++;
 	stream.PacketIn(packet);
-	stream.Flush();
+	Flush();
 }
 
 void
@@ -355,7 +355,7 @@ OpusEncoder::GenerateTags()
 	packet.granulepos = 0;
 	packet.packetno = packetno++;
 	stream.PacketIn(packet);
-	stream.Flush();
+	Flush();
 
 	free(comments);
 }
@@ -368,7 +368,7 @@ OpusEncoder::Read(void *dest, size_t length)
 	else if (packetno == 1)
 		GenerateTags();
 
-	return stream.PageOut(dest, length);
+	return OggEncoder::Read(dest, length);
 }
 
 }

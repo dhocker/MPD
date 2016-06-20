@@ -17,33 +17,34 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-#include "config.h"
-#include "ShutdownHandler.hxx"
+#ifndef MPD_EVENT_DEFERRED_CALL_HXX
+#define MPD_EVENT_DEFERRED_CALL_HXX
 
-#ifndef WIN32
-#include "event/SignalMonitor.hxx"
-#include "event/Loop.hxx"
+#include "check.h"
+#include "DeferredMonitor.hxx"
+#include "util/BindMethod.hxx"
 
-#include <signal.h>
+/**
+ * Invoke a method call in the #EventLoop.
+ *
+ * This class is thread-safe.
+ */
+class DeferredCall final : DeferredMonitor {
+	typedef BoundMethod<void()> Callback;
+	const Callback callback;
 
-static void
-HandleShutdownSignal(void *ctx)
-{
-	auto &loop = *(EventLoop *)ctx;
-	loop.Break();
-}
+public:
+	DeferredCall(EventLoop &_loop, Callback _callback)
+		:DeferredMonitor(_loop), callback(_callback) {}
 
-ShutdownHandler::ShutdownHandler(EventLoop &loop)
-{
-	SignalMonitorInit(loop);
+	using DeferredMonitor::GetEventLoop;
+	using DeferredMonitor::Schedule;
+	using DeferredMonitor::Cancel;
 
-	SignalMonitorRegister(SIGINT, {&loop, HandleShutdownSignal});
-	SignalMonitorRegister(SIGTERM, {&loop, HandleShutdownSignal});
-}
-
-ShutdownHandler::~ShutdownHandler()
-{
-	SignalMonitorFinish();
-}
+protected:
+	void RunDeferred() override {
+		callback();
+	}
+};
 
 #endif

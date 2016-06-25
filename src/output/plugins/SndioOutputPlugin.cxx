@@ -103,7 +103,7 @@ sndio_test_default_device()
 }
 
 bool
-SndioOutput::Open(AudioFormat &audio_format, gcc_unused Error &error)
+SndioOutput::Open(AudioFormat &audio_format, Error &error)
 {
 	struct sio_par par;
 	unsigned bits, rate, chans;
@@ -118,6 +118,9 @@ SndioOutput::Open(AudioFormat &audio_format, gcc_unused Error &error)
 	switch (audio_format.format) {
 	case SampleFormat::S16:
 		bits = 16;
+		break;
+	case SampleFormat::S24_P32:
+		bits = 24;
 		break;
 	case SampleFormat::S32:
 		bits = 32;
@@ -180,16 +183,10 @@ SndioOutput::Play(const void *chunk, size_t size, Error &error)
 {
 	size_t n;
 
-	while (1) {
-		n = sio_write(sio_hdl, chunk, size);
-		if (n == 0) {
-			if (sio_eof(sio_hdl)) {
-				error.Set(sndio_output_domain, -1, "sndio write failed");
-				return 0;
-			}
-		}
-		return n;
-	}
+	n = sio_write(sio_hdl, chunk, size);
+	if (n == 0 && sio_eof(sio_hdl) != 0)
+		error.Set(sndio_output_domain, -1, "sndio write failed");
+	return n;
 }
 
 typedef AudioOutputWrapper<SndioOutput> Wrapper;

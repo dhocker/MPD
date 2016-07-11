@@ -1,5 +1,5 @@
 /*
- * Copyright 2003-2016 The Music Player Daemon Project
+ * Copyright (C) 2003-2016 The Music Player Daemon Project
  * http://www.musicpd.org
  *
  * This program is free software; you can redistribute it and/or modify
@@ -17,40 +17,20 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-#ifndef MPD_FLAC_PCM_HXX
-#define MPD_FLAC_PCM_HXX
+#ifndef MPD_PCM_SILENCE_HXX
+#define MPD_PCM_SILENCE_HXX
 
 #include "check.h"
-#include "pcm/PcmBuffer.hxx"
-#include "AudioFormat.hxx"
 
-#include <FLAC/ordinals.h>
+#include <stdint.h>
 
-class Error;
-template<typename T> struct ConstBuffer;
+template<typename T> struct WritableBuffer;
+enum class SampleFormat : uint8_t;
 
 /**
- * This class imports libFLAC PCM data into a PCM format supported by
- * MPD.
+ * Fill the given buffer with the format-specific silence pattern.
  */
-class FlacPcmImport {
-	PcmBuffer buffer;
-
-	AudioFormat audio_format;
-
-public:
-	/**
-	 * @return false on error
-	 */
-	bool Open(unsigned sample_rate, unsigned bits_per_sample,
-		  unsigned channels, Error &error);
-
-	const AudioFormat &GetAudioFormat() const {
-		return audio_format;
-	}
-
-	ConstBuffer<void> Import(const FLAC__int32 *const src[],
-				 size_t n_frames);
-};
+void
+PcmSilence(WritableBuffer<void> dest, SampleFormat format);
 
 #endif

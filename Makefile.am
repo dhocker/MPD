@@ -539,6 +539,7 @@ libpcm_a_SOURCES = \
 	src/pcm/PcmConvert.cxx src/pcm/PcmConvert.hxx \
 	src/pcm/PcmDop.cxx src/pcm/PcmDop.hxx \
 	src/pcm/Volume.cxx src/pcm/Volume.hxx \
+	src/pcm/Silence.cxx src/pcm/Silence.hxx \
 	src/pcm/PcmMix.cxx src/pcm/PcmMix.hxx \
 	src/pcm/PcmChannels.cxx src/pcm/PcmChannels.hxx \
 	src/pcm/PcmPack.cxx src/pcm/PcmPack.hxx \
@@ -1051,6 +1052,7 @@ libdecoder_a_SOURCES += \
 	src/decoder/plugins/FlacPcm.cxx src/decoder/plugins/FlacPcm.hxx \
 	src/decoder/plugins/FlacDomain.cxx src/decoder/plugins/FlacDomain.hxx \
 	src/decoder/plugins/FlacCommon.cxx src/decoder/plugins/FlacCommon.hxx \
+	src/decoder/plugins/FlacStreamDecoder.hxx \
 	src/decoder/plugins/FlacDecoderPlugin.cxx \
 	src/decoder/plugins/FlacDecoderPlugin.h
 endif

@@ -302,11 +302,15 @@ spl_clear(const char *utf8path)
 	const auto path_fs = spl_map_to_fs(utf8path);
 	assert(!path_fs.IsNull());
 
-	FILE *file = FOpen(path_fs, FOpenMode::WriteText);
-	if (file == nullptr)
-		ThrowPlaylistErrno();
-
-	fclose(file);
+	try {
+		TruncateFile(path_fs);
+	} catch (const std::system_error &e) {
+		if (IsFileNotFound(e))
+			throw PlaylistError(PlaylistResult::NO_SUCH_LIST,
+					    "No such playlist");
+		else
+			throw;
+	}
 
 	idle_add(IDLE_STORED_PLAYLIST);
 }
@@ -317,8 +321,15 @@ spl_delete(const char *name_utf8)
 	const auto path_fs = spl_map_to_fs(name_utf8);
 	assert(!path_fs.IsNull());
 
-	if (!RemoveFile(path_fs))
-		ThrowPlaylistErrno();
+	try {
+		RemoveFile(path_fs);
+	} catch (const std::system_error &e) {
+		if (IsFileNotFound(e))
+			throw PlaylistError(PlaylistResult::NO_SUCH_LIST,
+					    "No such playlist");
+		else
+			throw;
+	}
 
 	idle_add(IDLE_STORED_PLAYLIST);
 }

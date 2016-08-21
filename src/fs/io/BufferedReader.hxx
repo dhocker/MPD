@@ -51,9 +51,30 @@ public:
 		return buffer.Read().ToVoid();
 	}
 
+	/**
+	 * Read a buffer of exactly the given size (without consuming
+	 * it).  Throws std::runtime_error if not enough data is
+	 * available.
+	 */
+	gcc_pure
+	void *ReadFull(size_t size);
+
 	void Consume(size_t n) {
 		buffer.Consume(n);
 	}
+
+	/**
+	 * Read (and consume) data from the input buffer into the
+	 * given buffer.  Does not attempt to refill the buffer.
+	 */
+	size_t ReadFromBuffer(WritableBuffer<void> dest);
+
+	/**
+	 * Read data into the given buffer and consume it from our
+	 * buffer.  Throw an exception if the request cannot be
+	 * forfilled.
+	 */
+	void ReadFull(WritableBuffer<void> dest);
 
 	char *ReadLine();
 

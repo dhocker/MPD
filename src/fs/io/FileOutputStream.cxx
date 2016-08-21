@@ -19,7 +19,6 @@
 
 #include "config.h"
 #include "FileOutputStream.hxx"
-#include "fs/FileSystem.hxx"
 #include "system/Error.hxx"
 
 #ifdef WIN32
@@ -76,7 +75,8 @@ FileOutputStream::Cancel()
 	assert(IsDefined());
 
 	Close();
-	RemoveFile(GetPath());
+
+	DeleteFile(GetPath().c_str());
 }
 
 #else
@@ -151,9 +151,9 @@ FileOutputStream::Commit()
 {
 	assert(IsDefined());
 
-#if HAVE_LINKAT
+#ifdef HAVE_LINKAT
 	if (is_tmpfile) {
-		RemoveFile(GetPath());
+		unlink(GetPath().c_str());
 
 		/* hard-link the temporary file to the final path */
 		char fd_path[64];
@@ -186,7 +186,7 @@ FileOutputStream::Cancel()
 #ifdef HAVE_LINKAT
 	if (!is_tmpfile)
 #endif
-		RemoveFile(GetPath());
+		unlink(GetPath().c_str());
 }
 
 #endif

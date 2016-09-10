@@ -27,6 +27,7 @@
 #include "lib/ffmpeg/Error.hxx"
 #include "../InputStream.hxx"
 #include "../InputPlugin.hxx"
+#include "PluginUnavailable.hxx"
 #include "util/StringCompare.hxx"
 #include "util/Error.hxx"
 
@@ -71,25 +72,19 @@ input_ffmpeg_supported(void)
 	return avio_enum_protocols(&opaque, 0) != nullptr;
 }
 
-static InputPlugin::InitResult
-input_ffmpeg_init(gcc_unused const ConfigBlock &block,
-		  Error &error)
+static void
+input_ffmpeg_init(gcc_unused const ConfigBlock &block)
 {
 	FfmpegInit();
 
 	/* disable this plugin if there's no registered protocol */
-	if (!input_ffmpeg_supported()) {
-		error.Set(ffmpeg_domain, "No protocol");
-		return InputPlugin::InitResult::UNAVAILABLE;
-	}
-
-	return InputPlugin::InitResult::SUCCESS;
+	if (!input_ffmpeg_supported())
+		throw PluginUnavailable("No protocol");
 }
 
 static InputStream *
 input_ffmpeg_open(const char *uri,
-		  Mutex &mutex, Cond &cond,
-		  Error &error)
+		  Mutex &mutex, Cond &cond)
 {
 	if (!StringStartsWith(uri, "gopher://") &&
 	    !StringStartsWith(uri, "rtp://") &&
@@ -101,10 +96,8 @@ input_ffmpeg_open(const char *uri,
 
 	AVIOContext *h;
 	auto result = avio_open(&h, uri, AVIO_FLAG_READ);
-	if (result != 0) {
-		SetFfmpegError(error, result);
-		return nullptr;
-	}
+	if (result != 0)
+		throw MakeFfmpegError(result);
 
 	return new FfmpegInputStream(uri, mutex, cond, h);
 }

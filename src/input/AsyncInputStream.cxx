@@ -81,6 +81,7 @@ AsyncInputStream::Resume()
 
 	if (paused) {
 		paused = false;
+
 		DoResume();
 	}
 }
@@ -88,6 +89,12 @@ AsyncInputStream::Resume()
 bool
 AsyncInputStream::Check(Error &error)
 {
+	if (postponed_exception) {
+		auto e = std::move(postponed_exception);
+		postponed_exception = std::exception_ptr();
+		std::rethrow_exception(e);
+	}
+
 	bool success = !postponed_error.IsDefined();
 	if (!success) {
 		error = std::move(postponed_error);
@@ -181,6 +188,7 @@ bool
 AsyncInputStream::IsAvailable()
 {
 	return postponed_error.IsDefined() ||
+		postponed_exception ||
 		IsEOF() ||
 		!buffer.IsEmpty();
 }
@@ -257,7 +265,12 @@ AsyncInputStream::DeferredResume()
 {
 	const ScopeLock protect(mutex);
 
-	Resume();
+	try {
+		Resume();
+	} catch (...) {
+		postponed_exception = std::current_exception();
+		cond.broadcast();
+	}
 }
 
 void
@@ -267,10 +280,16 @@ AsyncInputStream::DeferredSeek()
 	if (seek_state != SeekState::SCHEDULED)
 		return;
 
-	Resume();
+	try {
+		Resume();
 
-	seek_state = SeekState::PENDING;
-	buffer.Clear();
-	paused = false;
-	DoSeek(seek_offset);
+		seek_state = SeekState::PENDING;
+		buffer.Clear();
+		paused = false;
+
+		DoSeek(seek_offset);
+	} catch (...) {
+		postponed_exception = std::current_exception();
+		cond.broadcast();
+	}
 }

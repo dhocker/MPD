@@ -29,6 +29,7 @@
 #include "input/InputStream.hxx"
 #include "fs/Path.hxx"
 #include "util/RefCount.hxx"
+#include "util/RuntimeError.hxx"
 #include "util/Error.hxx"
 #include "util/Domain.hxx"
 
@@ -77,9 +78,8 @@ public:
 
 	virtual void Visit(ArchiveVisitor &visitor) override;
 
-	virtual InputStream *OpenStream(const char *path,
-					Mutex &mutex, Cond &cond,
-					Error &error) override;
+	InputStream *OpenStream(const char *path,
+				Mutex &mutex, Cond &cond) override;
 };
 
 static constexpr Domain iso9660_domain("iso9660");
@@ -123,16 +123,13 @@ Iso9660ArchiveFile::Visit(char *path, size_t length, size_t capacity,
 }
 
 static ArchiveFile *
-iso9660_archive_open(Path pathname, Error &error)
+iso9660_archive_open(Path pathname)
 {
 	/* open archive */
 	auto iso = iso9660_open(pathname.c_str());
-	if (iso == nullptr) {
-		error.Format(iso9660_domain,
-			     "Failed to open ISO9660 file %s",
-			     pathname.c_str());
-		return nullptr;
-	}
+	if (iso == nullptr)
+		throw FormatRuntimeError("Failed to open ISO9660 file %s",
+					 pathname.c_str());
 
 	return new Iso9660ArchiveFile(iso);
 }
@@ -175,15 +172,12 @@ public:
 
 InputStream *
 Iso9660ArchiveFile::OpenStream(const char *pathname,
-			       Mutex &mutex, Cond &cond,
-			       Error &error)
+			       Mutex &mutex, Cond &cond)
 {
 	auto statbuf = iso9660_ifs_stat_translate(iso, pathname);
-	if (statbuf == nullptr) {
-		error.Format(iso9660_domain,
-			     "not found in the ISO file: %s", pathname);
-		return nullptr;
-	}
+	if (statbuf == nullptr)
+		throw FormatRuntimeError("not found in the ISO file: %s",
+					 pathname);
 
 	return new Iso9660InputStream(*this, pathname, mutex, cond,
 				      statbuf);

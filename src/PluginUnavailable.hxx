@@ -17,21 +17,20 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-#ifndef MPD_CONFIGURED_RESAMPLER_HXX
-#define MPD_CONFIGURED_RESAMPLER_HXX
+#ifndef MPD_PLUGIN_UNAVAILABLE_HXX
+#define MPD_PLUGIN_UNAVAILABLE_HXX
 
-#include "check.h"
-
-class PcmResampler;
-
-void
-pcm_resampler_global_init();
+#include <stdexcept>
 
 /**
- * Create a #PcmResampler instance from the implementation class
- * configured in mpd.conf.
+ * An exception class which is used by plugin initializers to indicate
+ * that this plugin is unavailable.  It will be disabled, and MPD can
+ * continue initialization.
  */
-PcmResampler *
-pcm_resampler_create();
+class PluginUnavailable final : public std::runtime_error {
+public:
+	explicit PluginUnavailable(const char *msg)
+		:std::runtime_error(msg) {}
+};
 
 #endif

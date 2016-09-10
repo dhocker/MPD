@@ -166,6 +166,7 @@ libmpd_a_SOURCES = \
 	src/queue/PlaylistTag.cxx \
 	src/queue/PlaylistState.cxx src/queue/PlaylistState.hxx \
 	src/queue/Listener.hxx \
+	src/PluginUnavailable.hxx \
 	src/ReplayGainConfig.cxx src/ReplayGainConfig.hxx \
 	src/ReplayGainInfo.cxx src/ReplayGainInfo.hxx \
 	src/DetachedSong.cxx src/DetachedSong.hxx \
@@ -1457,6 +1458,7 @@ libmixer_plugins_a_SOURCES += \
 
 noinst_LIBRARIES += libpulse.a
 libpulse_a_SOURCES = \
+	src/lib/pulse/LockGuard.hxx \
 	src/lib/pulse/LogError.cxx src/lib/pulse/LogError.hxx \
 	src/lib/pulse/Error.cxx src/lib/pulse/Error.hxx \
 	src/lib/pulse/Domain.cxx src/lib/pulse/Domain.hxx

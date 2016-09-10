@@ -17,21 +17,30 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-#ifndef MPD_CONFIGURED_RESAMPLER_HXX
-#define MPD_CONFIGURED_RESAMPLER_HXX
+#ifndef MPD_PULSE_LOCK_GUARD_HXX
+#define MPD_PULSE_LOCK_GUARD_HXX
 
-#include "check.h"
+#include <pulse/thread-mainloop.h>
 
-class PcmResampler;
+namespace Pulse {
 
-void
-pcm_resampler_global_init();
+class LockGuard {
+	struct pa_threaded_mainloop *const mainloop;
 
-/**
- * Create a #PcmResampler instance from the implementation class
- * configured in mpd.conf.
- */
-PcmResampler *
-pcm_resampler_create();
+public:
+	explicit LockGuard(struct pa_threaded_mainloop *_mainloop)
+		:mainloop(_mainloop) {
+		pa_threaded_mainloop_lock(mainloop);
+	}
+
+	~LockGuard() {
+		pa_threaded_mainloop_unlock(mainloop);
+	}
+
+	LockGuard(const LockGuard &) = delete;
+	LockGuard &operator=(const LockGuard &) = delete;
+};
+
+};
 
 #endif

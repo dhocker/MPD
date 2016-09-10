@@ -34,6 +34,8 @@
 #include "archive/ArchiveList.hxx"
 #endif
 
+#include <stdexcept>
+
 #include <unistd.h>
 #include <stdlib.h>
 
@@ -91,7 +93,7 @@ dump_input_stream(InputStream *is)
 }
 
 int main(int argc, char **argv)
-{
+try {
 	if (argc != 2) {
 		fprintf(stderr, "Usage: run_input URI\n");
 		return EXIT_FAILURE;
@@ -108,10 +110,7 @@ int main(int argc, char **argv)
 #endif
 
 	Error error;
-	if (!input_stream_global_init(error)) {
-		LogError(error);
-		return 2;
-	}
+	input_stream_global_init();
 
 	/* open the stream and dump it */
 
@@ -119,16 +118,8 @@ int main(int argc, char **argv)
 	{
 		Mutex mutex;
 		Cond cond;
-		auto is = InputStream::OpenReady(argv[1], mutex, cond, error);
-		if (is) {
-			ret = dump_input_stream(is.get());
-		} else {
-			if (error.IsDefined())
-				LogError(error);
-			else
-				fprintf(stderr, "input_stream::Open() failed\n");
-			ret = EXIT_FAILURE;
-		}
+		auto is = InputStream::OpenReady(argv[1], mutex, cond);
+		ret = dump_input_stream(is.get());
 	}
 
 	/* deinitialize everything */
@@ -142,4 +133,7 @@ int main(int argc, char **argv)
 	config_global_finish();
 
 	return ret;
+} catch (const std::exception &e) {
+	LogError(e);
+	return EXIT_FAILURE;
 }

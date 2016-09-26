@@ -24,6 +24,8 @@
 #include "thread/Cond.hxx"
 #include "IOThread.hxx"
 
+#include <stdexcept>
+
 #include <assert.h>
 #include <string.h>
 
@@ -64,16 +66,6 @@ AsyncInputStream::Pause()
 	paused = true;
 }
 
-void
-AsyncInputStream::PostponeError(Error &&error)
-{
-	assert(io_thread_inside());
-
-	seek_state = SeekState::NONE;
-	postponed_error = std::move(error);
-	cond.broadcast();
-}
-
 inline void
 AsyncInputStream::Resume()
 {
@@ -86,22 +78,14 @@ AsyncInputStream::Resume()
 	}
 }
 
-bool
-AsyncInputStream::Check(Error &error)
+void
+AsyncInputStream::Check()
 {
 	if (postponed_exception) {
 		auto e = std::move(postponed_exception);
 		postponed_exception = std::exception_ptr();
 		std::rethrow_exception(e);
 	}
-
-	bool success = !postponed_error.IsDefined();
-	if (!success) {
-		error = std::move(postponed_error);
-		postponed_error.Clear();
-	}
-
-	return success;
 }
 
 bool
@@ -111,20 +95,18 @@ AsyncInputStream::IsEOF()
 		(!open && buffer.IsEmpty());
 }
 
-bool
-AsyncInputStream::Seek(offset_type new_offset, Error &error)
+void
+AsyncInputStream::Seek(offset_type new_offset)
 {
 	assert(IsReady());
 	assert(seek_state == SeekState::NONE);
 
 	if (new_offset == offset)
 		/* no-op */
-		return true;
+		return;
 
-	if (!IsSeekable()) {
-		error.Set(input_domain, "Not seekable");
-		return false;
-	}
+	if (!IsSeekable())
+		throw std::runtime_error("Not seekable");
 
 	/* check if we can fast-forward the buffer */
 
@@ -143,7 +125,7 @@ AsyncInputStream::Seek(offset_type new_offset, Error &error)
 	}
 
 	if (new_offset == offset)
-		return true;
+		return;
 
 	/* no: ask the implementation to seek */
 
@@ -155,10 +137,7 @@ AsyncInputStream::Seek(offset_type new_offset, Error &error)
 	while (seek_state != SeekState::NONE)
 		cond.wait(mutex);
 
-	if (!Check(error))
-		return false;
-
-	return true;
+	Check();
 }
 
 void
@@ -187,22 +166,20 @@ AsyncInputStream::ReadTag()
 bool
 AsyncInputStream::IsAvailable()
 {
-	return postponed_error.IsDefined() ||
-		postponed_exception ||
+	return postponed_exception ||
 		IsEOF() ||
 		!buffer.IsEmpty();
 }
 
 size_t
-AsyncInputStream::Read(void *ptr, size_t read_size, Error &error)
+AsyncInputStream::Read(void *ptr, size_t read_size)
 {
 	assert(!io_thread_inside());
 
 	/* wait for data */
 	CircularBuffer<uint8_t>::Range r;
 	while (true) {
-		if (!Check(error))
-			return 0;
+		Check();
 
 		r = buffer.Read();
 		if (!r.IsEmpty() || IsEOF())
@@ -289,6 +266,7 @@ AsyncInputStream::DeferredSeek()
 
 		DoSeek(seek_offset);
 	} catch (...) {
+		seek_state = SeekState::NONE;
 		postponed_exception = std::current_exception();
 		cond.broadcast();
 	}

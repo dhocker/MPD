@@ -30,8 +30,7 @@
 #include <CoreAudio/CoreAudio.h>
 #include <AudioUnit/AudioUnit.h>
 #include <CoreServices/CoreServices.h>
-
-#include<boost/lockfree/spsc_queue.hpp>
+#include <boost/lockfree/spsc_queue.hpp>
 
 struct OSXOutput {
 	AudioOutput base;
@@ -41,16 +40,14 @@ struct OSXOutput {
 	/* only applicable with kAudioUnitSubType_HALOutput */
 	const char *device_name;
 	const char *channel_map;
+	bool hog_device;
+	bool sync_sample_rate;
 
+	AudioDeviceID dev_id;
 	AudioComponentInstance au;
 	AudioStreamBasicDescription asbd;
 
-	Mutex mutex;
-	Cond condition;
-
 	boost::lockfree::spsc_queue<uint8_t> *ring_buffer;
-	size_t render_buffer_size;
-	uint8_t *render_buffer;
 
 	OSXOutput()
 		:base(osx_output_plugin) {}
@@ -100,6 +97,8 @@ osx_output_configure(OSXOutput *oo, const ConfigBlock &block)
 	}
 
 	oo->channel_map = block.GetBlockValue("channel_map");
+	oo->hog_device = block.GetBlockValue("hog_device", false);
+	oo->sync_sample_rate = block.GetBlockValue("sync_sample_rate", false);
 }
 
 static AudioOutput *
@@ -112,6 +111,22 @@ osx_output_init(const ConfigBlock &block, Error &error)
 	}
 
 	osx_output_configure(oo, block);
+
+	AudioObjectPropertyAddress aopa = {
+		kAudioHardwarePropertyDefaultOutputDevice,
+		kAudioObjectPropertyScopeOutput,
+		kAudioObjectPropertyElementMaster
+	};
+
+	AudioDeviceID dev_id = kAudioDeviceUnknown;
+	UInt32 dev_id_size = sizeof(dev_id);
+	AudioObjectGetPropertyData(kAudioObjectSystemObject,
+				   &aopa,
+				   0,
+				   NULL,
+				   &dev_id_size,
+				   &dev_id);
+	oo->dev_id = dev_id;
 
 	return &oo->base;
 }
@@ -244,6 +259,179 @@ done:
 	return ret;
 }
 
+static void
+osx_output_sync_device_sample_rate(AudioDeviceID dev_id, AudioStreamBasicDescription desc)
+{
+	FormatDebug(osx_output_domain, "Syncing sample rate.");
+	AudioObjectPropertyAddress aopa = {
+		kAudioDevicePropertyAvailableNominalSampleRates,
+		kAudioObjectPropertyScopeOutput,
+		kAudioObjectPropertyElementMaster
+	};
+
+	UInt32 property_size;
+	OSStatus err = AudioObjectGetPropertyDataSize(dev_id,
+						      &aopa,
+						      0,
+						      NULL,
+						      &property_size);
+
+	int count = property_size/sizeof(AudioValueRange);
+	AudioValueRange ranges[count];
+	property_size = sizeof(ranges);
+	err = AudioObjectGetPropertyData(dev_id,
+					 &aopa,
+					 0,
+					 NULL,
+					 &property_size,
+					 &ranges);
+	// Get the maximum sample rate as fallback.
+	Float64 sample_rate = .0;
+	for (int i = 0; i < count; i++) {
+		if (ranges[i].mMaximum > sample_rate)
+			sample_rate = ranges[i].mMaximum;
+	}
+
+	// Now try to see if the device support our format sample rate.
+	// For some high quality media samples, the frame rate may exceed
+	// device capability. In this case, we let CoreAudio downsample
+	// by decimation with an integer factor ranging from 1 to 4.
+	for (int f = 4; f > 0; f--) {
+		Float64 rate = desc.mSampleRate / f;
+		for (int i = 0; i < count; i++) {
+			if (ranges[i].mMinimum <= rate
+			   && rate <= ranges[i].mMaximum) {
+				sample_rate = rate;
+				break;
+			}
+		}
+	}
+
+	aopa.mSelector = kAudioDevicePropertyNominalSampleRate,
+
+	err = AudioObjectSetPropertyData(dev_id,
+					 &aopa,
+					 0,
+					 NULL,
+					 sizeof(&desc.mSampleRate),
+					 &sample_rate);
+	if (err != noErr) {
+                FormatWarning(osx_output_domain,
+			      "Failed to synchronize the sample rate: %d",
+			      err);
+	} else {
+		FormatDebug(osx_output_domain,
+			    "Sample rate synced to %f Hz.",
+			    sample_rate);
+	}
+}
+
+static OSStatus
+osx_output_set_buffer_size(AudioUnit au, AudioStreamBasicDescription desc, UInt32 *frame_size)
+{
+	AudioValueRange value_range = {0, 0};
+	UInt32 property_size = sizeof(AudioValueRange);
+	OSStatus err = AudioUnitGetProperty(au,
+					    kAudioDevicePropertyBufferFrameSizeRange,
+					    kAudioUnitScope_Global,
+					    0,
+					    &value_range,
+					    &property_size);
+	if (err != noErr)
+		return err;
+
+	UInt32 buffer_frame_size = value_range.mMaximum;
+	err = AudioUnitSetProperty(au,
+				   kAudioDevicePropertyBufferFrameSize,
+				   kAudioUnitScope_Global,
+				   0,
+				   &buffer_frame_size,
+				   sizeof(buffer_frame_size));
+	if (err != noErr)
+                FormatWarning(osx_output_domain,
+			      "Failed to set maximum buffer size: %d",
+			      err);
+
+	property_size = sizeof(buffer_frame_size);
+	err = AudioUnitGetProperty(au,
+				   kAudioDevicePropertyBufferFrameSize,
+				   kAudioUnitScope_Global,
+				   0,
+				   &buffer_frame_size,
+				   &property_size);
+	if (err != noErr) {
+                FormatWarning(osx_output_domain,
+			      "Cannot get the buffer frame size: %d",
+			      err);
+		return err;
+	}
+
+	buffer_frame_size *= desc.mBytesPerFrame;
+
+	// We set the frame size to a power of two integer that
+	// is larger than buffer_frame_size.
+	while (*frame_size < buffer_frame_size + 1) {
+		*frame_size <<= 1;
+	}
+
+	return noErr;
+}
+
+static void
+osx_output_hog_device(AudioDeviceID dev_id, bool hog)
+{
+	pid_t hog_pid;
+	AudioObjectPropertyAddress aopa = {
+		kAudioDevicePropertyHogMode,
+		kAudioObjectPropertyScopeOutput,
+		kAudioObjectPropertyElementMaster
+	};
+	UInt32 size = sizeof(hog_pid);
+	OSStatus err = AudioObjectGetPropertyData(dev_id,
+						  &aopa,
+						  0,
+						  NULL,
+						  &size,
+						  &hog_pid);
+	if (err != noErr) {
+		FormatDebug(osx_output_domain,
+			    "Cannot get hog information: %d",
+			    err);
+		return;
+	}
+	if (hog) {
+		if (hog_pid != -1) {
+		        FormatDebug(osx_output_domain,
+				    "Device is already hogged.");
+			return;
+		}
+	} else {
+		if (hog_pid != getpid()) {
+		        FormatDebug(osx_output_domain,
+				    "Device is not owned by this process.");
+			return;
+		}
+	}
+	hog_pid = hog ? getpid() : -1;
+	size = sizeof(hog_pid);
+	err = AudioObjectSetPropertyData(dev_id,
+					 &aopa,
+					 0,
+					 NULL,
+					 size,
+					 &hog_pid);
+	if (err != noErr) {
+		FormatDebug(osx_output_domain,
+			    "Cannot hog the device: %d",
+			    err);
+	} else {
+		FormatDebug(osx_output_domain,
+			    hog_pid == -1 ? "Device is unhogged" 
+					  : "Device is hogged");
+	}
+}
+
+
 static bool
 osx_output_set_device(OSXOutput *oo, Error &error)
 {
@@ -337,6 +525,7 @@ osx_output_set_device(OSXOutput *oo, Error &error)
 		goto done;
 	}
 
+	oo->dev_id = deviceids[i];
 	FormatDebug(osx_output_domain,
 		    "set OS X audio output device ID=%u, name=%s",
 		    (unsigned)deviceids[i], name);
@@ -359,18 +548,6 @@ done:
 	OS X audio subsystem (CoreAudio) to request audio data that will be
 	played by the audio hardware. This function has hard time constraints
 	so it cannot do IO (debug statements) or memory allocations.
-	
-	The caller (i.e. CoreAudio) requests a specific number of
-	audio frames (in_number_frames) to be rendered into a
-	collection of output buffers (buffer_list). Depending on the
-	number of output buffers the render callback has to interleave
-	or de-interleave audio data to match the layout of the output
-	buffers. The intput buffer is always interleaved. In practice,
-	it seems this callback always gets a single output buffer
-	meaning that no de-interleaving actually takes place. For the
-	sake of correctness this callback allows for de-interleaving
-	anyway, and calculates the expected output layout by examining
-	the output buffers.
 */
 
 static OSStatus
@@ -381,79 +558,13 @@ osx_render(void *vdata,
 	   UInt32 in_number_frames,
 	   AudioBufferList *buffer_list)
 {
-	AudioBuffer *output_buffer = nullptr;
-	size_t output_buffer_frame_size;
-
 	OSXOutput *od = (OSXOutput *) vdata;
 
-	/*
-		By convention when interfacing with audio hardware in CoreAudio,
-		in_bus_number equals 0 for output and 1 for input. Because this is an
-		audio output plugin our in_bus_number should always be 0.
-	*/
-	assert(in_bus_number == 0);
-
-	unsigned int input_channel_count = od->asbd.mChannelsPerFrame;
-	unsigned int output_channel_count = 0;
-	for (unsigned int i = 0 ; i < buffer_list->mNumberBuffers; ++i) {
-		output_buffer = &buffer_list->mBuffers[i];
-		assert(output_buffer->mData != nullptr);
-		output_channel_count += output_buffer->mNumberChannels;
-	}
-	assert(output_channel_count == input_channel_count);
-
-	size_t input_buffer_frame_size = od->asbd.mBytesPerFrame;
-	size_t sample_size = input_buffer_frame_size / input_channel_count;
-
-	size_t requested_bytes = in_number_frames * input_buffer_frame_size;
-	if (requested_bytes > od->render_buffer_size)
-		requested_bytes = od->render_buffer_size;
-
-	size_t available_bytes = od->ring_buffer->pop(od->render_buffer, requested_bytes);
-
-	/*
-		Maybe this is paranoid but we have no way of knowing
-		if the 'pop' above ended at a frame boundary. In case
-		of an incomplete last frame, keep popping until the
-		last frame is complete.
-	*/
-	while (true) {
-		size_t incomplete_frame_bytes = available_bytes % input_buffer_frame_size;
-		if (incomplete_frame_bytes == 0)
-			break;
-
-		available_bytes += od->ring_buffer->pop(
-			od->render_buffer + available_bytes,
-			input_buffer_frame_size - incomplete_frame_bytes
-		);
-	}
-
-	od->condition.signal(); // We are done consuming from ring_buffer
-
-	UInt32 available_frames = available_bytes / input_buffer_frame_size;
-
-	/*
-		To de-interleave the data in the input buffer so that it fits in
-		the output buffers we divide the input buffer frames into 'sub frames'
-		that fit into the output buffers.
-	*/
-	size_t sub_frame_offset = 0;
-	for (unsigned int i = 0 ; i < buffer_list->mNumberBuffers; ++i) {
-		output_buffer = &buffer_list->mBuffers[i];
-		output_buffer_frame_size = output_buffer->mNumberChannels * sample_size;
-		output_buffer->mDataByteSize = 0; // Record how much data we actually rendered
-		for (UInt32 current_frame = 0; current_frame < available_frames; ++current_frame) {
-				memcpy(
-					(uint8_t *) output_buffer->mData + current_frame * output_buffer_frame_size,
-					od->render_buffer + current_frame * input_buffer_frame_size + sub_frame_offset,
-					output_buffer_frame_size
-				);
-				output_buffer->mDataByteSize += output_buffer_frame_size;
-		}
-		sub_frame_offset += output_buffer_frame_size;
-	}
-
-	return noErr;
+	int count = in_number_frames * od->asbd.mBytesPerFrame;
+	buffer_list->mBuffers[0].mDataByteSize =
+		od->ring_buffer->pop((uint8_t *)buffer_list->mBuffers[0].mData,
+				     count);
+ 	return noErr;
 }
 
 static bool
@@ -490,20 +601,8 @@ osx_output_enable(AudioOutput *ao, Error &error)
 		return false;
 	}
 
-	AURenderCallbackStruct callback;
-	callback.inputProc = osx_render;
-	callback.inputProcRefCon = oo;
-
-	status =
-		AudioUnitSetProperty(oo->au,
-				     kAudioUnitProperty_SetRenderCallback,
-				     kAudioUnitScope_Input, 0,
-				     &callback, sizeof(callback));
-	if (status != noErr) {
-		AudioComponentInstanceDispose(oo->au);
-		error.Set(osx_output_domain, status,
-			  "unable to set callback for OS X audio unit");
-		return false;
+	if (oo->hog_device) {
+		osx_output_hog_device(oo->dev_id, true);
 	}
 
 	return true;
@@ -515,6 +614,10 @@ osx_output_disable(AudioOutput *ao)
 	OSXOutput *oo = (OSXOutput *)ao;
 
 	AudioComponentInstanceDispose(oo->au);
+
+	if (oo->hog_device) {
+		osx_output_hog_device(oo->dev_id, false);
+	}
 }
 
 static void
@@ -526,7 +629,6 @@ osx_output_close(AudioOutput *ao)
 	AudioUnitUninitialize(od->au);
 
 	delete od->ring_buffer;
-	delete[] od->render_buffer;
 }
 
 static bool
@@ -568,6 +670,10 @@ osx_output_open(AudioOutput *ao, AudioFormat &audio_format,
 	od->asbd.mBytesPerFrame = od->asbd.mBytesPerPacket;
 	od->asbd.mChannelsPerFrame = audio_format.channels;
 
+	if (od->sync_sample_rate) {
+		osx_output_sync_device_sample_rate(od->dev_id, od->asbd);
+	}
+
 	OSStatus status =
 		AudioUnitSetProperty(od->au, kAudioUnitProperty_StreamFormat,
 				     kAudioUnitScope_Input, 0,
@@ -576,6 +682,22 @@ osx_output_open(AudioOutput *ao, AudioFormat &audio_format,
 	if (status != noErr) {
 		error.Set(osx_output_domain, status,
 			  "Unable to set format on OS X device");
+		return false;
+	}
+
+	AURenderCallbackStruct callback;
+	callback.inputProc = osx_render;
+	callback.inputProcRefCon = od;
+
+	status =
+		AudioUnitSetProperty(od->au,
+				     kAudioUnitProperty_SetRenderCallback,
+				     kAudioUnitScope_Input, 0,
+				     &callback, sizeof(callback));
+	if (status != noErr) {
+		AudioComponentInstanceDispose(od->au);
+		error.Set(osx_output_domain, status,
+			  "unable to set callback for OS X audio unit");
 		return false;
 	}
 
@@ -588,16 +710,17 @@ osx_output_open(AudioOutput *ao, AudioFormat &audio_format,
 		return false;
 	}
 
-	/* create a ring buffer of 1s */
-	od->ring_buffer = new boost::lockfree::spsc_queue<uint8_t>(audio_format.sample_rate * audio_format.GetFrameSize());
+	UInt32 buffer_frame_size = 1;
+	status = osx_output_set_buffer_size(od->au, od->asbd, &buffer_frame_size);
+	if (status != noErr) {
+		osx_os_status_to_cstring(status, errormsg, sizeof(errormsg));
+		error.Format(osx_output_domain, status,
+			     "Unable to set frame size: %s",
+			     errormsg);
+		return false;
+	}
 
-	/*
-		od->render_buffer_size is the maximum amount of data we
-		render in the render callback. Allocate enough space
-		for 0.1 s of frames.
-	*/
-	od->render_buffer_size = (audio_format.sample_rate/10) * audio_format.GetFrameSize();
-	od->render_buffer = new uint8_t[od->render_buffer_size];
+	od->ring_buffer = new boost::lockfree::spsc_queue<uint8_t>(buffer_frame_size);
 
 	status = AudioOutputUnitStart(od->au);
 	if (status != 0) {
@@ -617,20 +740,14 @@ osx_output_play(AudioOutput *ao, const void *chunk, size_t size,
 		gcc_unused Error &error)
 {
 	OSXOutput *od = (OSXOutput *)ao;
+	return od->ring_buffer->push((uint8_t *)chunk, size);
+}
 
-	{
-		const ScopeLock protect(od->mutex);
-
-		while (true) {
-			if (od->ring_buffer->write_available() > 0)
-				break;
-
-			/* wait for some free space in the buffer */
-			od->condition.wait(od->mutex);
-		}
-	}
-
-	return od->ring_buffer->push((uint8_t *) chunk, size);
+static unsigned
+osx_output_delay(AudioOutput *ao)
+{
+	OSXOutput *od = (OSXOutput *)ao;
+	return od->ring_buffer->write_available() ? 0 : 25;
 }
 
 const struct AudioOutputPlugin osx_output_plugin = {
@@ -642,7 +759,7 @@ const struct AudioOutputPlugin osx_output_plugin = {
 	osx_output_disable,
 	osx_output_open,
 	osx_output_close,
-	nullptr,
+	osx_output_delay,
 	nullptr,
 	osx_output_play,
 	nullptr,

@@ -311,7 +311,7 @@ size_t
 decoder_read(Decoder *decoder,
 	     InputStream &is,
 	     void *buffer, size_t length)
-{
+try {
 	/* XXX don't allow decoder==nullptr */
 
 	assert(decoder == nullptr ||
@@ -334,17 +334,13 @@ decoder_read(Decoder *decoder,
 		is.cond.wait(is.mutex);
 	}
 
-	Error error;
-	size_t nbytes = is.Read(buffer, length, error);
-	assert(nbytes == 0 || !error.IsDefined());
-	assert(nbytes > 0 || error.IsDefined() || is.IsEOF());
-
-	lock.Unlock();
-
-	if (gcc_unlikely(nbytes == 0 && error.IsDefined()))
-		LogError(error);
+	size_t nbytes = is.Read(buffer, length);
+	assert(nbytes > 0 || is.IsEOF());
 
 	return nbytes;
+} catch (const std::runtime_error &e) {
+	LogError(e);
+	return 0;
 }
 
 bool

@@ -176,10 +176,11 @@ public:
 	 * We cannot fix this as long as there are plugins that open a file by
 	 * its name, and not by file descriptor / callbacks.
 	 *
+	 * Throws #std::runtime_error on error.
+	 *
 	 * @param path_fs the absolute path name in filesystem encoding
-	 * @return true if access is allowed
 	 */
-	bool AllowFile(Path path_fs, Error &error) const;
+	void AllowFile(Path path_fs) const;
 
 	/**
 	 * Wrapper for Instance::GetDatabase().

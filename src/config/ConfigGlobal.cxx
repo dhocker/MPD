@@ -75,10 +75,10 @@ void config_global_check(void)
 			Check(*p);
 }
 
-const config_param *
+const ConfigParam *
 config_get_param(ConfigOption option)
 {
-	config_param *param = config_data.params[unsigned(option)];
+	auto *param = config_data.params[unsigned(option)];
 	if (param != nullptr)
 		param->used = true;
 	return param;
@@ -113,7 +113,7 @@ config_find_block(ConfigBlockOption option, const char *key, const char *value)
 const char *
 config_get_string(ConfigOption option, const char *default_value)
 {
-	const struct config_param *param = config_get_param(option);
+	const auto *param = config_get_param(option);
 
 	if (param == nullptr)
 		return default_value;
@@ -124,28 +124,17 @@ config_get_string(ConfigOption option, const char *default_value)
 AllocatedPath
 config_get_path(ConfigOption option, Error &error)
 {
-	const struct config_param *param = config_get_param(option);
+	const auto *param = config_get_param(option);
 	if (param == nullptr)
 		return AllocatedPath::Null();
 
-	return config_parse_path(param, error);
-}
-
-AllocatedPath
-config_parse_path(const struct config_param *param, Error & error)
-{
-	AllocatedPath path = ParsePath(param->value.c_str(), error);
-	if (gcc_unlikely(path.IsNull()))
-		error.FormatPrefix("Invalid path at line %i: ",
-				   param->line);
-
-	return path;
+	return param->GetPath(error);
 }
 
 unsigned
 config_get_unsigned(ConfigOption option, unsigned default_value)
 {
-	const struct config_param *param = config_get_param(option);
+	const auto *param = config_get_param(option);
 	long value;
 	char *endptr;
 
@@ -163,7 +152,7 @@ config_get_unsigned(ConfigOption option, unsigned default_value)
 unsigned
 config_get_positive(ConfigOption option, unsigned default_value)
 {
-	const struct config_param *param = config_get_param(option);
+	const auto *param = config_get_param(option);
 	long value;
 	char *endptr;
 
@@ -184,7 +173,7 @@ config_get_positive(ConfigOption option, unsigned default_value)
 bool
 config_get_bool(ConfigOption option, bool default_value)
 {
-	const struct config_param *param = config_get_param(option);
+	const auto *param = config_get_param(option);
 	bool success, value;
 
 	if (param == nullptr)

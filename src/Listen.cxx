@@ -60,7 +60,7 @@ int listen_port;
 
 static bool
 listen_add_config_param(unsigned int port,
-			const struct config_param *param,
+			const ConfigParam *param,
 			Error &error_r)
 {
 	assert(param != nullptr);
@@ -68,7 +68,7 @@ listen_add_config_param(unsigned int port,
 	if (0 == strcmp(param->value.c_str(), "any")) {
 		return listen_socket->AddPort(port, error_r);
 	} else if (param->value[0] == '/' || param->value[0] == '~') {
-		auto path = config_parse_path(param, error_r);
+		auto path = param->GetPath(error_r);
 		return !path.IsNull() &&
 			listen_socket->AddPath(std::move(path), error_r);
 	} else {
@@ -104,8 +104,7 @@ bool
 listen_global_init(EventLoop &loop, Partition &partition, Error &error)
 {
 	int port = config_get_positive(ConfigOption::PORT, DEFAULT_PORT);
-	const struct config_param *param =
-		config_get_param(ConfigOption::BIND_TO_ADDRESS);
+	const auto *param = config_get_param(ConfigOption::BIND_TO_ADDRESS);
 
 	listen_socket = new ClientListener(loop, partition);
 

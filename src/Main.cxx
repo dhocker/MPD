@@ -183,14 +183,9 @@ glue_db_init_and_load(void)
 {
 	Error error;
 	instance->database =
-		CreateConfiguredDatabase(instance->event_loop, *instance,
-					 error);
-	if (instance->database == nullptr) {
-		if (error.IsDefined())
-			FatalError(error);
-		else
-			return true;
-	}
+		CreateConfiguredDatabase(instance->event_loop, *instance);
+	if (instance->database == nullptr)
+		return true;
 
 	if (instance->database->GetPlugin().flags & DatabasePlugin::FLAG_REQUIRE_STORAGE) {
 		InitStorage();
@@ -389,7 +384,7 @@ static int mpd_main_after_fork(struct options);
 static inline
 #endif
 int mpd_main(int argc, char *argv[])
-{
+try {
 	struct options options;
 	Error error;
 
@@ -414,28 +409,23 @@ int mpd_main(int argc, char *argv[])
 	io_thread_init();
 	config_global_init();
 
-	try {
 #ifdef ANDROID
-		(void)argc;
-		(void)argv;
+	(void)argc;
+	(void)argv;
 
-		const auto sdcard = Environment::getExternalStorageDirectory();
-		if (!sdcard.IsNull()) {
-			const auto config_path =
-				AllocatedPath::Build(sdcard, "mpd.conf");
-			if (FileExists(config_path))
-				ReadConfigFile(config_path);
-		}
+	const auto sdcard = Environment::getExternalStorageDirectory();
+	if (!sdcard.IsNull()) {
+		const auto config_path =
+			AllocatedPath::Build(sdcard, "mpd.conf");
+		if (FileExists(config_path))
+			ReadConfigFile(config_path);
+	}
 #else
-		if (!parse_cmdline(argc, argv, &options, error)) {
-			LogError(error);
-			return EXIT_FAILURE;
-		}
-#endif
-	} catch (const std::exception &e) {
-		LogError(e);
+	if (!parse_cmdline(argc, argv, &options, error)) {
+		LogError(error);
 		return EXIT_FAILURE;
 	}
+#endif
 
 #ifdef ENABLE_DAEMON
 	if (!glue_daemonize_init(&options, error)) {
@@ -470,11 +460,7 @@ int mpd_main(int argc, char *argv[])
 
 	initialize_decoder_and_player();
 
-	if (!listen_global_init(instance->event_loop, *instance->partition,
-				error)) {
-		LogError(error);
-		return EXIT_FAILURE;
-	}
+	listen_global_init(instance->event_loop, *instance->partition);
 
 #ifdef ENABLE_DAEMON
 	daemonize_set_user();
@@ -496,6 +482,9 @@ int mpd_main(int argc, char *argv[])
 #else
 	return mpd_main_after_fork(options);
 #endif
+} catch (const std::exception &e) {
+	LogError(e);
+	return EXIT_FAILURE;
 }
 
 static int mpd_main_after_fork(struct options options)

@@ -50,6 +50,8 @@ struct AudioOutputPlugin {
 	 * Configure and initialize the device, but do not open it
 	 * yet.
 	 *
+	 * Throws #std::runtime_error on error.
+	 *
 	 * @param param the configuration section, or nullptr if there is
 	 * no configuration
 	 * @return nullptr on error, or an opaque pointer to the plugin's
@@ -64,9 +66,9 @@ struct AudioOutputPlugin {
 
 	/**
 	 * Enable the device.  This may allocate resources, preparing
-	 * for the device to be opened.  Enabling a device cannot
-	 * fail: if an error occurs during that, it should be reported
-	 * by the open() method.
+	 * for the device to be opened.
+	 *
+	 * Throws #std::runtime_error on error.
 	 *
 	 * @return true on success, false on error
 	 */
@@ -80,6 +82,8 @@ struct AudioOutputPlugin {
 
 	/**
 	 * Really open the device.
+	 *
+	 * Throws #std::runtime_error on error.
 	 *
 	 * @param audio_format the audio format in which data is going
 	 * to be delivered; may be modified by the plugin
@@ -96,7 +100,7 @@ struct AudioOutputPlugin {
 	 * Returns a positive number if the output thread shall further
 	 * delay the next call to play() or pause(), which will happen
 	 * until this function returns 0.  This should be implemented
-	 * instead of doing a sleep inside the plugin, because this 
+	 * instead of doing a sleep inside the plugin, because this
 	 * allows MPD to listen to commands meanwhile.
 	 *
 	 * @return the number of milliseconds to wait
@@ -111,6 +115,8 @@ struct AudioOutputPlugin {
 
 	/**
 	 * Play a chunk of audio data.
+	 *
+	 * Throws #std::runtime_error on error.
 	 *
 	 * @return the number of bytes played, or 0 on error
 	 */
@@ -137,8 +143,8 @@ struct AudioOutputPlugin {
 	 * disconnected.  Plugins which do not support pausing will
 	 * simply be closed, and have to be reopened when unpaused.
 	 *
-	 * @return false on error (output will be closed then), true
-	 * for continue to pause
+	 * @return false on error (output will be closed by caller),
+	 * true for continue to pause
 	 */
 	bool (*pause)(AudioOutput *data);
 

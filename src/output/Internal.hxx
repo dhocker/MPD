@@ -283,6 +283,13 @@ struct AudioOutput {
 	bool current_chunk_finished;
 
 	AudioOutput(const AudioOutputPlugin &_plugin);
+
+	/**
+	 * Throws #std::runtime_error on error.
+	 */
+	AudioOutput(const AudioOutputPlugin &_plugin,
+		    const ConfigBlock &block);
+
 	~AudioOutput();
 
 	bool Configure(const ConfigBlock &block, Error &error);
@@ -454,6 +461,9 @@ private:
  */
 extern struct notify audio_output_client_notify;
 
+/**
+ * Throws #std::runtime_error on error.
+ */
 AudioOutput *
 audio_output_new(EventLoop &event_loop, const ConfigBlock &block,
 		 MixerListener &mixer_listener,

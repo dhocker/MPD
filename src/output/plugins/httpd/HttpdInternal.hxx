@@ -150,8 +150,12 @@ private:
 	unsigned clients_max;
 
 public:
-	HttpdOutput(EventLoop &_loop);
+	HttpdOutput(EventLoop &_loop, const ConfigBlock &block);
 	~HttpdOutput();
+
+	operator AudioOutput *() {
+		return &base;
+	}
 
 #if CLANG_OR_GCC_VERSION(4,7)
 	constexpr
@@ -162,22 +166,7 @@ public:
 
 	using DeferredMonitor::GetEventLoop;
 
-	bool Init(const ConfigBlock &block, Error &error);
-
-	bool Configure(const ConfigBlock &block, Error &error);
-
-	AudioOutput *InitAndConfigure(const ConfigBlock &block,
-				       Error &error) {
-		if (!Init(block, error))
-			return nullptr;
-
-		if (!Configure(block, error))
-			return nullptr;
-
-		return &base;
-	}
-
-	bool Bind(Error &error);
+	void Bind();
 	void Unbind();
 
 	/**

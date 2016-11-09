@@ -26,7 +26,6 @@
 #include "MusicPipe.hxx"
 #include "MusicChunk.hxx"
 #include "system/FatalError.hxx"
-#include "util/Error.hxx"
 #include "config/Block.hxx"
 #include "config/ConfigGlobal.hxx"
 #include "config/ConfigOption.hxx"
@@ -54,20 +53,9 @@ static AudioOutput *
 LoadOutput(EventLoop &event_loop, MixerListener &mixer_listener,
 	   PlayerControl &pc, const ConfigBlock &block)
 try {
-	Error error;
-	AudioOutput *output = audio_output_new(event_loop, block,
-					       mixer_listener,
-					       pc, error);
-	if (output == nullptr) {
-		if (block.line > 0)
-			FormatFatalError("line %i: %s",
-					 block.line,
-					 error.GetMessage());
-		else
-			FatalError(error);
-	}
-
-	return output;
+	return audio_output_new(event_loop, block,
+				mixer_listener,
+				pc);
 } catch (const std::runtime_error &e) {
 	if (block.line > 0)
 		FormatFatalError("line %i: %s",
@@ -192,32 +180,27 @@ MultipleOutputs::SetReplayGainMode(ReplayGainMode mode)
 		ao->SetReplayGainMode(mode);
 }
 
-bool
-MultipleOutputs::Play(MusicChunk *chunk, Error &error)
+void
+MultipleOutputs::Play(MusicChunk *chunk)
 {
 	assert(buffer != nullptr);
 	assert(pipe != nullptr);
 	assert(chunk != nullptr);
 	assert(chunk->CheckFormat(input_audio_format));
 
-	if (!Update()) {
+	if (!Update())
 		/* TODO: obtain real error */
-		error.Set(output_domain, "Failed to open audio output");
-		return false;
-	}
+		throw std::runtime_error("Failed to open audio output");
 
 	pipe->Push(chunk);
 
 	for (auto ao : outputs)
 		ao->LockPlay();
-
-	return true;
 }
 
-bool
+void
 MultipleOutputs::Open(const AudioFormat audio_format,
-		      MusicBuffer &_buffer,
-		      Error &error)
+		      MusicBuffer &_buffer)
 {
 	bool ret = false, enabled = false;
 
@@ -251,17 +234,16 @@ MultipleOutputs::Open(const AudioFormat audio_format,
 			ret = true;
 	}
 
-	if (!enabled)
-		error.Set(output_domain, "All audio outputs are disabled");
-	else if (!ret)
-		/* TODO: obtain real error */
-		error.Set(output_domain, "Failed to open audio output");
-
-	if (!ret)
+	if (!enabled) {
 		/* close all devices if there was an error */
 		Close();
-
-	return ret;
+		throw std::runtime_error("All audio outputs are disabled");
+	} else if (!ret) {
+		/* close all devices if there was an error */
+		Close();
+		/* TODO: obtain real error */
+		throw std::runtime_error("Failed to open audio output");
+	}
 }
 
 /**

@@ -40,7 +40,6 @@
 #include <list>
 
 struct ConfigBlock;
-class Error;
 class EventLoop;
 class ServerSocket;
 class HttpdClient;
@@ -179,7 +178,7 @@ public:
 	/**
 	 * Caller must lock the mutex.
 	 */
-	bool Open(AudioFormat &audio_format, Error &error);
+	void Open(AudioFormat &audio_format);
 
 	/**
 	 * Caller must lock the mutex.
@@ -246,7 +245,7 @@ public:
 
 	void SendTag(const Tag &tag);
 
-	size_t Play(const void *chunk, size_t size, Error &error);
+	size_t Play(const void *chunk, size_t size);
 
 	void CancelAllClients();
 

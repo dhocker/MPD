@@ -33,7 +33,6 @@
 #include "IOThread.hxx"
 #include "event/Call.hxx"
 #include "util/RuntimeError.hxx"
-#include "util/Error.hxx"
 #include "util/Domain.hxx"
 #include "util/DeleteDisposer.hxx"
 #include "Log.hxx"
@@ -119,7 +118,7 @@ HttpdOutput::Unbind()
 }
 
 static AudioOutput *
-httpd_output_init(const ConfigBlock &block, Error &)
+httpd_output_init(const ConfigBlock &block)
 {
 	return *new HttpdOutput(io_thread_get(), block);
 }
@@ -248,13 +247,12 @@ HttpdOutput::ReadPage()
 	return Page::Copy(buffer, size);
 }
 
-static bool
-httpd_output_enable(AudioOutput *ao, gcc_unused Error &error)
+static void
+httpd_output_enable(AudioOutput *ao)
 {
 	HttpdOutput *httpd = HttpdOutput::Cast(ao);
 
 	httpd->Bind();
-	return true;
 }
 
 static void
@@ -278,8 +276,8 @@ HttpdOutput::OpenEncoder(AudioFormat &audio_format)
 	unflushed_input = 0;
 }
 
-inline bool
-HttpdOutput::Open(AudioFormat &audio_format, Error &)
+inline void
+HttpdOutput::Open(AudioFormat &audio_format)
 {
 	assert(!open);
 	assert(clients.empty());
@@ -291,18 +289,15 @@ HttpdOutput::Open(AudioFormat &audio_format, Error &)
 	timer = new Timer(audio_format);
 
 	open = true;
-
-	return true;
 }
 
-static bool
-httpd_output_open(AudioOutput *ao, AudioFormat &audio_format,
-		  Error &error)
+static void
+httpd_output_open(AudioOutput *ao, AudioFormat &audio_format)
 {
 	HttpdOutput *httpd = HttpdOutput::Cast(ao);
 
 	const ScopeLock protect(httpd->mutex);
-	return httpd->Open(audio_format, error);
+	httpd->Open(audio_format);
 }
 
 inline void
@@ -419,7 +414,7 @@ HttpdOutput::EncodeAndPlay(const void *chunk, size_t size)
 }
 
 inline size_t
-HttpdOutput::Play(const void *chunk, size_t size, Error &)
+HttpdOutput::Play(const void *chunk, size_t size)
 {
 	if (LockHasClients())
 		EncodeAndPlay(chunk, size);
@@ -432,12 +427,11 @@ HttpdOutput::Play(const void *chunk, size_t size, Error &)
 }
 
 static size_t
-httpd_output_play(AudioOutput *ao, const void *chunk, size_t size,
-		  Error &error)
+httpd_output_play(AudioOutput *ao, const void *chunk, size_t size)
 {
 	HttpdOutput *httpd = HttpdOutput::Cast(ao);
 
-	return httpd->Play(chunk, size, error);
+	return httpd->Play(chunk, size);
 }
 
 static bool
@@ -447,11 +441,10 @@ httpd_output_pause(AudioOutput *ao)
 
 	if (httpd->LockHasClients()) {
 		static const char silence[1020] = { 0 };
-		return httpd_output_play(ao, silence, sizeof(silence),
-					 IgnoreError()) > 0;
-	} else {
-		return true;
+		httpd->Play(silence, sizeof(silence));
 	}
+
+	return true;
 }
 
 inline void

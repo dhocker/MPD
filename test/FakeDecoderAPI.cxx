@@ -29,59 +29,58 @@
 #include <stdio.h>
 
 void
-decoder_initialized(Decoder &decoder,
-		    const AudioFormat audio_format,
-		    gcc_unused bool seekable,
-		    SignedSongTime duration)
+FakeDecoder::Ready(const AudioFormat audio_format,
+		   gcc_unused bool seekable,
+		   SignedSongTime duration)
 {
 	struct audio_format_string af_string;
 
-	assert(!decoder.initialized);
+	assert(!initialized);
 	assert(audio_format.IsValid());
 
 	fprintf(stderr, "audio_format=%s duration=%f\n",
 		audio_format_to_string(audio_format, &af_string),
 		duration.ToDoubleS());
 
-	decoder.initialized = true;
+	initialized = true;
 }
 
 DecoderCommand
-decoder_get_command(gcc_unused Decoder &decoder)
+FakeDecoder::GetCommand()
 {
 	return DecoderCommand::NONE;
 }
 
 void
-decoder_command_finished(gcc_unused Decoder &decoder)
+FakeDecoder::CommandFinished()
 {
 }
 
 SongTime
-decoder_seek_time(gcc_unused Decoder &decoder)
+FakeDecoder::GetSeekTime()
 {
 	return SongTime();
 }
 
 uint64_t
-decoder_seek_where_frame(gcc_unused Decoder &decoder)
+FakeDecoder::GetSeekFrame()
 {
 	return 1;
 }
 
 void
-decoder_seek_error(gcc_unused Decoder &decoder)
+FakeDecoder::SeekError()
 {
 }
 
 InputStreamPtr
-decoder_open_uri(Decoder &decoder, const char *uri)
+FakeDecoder::OpenUri(const char *uri)
 {
-	return InputStream::OpenReady(uri, decoder.mutex, decoder.cond);
+	return InputStream::OpenReady(uri, mutex, cond);
 }
 
 size_t
-decoder_read(gcc_unused Decoder *decoder,
+decoder_read(gcc_unused DecoderClient *client,
 	     InputStream &is,
 	     void *buffer, size_t length)
 {
@@ -93,13 +92,13 @@ decoder_read(gcc_unused Decoder *decoder,
 }
 
 bool
-decoder_read_full(Decoder *decoder, InputStream &is,
+decoder_read_full(DecoderClient *client, InputStream &is,
 		  void *_buffer, size_t size)
 {
 	uint8_t *buffer = (uint8_t *)_buffer;
 
 	while (size > 0) {
-		size_t nbytes = decoder_read(decoder, is, buffer, size);
+		size_t nbytes = decoder_read(client, is, buffer, size);
 		if (nbytes == 0)
 			return false;
 
@@ -111,11 +110,11 @@ decoder_read_full(Decoder *decoder, InputStream &is,
 }
 
 bool
-decoder_skip(Decoder *decoder, InputStream &is, size_t size)
+decoder_skip(DecoderClient *client, InputStream &is, size_t size)
 {
 	while (size > 0) {
 		char buffer[1024];
-		size_t nbytes = decoder_read(decoder, is, buffer,
+		size_t nbytes = decoder_read(client, is, buffer,
 					     std::min(sizeof(buffer), size));
 		if (nbytes == 0)
 			return false;
@@ -127,16 +126,14 @@ decoder_skip(Decoder *decoder, InputStream &is, size_t size)
 }
 
 void
-decoder_timestamp(gcc_unused Decoder &decoder,
-		  gcc_unused double t)
+FakeDecoder::SubmitTimestamp(gcc_unused double t)
 {
 }
 
 DecoderCommand
-decoder_data(gcc_unused Decoder &decoder,
-	     gcc_unused InputStream *is,
-	     const void *data, size_t datalen,
-	     gcc_unused uint16_t kbit_rate)
+FakeDecoder::SubmitData(gcc_unused InputStream *is,
+			const void *data, size_t datalen,
+			gcc_unused uint16_t kbit_rate)
 {
 	static uint16_t prev_kbit_rate;
 	if (kbit_rate != prev_kbit_rate) {
@@ -149,9 +146,8 @@ decoder_data(gcc_unused Decoder &decoder,
 }
 
 DecoderCommand
-decoder_tag(gcc_unused Decoder &decoder,
-	    gcc_unused InputStream *is,
-	    Tag &&tag)
+FakeDecoder::SubmitTag(gcc_unused InputStream *is,
+		       Tag &&tag)
 {
 	fprintf(stderr, "TAG: duration=%f\n", tag.duration.ToDoubleS());
 
@@ -162,8 +158,7 @@ decoder_tag(gcc_unused Decoder &decoder,
 }
 
 void
-decoder_replay_gain(gcc_unused Decoder &decoder,
-		    const ReplayGainInfo *rgi)
+FakeDecoder::SubmitReplayGain(const ReplayGainInfo *rgi)
 {
 	const ReplayGainTuple *tuple = &rgi->tuples[REPLAY_GAIN_ALBUM];
 	if (tuple->IsDefined())
@@ -177,7 +172,7 @@ decoder_replay_gain(gcc_unused Decoder &decoder,
 }
 
 void
-decoder_mixramp(gcc_unused Decoder &decoder, gcc_unused MixRampInfo &&mix_ramp)
+FakeDecoder::SubmitMixRamp(gcc_unused MixRampInfo &&mix_ramp)
 {
 	fprintf(stderr, "MixRamp: start='%s' end='%s'\n",
 		mix_ramp.GetStart(), mix_ramp.GetEnd());

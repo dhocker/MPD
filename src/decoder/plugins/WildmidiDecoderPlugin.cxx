@@ -61,7 +61,7 @@ wildmidi_finish(void)
 }
 
 static DecoderCommand
-wildmidi_output(Decoder &decoder, midi *wm)
+wildmidi_output(DecoderClient &client, midi *wm)
 {
 #ifdef LIBWILDMIDI_VER_MAJOR
 	/* WildMidi 0.4 has switched from "char*" to "int8_t*" */
@@ -75,11 +75,11 @@ wildmidi_output(Decoder &decoder, midi *wm)
 	if (length <= 0)
 		return DecoderCommand::STOP;
 
-	return decoder_data(decoder, nullptr, buffer, length, 0);
+	return client.SubmitData(nullptr, buffer, length, 0);
 }
 
 static void
-wildmidi_file_decode(Decoder &decoder, Path path_fs)
+wildmidi_file_decode(DecoderClient &client, Path path_fs)
 {
 	static constexpr AudioFormat audio_format = {
 		WILDMIDI_SAMPLE_RATE,
@@ -103,7 +103,7 @@ wildmidi_file_decode(Decoder &decoder, Path path_fs)
 		SongTime::FromScale<uint64_t>(info->approx_total_samples,
 					      WILDMIDI_SAMPLE_RATE);
 
-	decoder_initialized(decoder, audio_format, true, duration);
+	client.Ready(audio_format, true, duration);
 
 	DecoderCommand cmd;
 	do {
@@ -111,14 +111,13 @@ wildmidi_file_decode(Decoder &decoder, Path path_fs)
 		if (info == nullptr)
 			break;
 
-		cmd = wildmidi_output(decoder, wm);
+		cmd = wildmidi_output(client, wm);
 
 		if (cmd == DecoderCommand::SEEK) {
-			unsigned long seek_where =
-				decoder_seek_where_frame(decoder);
+			unsigned long seek_where = client.GetSeekFrame();
 
 			WildMidi_FastSeek(wm, &seek_where);
-			decoder_command_finished(decoder);
+			client.CommandFinished();
 			cmd = DecoderCommand::NONE;
 		}
 

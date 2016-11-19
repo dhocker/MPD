@@ -147,7 +147,7 @@ mikmod_decoder_finish(void)
 }
 
 static void
-mikmod_decoder_file_decode(Decoder &decoder, Path path_fs)
+mikmod_decoder_file_decode(DecoderClient &client, Path path_fs)
 {
 	/* deconstify the path because libmikmod wants a non-const
 	   string pointer */
@@ -170,15 +170,14 @@ mikmod_decoder_file_decode(Decoder &decoder, Path path_fs)
 	const AudioFormat audio_format(mikmod_sample_rate, SampleFormat::S16, 2);
 	assert(audio_format.IsValid());
 
-	decoder_initialized(decoder, audio_format, false,
-			    SignedSongTime::Negative());
+	client.Ready(audio_format, false, SignedSongTime::Negative());
 
 	Player_Start(handle);
 
 	DecoderCommand cmd = DecoderCommand::NONE;
 	while (cmd == DecoderCommand::NONE && Player_Active()) {
 		ret = VC_WriteBytes(buffer, sizeof(buffer));
-		cmd = decoder_data(decoder, nullptr, buffer, ret, 0);
+		cmd = client.SubmitData(nullptr, buffer, ret, 0);
 	}
 
 	Player_Stop();

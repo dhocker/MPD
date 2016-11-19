@@ -21,17 +21,32 @@
 #define FAKE_DECODER_API_HXX
 
 #include "check.h"
+#include "decoder/Client.hxx"
 #include "thread/Mutex.hxx"
 #include "thread/Cond.hxx"
 
-struct Decoder {
+struct FakeDecoder final : DecoderClient {
 	Mutex mutex;
 	Cond cond;
 
-	bool initialized;
+	bool initialized = false;
 
-	Decoder()
-		:initialized(false) {}
+	/* virtual methods from DecoderClient */
+	void Ready(AudioFormat audio_format,
+		   bool seekable, SignedSongTime duration) override;
+	DecoderCommand GetCommand() override;
+	void CommandFinished() override;
+	SongTime GetSeekTime() override;
+	uint64_t GetSeekFrame() override;
+	void SeekError() override;
+	InputStreamPtr OpenUri(const char *uri) override;
+	void SubmitTimestamp(double t) override;
+	DecoderCommand SubmitData(InputStream *is,
+				  const void *data, size_t length,
+				  uint16_t kbit_rate) override;
+	DecoderCommand SubmitTag(InputStream *is, Tag &&tag) override ;
+	void SubmitReplayGain(const ReplayGainInfo *replay_gain_info) override;
+	void SubmitMixRamp(MixRampInfo &&mix_ramp) override;
 };
 
 #endif

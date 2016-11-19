@@ -20,6 +20,7 @@
 #ifndef MPD_DECODER_INTERNAL_HXX
 #define MPD_DECODER_INTERNAL_HXX
 
+#include "Client.hxx"
 #include "ReplayGainInfo.hxx"
 
 #include <exception>
@@ -29,7 +30,7 @@ struct MusicChunk;
 struct DecoderControl;
 struct Tag;
 
-struct Decoder {
+struct Decoder final : DecoderClient {
 	DecoderControl &dc;
 
 	/**
@@ -58,9 +59,8 @@ struct Decoder {
 	bool initial_seek_running = false;
 
 	/**
-	 * This flag is set by decoder_seek_time(), and checked by
-	 * decoder_command_finished().  It is used to clean up after
-	 * seeking.
+	 * This flag is set by GetSeekTime(), and checked by
+	 * CommandFinished().  It is used to clean up after seeking.
 	 */
 	bool seeking = false;
 
@@ -78,7 +78,7 @@ struct Decoder {
 	Tag *decoder_tag = nullptr;
 
 	/** the chunk currently being written to */
-	MusicChunk *chunk = nullptr;
+	MusicChunk *current_chunk = nullptr;
 
 	ReplayGainInfo replay_gain_info;
 
@@ -115,6 +115,23 @@ struct Decoder {
 	 * Caller must not lock the #DecoderControl object.
 	 */
 	void FlushChunk();
+
+	/* virtual methods from DecoderClient */
+	void Ready(AudioFormat audio_format,
+		   bool seekable, SignedSongTime duration) override;
+	DecoderCommand GetCommand() override;
+	void CommandFinished() override;
+	SongTime GetSeekTime() override;
+	uint64_t GetSeekFrame() override;
+	void SeekError() override;
+	InputStreamPtr OpenUri(const char *uri) override;
+	void SubmitTimestamp(double t) override;
+	DecoderCommand SubmitData(InputStream *is,
+				  const void *data, size_t length,
+				  uint16_t kbit_rate) override;
+	DecoderCommand SubmitTag(InputStream *is, Tag &&tag) override ;
+	void SubmitReplayGain(const ReplayGainInfo *replay_gain_info) override;
+	void SubmitMixRamp(MixRampInfo &&mix_ramp) override;
 };
 
 #endif

@@ -17,34 +17,47 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-#include "config.h"
-#include "FilterPlugin.hxx"
-#include "FilterRegistry.hxx"
-#include "config/Block.hxx"
-#include "config/ConfigError.hxx"
-#include "util/RuntimeError.hxx"
+#include "ReplayGainMode.hxx"
+
+#include <stdexcept>
 
 #include <assert.h>
+#include <string.h>
 
-PreparedFilter *
-filter_new(const FilterPlugin *plugin, const ConfigBlock &block)
+const char *
+ToString(ReplayGainMode mode)
 {
-	assert(plugin != nullptr);
+	switch (mode) {
+	case ReplayGainMode::AUTO:
+		return "auto";
 
-	return plugin->init(block);
+	case ReplayGainMode::OFF:
+		return "off";
+
+	case ReplayGainMode::TRACK:
+		return "track";
+
+	case ReplayGainMode::ALBUM:
+		return "album";
+	}
+
+	assert(false);
+	gcc_unreachable();
 }
 
-PreparedFilter *
-filter_configured_new(const ConfigBlock &block)
+ReplayGainMode
+FromString(const char *s)
 {
-	const char *plugin_name = block.GetBlockValue("plugin");
-	if (plugin_name == nullptr)
-		throw std::runtime_error("No filter plugin specified");
+	assert(s != nullptr);
 
-	const auto *plugin = filter_plugin_by_name(plugin_name);
-	if (plugin == nullptr)
-		throw FormatRuntimeError("No such filter plugin: %s",
-					 plugin_name);
-
-	return filter_new(plugin, block);
+	if (strcmp(s, "off") == 0)
+		return ReplayGainMode::OFF;
+	else if (strcmp(s, "track") == 0)
+		return ReplayGainMode::TRACK;
+	else if (strcmp(s, "album") == 0)
+		return ReplayGainMode::ALBUM;
+	else if (strcmp(s, "auto") == 0)
+		return ReplayGainMode::AUTO;
+	else
+		throw std::invalid_argument("Unrecognized replay gain mode");
 }

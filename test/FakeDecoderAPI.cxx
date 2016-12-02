@@ -80,49 +80,13 @@ FakeDecoder::OpenUri(const char *uri)
 }
 
 size_t
-decoder_read(gcc_unused DecoderClient *client,
-	     InputStream &is,
-	     void *buffer, size_t length)
+FakeDecoder::Read(InputStream &is, void *buffer, size_t length)
 {
 	try {
 		return is.LockRead(buffer, length);
-	} catch (const std::runtime_error &) {
+	} catch (const std::runtime_error &e) {
 		return 0;
 	}
-}
-
-bool
-decoder_read_full(DecoderClient *client, InputStream &is,
-		  void *_buffer, size_t size)
-{
-	uint8_t *buffer = (uint8_t *)_buffer;
-
-	while (size > 0) {
-		size_t nbytes = decoder_read(client, is, buffer, size);
-		if (nbytes == 0)
-			return false;
-
-		buffer += nbytes;
-		size -= nbytes;
-	}
-
-	return true;
-}
-
-bool
-decoder_skip(DecoderClient *client, InputStream &is, size_t size)
-{
-	while (size > 0) {
-		char buffer[1024];
-		size_t nbytes = decoder_read(client, is, buffer,
-					     std::min(sizeof(buffer), size));
-		if (nbytes == 0)
-			return false;
-
-		size -= nbytes;
-	}
-
-	return true;
 }
 
 void
@@ -157,18 +121,26 @@ FakeDecoder::SubmitTag(gcc_unused InputStream *is,
 	return DecoderCommand::NONE;
 }
 
+static void
+DumpReplayGainTuple(const char *name, const ReplayGainTuple &tuple)
+{
+	if (tuple.IsDefined())
+		fprintf(stderr, "replay_gain[%s]: gain=%f peak=%f\n",
+			name, tuple.gain, tuple.peak);
+}
+
+static void
+DumpReplayGainInfo(const ReplayGainInfo &info)
+{
+	DumpReplayGainTuple("album", info.album);
+	DumpReplayGainTuple("track", info.track);
+}
+
 void
 FakeDecoder::SubmitReplayGain(const ReplayGainInfo *rgi)
 {
-	const ReplayGainTuple *tuple = &rgi->tuples[REPLAY_GAIN_ALBUM];
-	if (tuple->IsDefined())
-		fprintf(stderr, "replay_gain[album]: gain=%f peak=%f\n",
-			tuple->gain, tuple->peak);
-
-	tuple = &rgi->tuples[REPLAY_GAIN_TRACK];
-	if (tuple->IsDefined())
-		fprintf(stderr, "replay_gain[track]: gain=%f peak=%f\n",
-			tuple->gain, tuple->peak);
+	if (rgi != nullptr)
+		DumpReplayGainInfo(*rgi);
 }
 
 void

@@ -17,8 +17,8 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-#ifndef MPD_DECODER_INTERNAL_HXX
-#define MPD_DECODER_INTERNAL_HXX
+#ifndef MPD_DECODER_BRIDGE_HXX
+#define MPD_DECODER_BRIDGE_HXX
 
 #include "Client.hxx"
 #include "ReplayGainInfo.hxx"
@@ -30,7 +30,12 @@ struct MusicChunk;
 struct DecoderControl;
 struct Tag;
 
-struct Decoder final : DecoderClient {
+/**
+ * A bridge between the #DecoderClient interface and the MPD core
+ * (#DecoderControl, #MusicPipe etc.).
+ */
+class DecoderBridge final : public DecoderClient {
+public:
 	DecoderControl &dc;
 
 	/**
@@ -94,12 +99,22 @@ struct Decoder final : DecoderClient {
 	 */
 	std::exception_ptr error;
 
-	Decoder(DecoderControl &_dc, bool _initial_seek_pending, Tag *_tag)
+	DecoderBridge(DecoderControl &_dc, bool _initial_seek_pending,
+		      Tag *_tag)
 		:dc(_dc),
 		 initial_seek_pending(_initial_seek_pending),
 		 song_tag(_tag) {}
 
-	~Decoder();
+	~DecoderBridge();
+
+	/**
+	 * Should be read operation be cancelled?  That is the case when the
+	 * player thread has sent a command such as "STOP".
+	 *
+	 * Caller must lock the #DecoderControl object.
+	 */
+	gcc_pure
+	bool CheckCancelRead() const;
 
 	/**
 	 * Returns the current chunk the decoder writes to, or allocates a new
@@ -125,6 +140,7 @@ struct Decoder final : DecoderClient {
 	uint64_t GetSeekFrame() override;
 	void SeekError() override;
 	InputStreamPtr OpenUri(const char *uri) override;
+	size_t Read(InputStream &is, void *buffer, size_t length) override;
 	void SubmitTimestamp(double t) override;
 	DecoderCommand SubmitData(InputStream *is,
 				  const void *data, size_t length,
@@ -132,6 +148,29 @@ struct Decoder final : DecoderClient {
 	DecoderCommand SubmitTag(InputStream *is, Tag &&tag) override ;
 	void SubmitReplayGain(const ReplayGainInfo *replay_gain_info) override;
 	void SubmitMixRamp(MixRampInfo &&mix_ramp) override;
+
+private:
+	/**
+	 * Checks if we need an "initial seek".  If so, then the
+	 * initial seek is prepared, and the function returns true.
+	 */
+	bool PrepareInitialSeek();
+
+	/**
+	 * Returns the current decoder command.  May return a
+	 * "virtual" synthesized command, e.g. to seek to the
+	 * beginning of the CUE track.
+	 */
+	DecoderCommand GetVirtualCommand();
+	DecoderCommand LockGetVirtualCommand();
+
+	/**
+	 * Sends a #Tag as-is to the #MusicPipe.  Flushes the current
+	 * chunk (DecoderBridge::chunk) if there is one.
+	 */
+	DecoderCommand DoSendTag(const Tag &tag);
+
+	bool UpdateStreamTag(InputStream *is);
 };
 
 #endif

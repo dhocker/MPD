@@ -18,33 +18,7 @@
  */
 
 #include "config.h"
-#include "FilterPlugin.hxx"
-#include "FilterRegistry.hxx"
-#include "config/Block.hxx"
-#include "config/ConfigError.hxx"
-#include "util/RuntimeError.hxx"
+#include "ReplayGainGlobal.hxx"
+#include "ReplayGainConfig.hxx"
 
-#include <assert.h>
-
-PreparedFilter *
-filter_new(const FilterPlugin *plugin, const ConfigBlock &block)
-{
-	assert(plugin != nullptr);
-
-	return plugin->init(block);
-}
-
-PreparedFilter *
-filter_configured_new(const ConfigBlock &block)
-{
-	const char *plugin_name = block.GetBlockValue("plugin");
-	if (plugin_name == nullptr)
-		throw std::runtime_error("No filter plugin specified");
-
-	const auto *plugin = filter_plugin_by_name(plugin_name);
-	if (plugin == nullptr)
-		throw FormatRuntimeError("No such filter plugin: %s",
-					 plugin_name);
-
-	return filter_new(plugin, block);
-}
+ReplayGainConfig replay_gain_config;

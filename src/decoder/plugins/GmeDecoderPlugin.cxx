@@ -22,21 +22,23 @@
 #include "../DecoderAPI.hxx"
 #include "config/Block.cxx"
 #include "CheckAudioFormat.hxx"
+#include "DetachedSong.hxx"
 #include "tag/TagHandler.hxx"
+#include "tag/TagBuilder.hxx"
 #include "fs/Path.hxx"
 #include "fs/AllocatedPath.hxx"
 #include "util/ScopeExit.hxx"
 #include "util/FormatString.hxx"
-#include "util/AllocatedString.hxx"
 #include "util/UriUtil.hxx"
 #include "util/Domain.hxx"
 #include "Log.hxx"
 
+#include <gme/gme.h>
+
 #include <assert.h>
 #include <stdlib.h>
 #include <string.h>
-
-#include <gme/gme.h>
+#include <stdio.h>
 
 #define SUBTUNE_PREFIX "tune_"
 
@@ -101,31 +103,6 @@ ParseContainerPath(Path path_fs)
 		return { AllocatedPath(path_fs), 0 };
 
 	return { path_fs.GetDirectoryName(), track - 1 };
-}
-
-static AllocatedString<>
-gme_container_scan(Path path_fs, const unsigned int tnum)
-{
-	Music_Emu *emu;
-	const char *gme_err = gme_open_file(path_fs.c_str(), &emu,
-					    GME_SAMPLE_RATE);
-	if (gme_err != nullptr) {
-		LogWarning(gme_domain, gme_err);
-		return nullptr;
-	}
-
-	const unsigned num_songs = gme_track_count(emu);
-	gme_delete(emu);
-	/* if it only contains a single tune, don't treat as container */
-	if (num_songs < 2)
-		return nullptr;
-
-	const char *subtune_suffix = uri_get_suffix(path_fs.c_str());
-	if (tnum <= num_songs){
-		return FormatString(SUBTUNE_PREFIX "%03u.%s",
-				    tnum, subtune_suffix);
-	} else
-		return nullptr;
 }
 
 static void
@@ -214,6 +191,12 @@ ScanGmeInfo(const gme_info_t &info, unsigned song_num, int track_count,
 		tag_handler_invoke_duration(handler, handler_ctx,
 					    SongTime::FromMS(info.play_length));
 
+	if (track_count > 1) {
+		char track[16];
+		sprintf(track, "%u", song_num + 1);
+		tag_handler_invoke_tag(handler, handler_ctx, TAG_TRACK, track);
+	}
+
 	if (info.song != nullptr) {
 		if (track_count > 1) {
 			/* start numbering subtunes from 1 */
@@ -259,10 +242,10 @@ ScanMusicEmu(Music_Emu *emu, unsigned song_num,
 
 	assert(ti != nullptr);
 
+	AtScopeExit(ti) { gme_free_info(ti); };
+
 	ScanGmeInfo(*ti, song_num, gme_track_count(emu),
 		    handler, handler_ctx);
-
-	gme_free_info(ti);
 	return true;
 }
 
@@ -280,11 +263,48 @@ gme_scan_file(Path path_fs,
 		return false;
 	}
 
-	const bool result = ScanMusicEmu(emu, container.track, handler, handler_ctx);
+	AtScopeExit(emu) { gme_delete(emu); };
 
-	gme_delete(emu);
+	return ScanMusicEmu(emu, container.track, handler, handler_ctx);
+}
 
-	return result;
+static std::forward_list<DetachedSong>
+gme_container_scan(Path path_fs)
+{
+	std::forward_list<DetachedSong> list;
+
+	Music_Emu *emu;
+	const char *gme_err = gme_open_file(path_fs.c_str(), &emu,
+					    GME_SAMPLE_RATE);
+	if (gme_err != nullptr) {
+		LogWarning(gme_domain, gme_err);
+		return list;
+	}
+
+	AtScopeExit(emu) { gme_delete(emu); };
+
+	const unsigned num_songs = gme_track_count(emu);
+	/* if it only contains a single tune, don't treat as container */
+	if (num_songs < 2)
+		return list;
+
+	const char *subtune_suffix = uri_get_suffix(path_fs.c_str());
+
+	TagBuilder tag_builder;
+
+	auto tail = list.before_begin();
+	for (unsigned i = 1; i <= num_songs; ++i) {
+		ScanMusicEmu(emu, i,
+			     add_tag_handler, &tag_builder);
+
+		char track_name[64];
+		snprintf(track_name, sizeof(track_name),
+			 SUBTUNE_PREFIX "%03u.%s", i, subtune_suffix);
+		tail = list.emplace_after(tail, track_name,
+					  tag_builder.Commit());
+	}
+
+	return list;
 }
 
 static const char *const gme_suffixes[] = {
@@ -293,7 +313,6 @@ static const char *const gme_suffixes[] = {
 	nullptr
 };
 
-extern const struct DecoderPlugin gme_decoder_plugin;
 const struct DecoderPlugin gme_decoder_plugin = {
 	"gme",
 	gme_plugin_init,

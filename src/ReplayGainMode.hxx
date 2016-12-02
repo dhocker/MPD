@@ -17,9 +17,33 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-#include "config.h"
-#include "ReplayGainConfig.hxx"
+#ifndef MPD_REPLAY_GAIN_MODE_HXX
+#define MPD_REPLAY_GAIN_MODE_HXX
 
-float replay_gain_preamp = 1.0;
-float replay_gain_missing_preamp = 1.0;
-bool replay_gain_limit = true;
+#include "Compiler.h"
+
+#include <stdint.h>
+
+enum class ReplayGainMode : uint8_t {
+	OFF,
+	ALBUM,
+	TRACK,
+	AUTO,
+};
+
+/**
+ * Return the string representation of a #ReplayGainMode.
+ */
+gcc_pure
+const char *
+ToString(ReplayGainMode mode);
+
+/**
+ * Parse a string to a #ReplayGainMode.  Throws std::runtime_error on
+ * error.
+ */
+gcc_pure
+ReplayGainMode
+FromString(const char *s);
+
+#endif

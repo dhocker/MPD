@@ -99,10 +99,9 @@ libmpd_a_SOURCES = \
 	src/decoder/DecoderThread.cxx src/decoder/DecoderThread.hxx \
 	src/decoder/DecoderCommand.hxx \
 	src/decoder/DecoderControl.cxx src/decoder/DecoderControl.hxx \
-	src/decoder/DecoderAPI.cxx src/decoder/DecoderAPI.hxx \
 	src/decoder/Client.hxx \
 	src/decoder/DecoderPlugin.hxx \
-	src/decoder/DecoderInternal.cxx src/decoder/DecoderInternal.hxx \
+	src/decoder/Bridge.cxx src/decoder/Bridge.hxx \
 	src/decoder/DecoderPrint.cxx src/decoder/DecoderPrint.hxx \
 	src/filter/FilterConfig.cxx src/filter/FilterConfig.hxx \
 	src/filter/FilterPlugin.cxx src/filter/FilterPlugin.hxx \
@@ -167,7 +166,7 @@ libmpd_a_SOURCES = \
 	src/queue/PlaylistState.cxx src/queue/PlaylistState.hxx \
 	src/queue/Listener.hxx \
 	src/PluginUnavailable.hxx \
-	src/ReplayGainConfig.cxx src/ReplayGainConfig.hxx \
+	src/ReplayGainGlobal.cxx src/ReplayGainGlobal.hxx \
 	src/DetachedSong.cxx src/DetachedSong.hxx \
 	src/LocateUri.cxx src/LocateUri.hxx \
 	src/SongUpdate.cxx \
@@ -854,6 +853,8 @@ libbasic_a_SOURCES = \
 	src/CheckAudioFormat.cxx src/CheckAudioFormat.hxx \
 	src/AudioFormat.cxx src/AudioFormat.hxx \
 	src/AudioParser.cxx src/AudioParser.hxx \
+	src/ReplayGainConfig.hxx \
+	src/ReplayGainMode.cxx src/ReplayGainMode.hxx \
 	src/ReplayGainInfo.cxx src/ReplayGainInfo.hxx
 
 # configuration library
@@ -934,6 +935,7 @@ endif
 libdecoder_a_SOURCES = \
 	src/decoder/plugins/PcmDecoderPlugin.cxx \
 	src/decoder/plugins/PcmDecoderPlugin.hxx \
+	src/decoder/DecoderAPI.cxx src/decoder/DecoderAPI.hxx \
 	src/decoder/Reader.cxx src/decoder/Reader.hxx \
 	src/decoder/DecoderBuffer.cxx src/decoder/DecoderBuffer.hxx \
 	src/decoder/DecoderPlugin.cxx \
@@ -1644,6 +1646,7 @@ noinst_PROGRAMS = \
 	test/run_decoder \
 	test/read_tags \
 	test/ReadApeTags \
+	test/ContainerScan \
 	test/run_filter \
 	test/run_output \
 	test/run_convert \
@@ -1864,7 +1867,6 @@ test_dump_playlist_LDADD = \
 test_dump_playlist_SOURCES = test/dump_playlist.cxx \
 	test/FakeDecoderAPI.cxx test/FakeDecoderAPI.hxx \
 	test/ScopeIOThread.hxx \
-	$(DECODER_SRC) \
 	src/Log.cxx src/LogBackend.cxx \
 	src/IOThread.cxx \
 	src/TagSave.cxx \
@@ -1894,13 +1896,10 @@ test_run_decoder_LDADD = \
 test_run_decoder_SOURCES = test/run_decoder.cxx \
 	test/FakeDecoderAPI.cxx test/FakeDecoderAPI.hxx \
 	test/ScopeIOThread.hxx \
+	src/DetachedSong.cxx \
 	src/Log.cxx src/LogBackend.cxx \
 	src/IOThread.cxx \
-	src/ReplayGainInfo.cxx \
-	$(ARCHIVE_SRC) \
-	$(INPUT_SRC) \
-	$(TAG_SRC) \
-	$(DECODER_SRC)
+	src/ReplayGainInfo.cxx
 
 test_read_tags_LDADD = \
 	$(DECODER_LIBS) \
@@ -1919,10 +1918,10 @@ test_read_tags_LDADD = \
 test_read_tags_SOURCES = test/read_tags.cxx \
 	test/FakeDecoderAPI.cxx test/FakeDecoderAPI.hxx \
 	test/ScopeIOThread.hxx \
+	src/DetachedSong.cxx \
 	src/Log.cxx src/LogBackend.cxx \
 	src/IOThread.cxx \
-	src/ReplayGainInfo.cxx \
-	$(DECODER_SRC)
+	src/ReplayGainInfo.cxx
 
 test_ReadApeTags_LDADD = \
 	$(TAG_LIBS) \
@@ -1935,6 +1934,27 @@ test_ReadApeTags_LDADD = \
 test_ReadApeTags_SOURCES = \
 	src/Log.cxx src/LogBackend.cxx \
 	test/ReadApeTags.cxx
+
+test_ContainerScan_LDADD = \
+	$(DECODER_LIBS) \
+	libpcm.a \
+	$(INPUT_LIBS) \
+	$(ARCHIVE_LIBS) \
+	$(TAG_LIBS) \
+	libconf.a \
+	libbasic.a \
+	libevent.a \
+	libthread.a \
+	$(FS_LIBS) \
+	$(ICU_LDADD) \
+	libsystem.a \
+	libutil.a
+test_ContainerScan_SOURCES = test/ContainerScan.cxx \
+	src/DetachedSong.cxx \
+	src/SongSave.cxx src/TagSave.cxx \
+	src/Log.cxx src/LogBackend.cxx \
+	src/ReplayGainInfo.cxx \
+	$(DECODER_SRC)
 
 if ENABLE_ID3TAG
 test_dump_rva2_LDADD = \
@@ -1959,7 +1979,7 @@ test_run_filter_LDADD = \
 	libsystem.a \
 	libutil.a
 test_run_filter_SOURCES = test/run_filter.cxx \
-	test/FakeReplayGainConfig.cxx \
+	test/FakeReplayGainGlobal.cxx \
 	src/Log.cxx src/LogBackend.cxx \
 	src/filter/FilterPlugin.cxx src/filter/FilterRegistry.cxx
 
@@ -1983,8 +2003,7 @@ endif
 if ENABLE_VORBISENC
 noinst_PROGRAMS += test/test_vorbis_encoder
 test_test_vorbis_encoder_SOURCES = test/test_vorbis_encoder.cxx \
-	src/Log.cxx src/LogBackend.cxx \
-	$(ENCODER_SRC)
+	src/Log.cxx src/LogBackend.cxx
 test_test_vorbis_encoder_CPPFLAGS = $(AM_CPPFLAGS) \
 	$(ENCODER_CFLAGS)
 test_test_vorbis_encoder_LDADD = $(MPD_LIBS) \
@@ -2055,7 +2074,7 @@ test_run_output_LDADD = $(MPD_LIBS) \
 	libthread.a \
 	libutil.a
 test_run_output_SOURCES = test/run_output.cxx \
-	test/FakeReplayGainConfig.cxx \
+	test/FakeReplayGainGlobal.cxx \
 	test/ScopeIOThread.hxx \
 	src/Log.cxx src/LogBackend.cxx \
 	src/IOThread.cxx \

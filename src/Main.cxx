@@ -33,7 +33,7 @@
 #include "command/AllCommands.hxx"
 #include "Partition.hxx"
 #include "tag/TagConfig.hxx"
-#include "ReplayGainConfig.hxx"
+#include "ReplayGainGlobal.hxx"
 #include "Idle.hxx"
 #include "Log.hxx"
 #include "LogInit.hxx"
@@ -517,7 +517,7 @@ try {
 
 	glue_state_file_init();
 
-	instance->partition->outputs.SetReplayGainMode(replay_gain_get_real_mode(instance->partition->playlist.queue.random));
+	instance->partition->UpdateEffectiveReplayGainMode(replay_gain_mode);
 
 #ifdef ENABLE_DATABASE
 	if (config_get_bool(ConfigOption::AUTO_UPDATE, false)) {

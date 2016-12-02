@@ -17,34 +17,19 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-#include "config.h"
-#include "FilterPlugin.hxx"
-#include "FilterRegistry.hxx"
-#include "config/Block.hxx"
-#include "config/ConfigError.hxx"
-#include "util/RuntimeError.hxx"
+#ifndef MPD_REPLAY_GAIN_GLOBAL_HXX
+#define MPD_REPLAY_GAIN_GLOBAL_HXX
 
-#include <assert.h>
+#include "check.h"
+#include "ReplayGainMode.hxx"
 
-PreparedFilter *
-filter_new(const FilterPlugin *plugin, const ConfigBlock &block)
-{
-	assert(plugin != nullptr);
+struct ReplayGainConfig;
 
-	return plugin->init(block);
-}
+extern ReplayGainMode replay_gain_mode;
 
-PreparedFilter *
-filter_configured_new(const ConfigBlock &block)
-{
-	const char *plugin_name = block.GetBlockValue("plugin");
-	if (plugin_name == nullptr)
-		throw std::runtime_error("No filter plugin specified");
+extern ReplayGainConfig replay_gain_config;
 
-	const auto *plugin = filter_plugin_by_name(plugin_name);
-	if (plugin == nullptr)
-		throw FormatRuntimeError("No such filter plugin: %s",
-					 plugin_name);
+void
+replay_gain_global_init();
 
-	return filter_new(plugin, block);
-}
+#endif

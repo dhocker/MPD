@@ -24,7 +24,7 @@
 #include "filter/FilterRegistry.hxx"
 #include "AudioFormat.hxx"
 #include "ReplayGainInfo.hxx"
-#include "ReplayGainConfig.hxx"
+#include "ReplayGainGlobal.hxx"
 #include "mixer/MixerControl.hxx"
 #include "pcm/Volume.hxx"
 #include "util/ConstBuffer.hxx"
@@ -50,7 +50,7 @@ class ReplayGainFilter final : public Filter {
 	 */
 	const unsigned base;
 
-	ReplayGainMode mode = REPLAY_GAIN_OFF;
+	ReplayGainMode mode = ReplayGainMode::OFF;
 
 	ReplayGainInfo info;
 
@@ -72,17 +72,16 @@ public:
 	ReplayGainFilter(const AudioFormat &audio_format,
 			 Mixer *_mixer, unsigned _base)
 		:Filter(audio_format),
-		 mixer(_mixer), base(_base), mode(REPLAY_GAIN_OFF) {
+		 mixer(_mixer), base(_base) {
 		info.Clear();
 
 		pv.Open(out_audio_format.format);
 	}
 
 	void SetInfo(const ReplayGainInfo *_info) {
-		if (_info != nullptr) {
+		if (_info != nullptr)
 			info = *_info;
-			info.Complete();
-		} else
+		else
 			info.Clear();
 
 		Update();
@@ -94,8 +93,8 @@ public:
 			return;
 
 		FormatDebug(replay_gain_domain,
-			    "replay gain mode has changed %d->%d\n",
-			    mode, _mode);
+			    "replay gain mode has changed %s->%s\n",
+			    ToString(mode), ToString(_mode));
 
 		mode = _mode;
 		Update();
@@ -139,11 +138,9 @@ void
 ReplayGainFilter::Update()
 {
 	unsigned volume = PCM_VOLUME_1;
-	if (mode != REPLAY_GAIN_OFF) {
-		const auto &tuple = info.tuples[mode];
-		float scale = tuple.CalculateScale(replay_gain_preamp,
-						   replay_gain_missing_preamp,
-						   replay_gain_limit);
+	if (mode != ReplayGainMode::OFF) {
+		const auto &tuple = info.Get(mode);
+		float scale = tuple.CalculateScale(replay_gain_config);
 		FormatDebug(replay_gain_domain,
 			    "scale=%f\n", (double)scale);
 
@@ -186,7 +183,7 @@ ReplayGainFilter::FilterPCM(ConstBuffer<void> src)
 		: pv.Apply(src);
 }
 
-const struct filter_plugin replay_gain_filter_plugin = {
+const FilterPlugin replay_gain_filter_plugin = {
 	"replay_gain",
 	replay_gain_filter_init,
 };

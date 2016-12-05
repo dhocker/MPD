@@ -23,18 +23,21 @@
 #include "DetachedSong.hxx"
 #include "mixer/Volume.hxx"
 #include "IdleFlags.hxx"
-#include "ReplayGainGlobal.hxx"
 
 Partition::Partition(Instance &_instance,
 		     unsigned max_length,
 		     unsigned buffer_chunks,
-		     unsigned buffered_before_play)
+		     unsigned buffered_before_play,
+		     AudioFormat configured_audio_format,
+		     const ReplayGainConfig &replay_gain_config)
 	:instance(_instance),
 	 global_events(instance.event_loop, BIND_THIS_METHOD(OnGlobalEvent)),
 	 playlist(max_length, *this),
 	 outputs(*this),
-	 pc(*this, outputs, buffer_chunks, buffered_before_play)
+	 pc(*this, outputs, buffer_chunks, buffered_before_play,
+	    configured_audio_format, replay_gain_config)
 {
+	UpdateEffectiveReplayGainMode();
 }
 
 void
@@ -44,14 +47,15 @@ Partition::EmitIdle(unsigned mask)
 }
 
 void
-Partition::UpdateEffectiveReplayGainMode(ReplayGainMode mode)
+Partition::UpdateEffectiveReplayGainMode()
 {
+	auto mode = replay_gain_mode;
 	if (mode == ReplayGainMode::AUTO)
 	    mode = playlist.queue.random
 		    ? ReplayGainMode::TRACK
 		    : ReplayGainMode::ALBUM;
 
-	pc.LockSetReplayGain(replay_gain_config, mode);
+	pc.LockSetReplayGainMode(mode);
 
 	outputs.SetReplayGainMode(mode);
 }

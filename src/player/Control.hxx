@@ -106,6 +106,11 @@ struct PlayerControl {
 	const unsigned buffered_before_play;
 
 	/**
+	 * The "audio_output_format" setting.
+	 */
+	const AudioFormat configured_audio_format;
+
+	/**
 	 * The handle of the player thread.
 	 */
 	Thread thread;
@@ -127,10 +132,10 @@ struct PlayerControl {
 	 */
 	Cond client_cond;
 
-	PlayerCommand command;
-	PlayerState state;
+	PlayerCommand command = PlayerCommand::NONE;
+	PlayerState state = PlayerState::STOP;
 
-	PlayerError error_type;
+	PlayerError error_type = PlayerError::NONE;
 
 	/**
 	 * The error that occurred in the player thread.  This
@@ -150,7 +155,7 @@ struct PlayerControl {
 	 * Protected by #mutex.  Set by the PlayerThread and consumed
 	 * by the main thread.
 	 */
-	DetachedSong *tagged_song;
+	DetachedSong *tagged_song = nullptr;
 
 	uint16_t bit_rate;
 	AudioFormat audio_format;
@@ -163,16 +168,16 @@ struct PlayerControl {
 	 * This is a duplicate, and must be freed when this attribute
 	 * is cleared.
 	 */
-	DetachedSong *next_song;
+	DetachedSong *next_song = nullptr;
 
 	SongTime seek_time;
 
 	CrossFadeSettings cross_fade;
 
-	ReplayGainConfig replay_gain_config;
+	const ReplayGainConfig replay_gain_config;
 	ReplayGainMode replay_gain_mode = ReplayGainMode::OFF;
 
-	double total_play_time;
+	double total_play_time = 0;
 
 	/**
 	 * If this flag is set, then the player will be auto-paused at
@@ -181,12 +186,14 @@ struct PlayerControl {
 	 * This is a copy of the queue's "single" flag most of the
 	 * time.
 	 */
-	bool border_pause;
+	bool border_pause = false;
 
 	PlayerControl(PlayerListener &_listener,
 		      MultipleOutputs &_outputs,
 		      unsigned buffer_chunks,
-		      unsigned buffered_before_play);
+		      unsigned buffered_before_play,
+		      AudioFormat _configured_audio_format,
+		      const ReplayGainConfig &_replay_gain_config);
 	~PlayerControl();
 
 	/**
@@ -468,10 +475,8 @@ public:
 		return cross_fade.mixramp_delay;
 	}
 
-	void LockSetReplayGain(const ReplayGainConfig &_config,
-			       ReplayGainMode _mode) {
+	void LockSetReplayGainMode(ReplayGainMode _mode) {
 		const ScopeLock protect(mutex);
-		replay_gain_config = _config;
 		replay_gain_mode = _mode;
 	}
 

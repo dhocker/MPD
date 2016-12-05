@@ -19,12 +19,10 @@
 
 #include "config.h"
 #include "ReplayGainFilterPlugin.hxx"
-#include "filter/FilterPlugin.hxx"
 #include "filter/FilterInternal.hxx"
-#include "filter/FilterRegistry.hxx"
 #include "AudioFormat.hxx"
 #include "ReplayGainInfo.hxx"
-#include "ReplayGainGlobal.hxx"
+#include "ReplayGainConfig.hxx"
 #include "mixer/MixerControl.hxx"
 #include "pcm/Volume.hxx"
 #include "util/ConstBuffer.hxx"
@@ -38,6 +36,8 @@
 static constexpr Domain replay_gain_domain("replay_gain");
 
 class ReplayGainFilter final : public Filter {
+	const ReplayGainConfig config;
+
 	/**
 	 * If set, then this hardware mixer is used for applying
 	 * replay gain, instead of the software volume library.
@@ -69,9 +69,11 @@ class ReplayGainFilter final : public Filter {
 	PcmVolume pv;
 
 public:
-	ReplayGainFilter(const AudioFormat &audio_format,
+	ReplayGainFilter(const ReplayGainConfig &_config,
+			 const AudioFormat &audio_format,
 			 Mixer *_mixer, unsigned _base)
 		:Filter(audio_format),
+		 config(_config),
 		 mixer(_mixer), base(_base) {
 		info.Clear();
 
@@ -110,6 +112,8 @@ public:
 };
 
 class PreparedReplayGainFilter final : public PreparedFilter {
+	const ReplayGainConfig config;
+
 	/**
 	 * If set, then this hardware mixer is used for applying
 	 * replay gain, instead of the software volume library.
@@ -123,6 +127,9 @@ class PreparedReplayGainFilter final : public PreparedFilter {
 	unsigned base;
 
 public:
+	explicit PreparedReplayGainFilter(const ReplayGainConfig _config)
+		:config(_config) {}
+
 	void SetMixer(Mixer *_mixer, unsigned _base) {
 		assert(_mixer == nullptr || (_base > 0 && _base <= 100));
 
@@ -140,7 +147,7 @@ ReplayGainFilter::Update()
 	unsigned volume = PCM_VOLUME_1;
 	if (mode != ReplayGainMode::OFF) {
 		const auto &tuple = info.Get(mode);
-		float scale = tuple.CalculateScale(replay_gain_config);
+		float scale = tuple.CalculateScale(config);
 		FormatDebug(replay_gain_domain,
 			    "scale=%f\n", (double)scale);
 
@@ -163,16 +170,16 @@ ReplayGainFilter::Update()
 		pv.SetVolume(volume);
 }
 
-static PreparedFilter *
-replay_gain_filter_init(gcc_unused const ConfigBlock &block)
+PreparedFilter *
+NewReplayGainFilter(const ReplayGainConfig &config)
 {
-	return new PreparedReplayGainFilter();
+	return new PreparedReplayGainFilter(config);
 }
 
 Filter *
 PreparedReplayGainFilter::Open(AudioFormat &af)
 {
-	return new ReplayGainFilter(af, mixer, base);
+	return new ReplayGainFilter(config, af, mixer, base);
 }
 
 ConstBuffer<void>
@@ -183,32 +190,27 @@ ReplayGainFilter::FilterPCM(ConstBuffer<void> src)
 		: pv.Apply(src);
 }
 
-const FilterPlugin replay_gain_filter_plugin = {
-	"replay_gain",
-	replay_gain_filter_init,
-};
-
 void
-replay_gain_filter_set_mixer(PreparedFilter *_filter, Mixer *mixer,
+replay_gain_filter_set_mixer(PreparedFilter &_filter, Mixer *mixer,
 			     unsigned base)
 {
-	PreparedReplayGainFilter *filter = (PreparedReplayGainFilter *)_filter;
+	auto &filter = (PreparedReplayGainFilter &)_filter;
 
-	filter->SetMixer(mixer, base);
+	filter.SetMixer(mixer, base);
 }
 
 void
-replay_gain_filter_set_info(Filter *_filter, const ReplayGainInfo *info)
+replay_gain_filter_set_info(Filter &_filter, const ReplayGainInfo *info)
 {
-	ReplayGainFilter *filter = (ReplayGainFilter *)_filter;
+	auto &filter = (ReplayGainFilter &)_filter;
 
-	filter->SetInfo(info);
+	filter.SetInfo(info);
 }
 
 void
-replay_gain_filter_set_mode(Filter *_filter, ReplayGainMode mode)
+replay_gain_filter_set_mode(Filter &_filter, ReplayGainMode mode)
 {
-	ReplayGainFilter *filter = (ReplayGainFilter *)_filter;
+	auto &filter = (ReplayGainFilter &)_filter;
 
-	filter->SetMode(mode);
+	filter.SetMode(mode);
 }

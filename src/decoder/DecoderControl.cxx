@@ -27,8 +27,12 @@
 
 #include <assert.h>
 
-DecoderControl::DecoderControl(Mutex &_mutex, Cond &_client_cond)
-	:mutex(_mutex), client_cond(_client_cond) {}
+DecoderControl::DecoderControl(Mutex &_mutex, Cond &_client_cond,
+			       const AudioFormat _configured_audio_format,
+			       const ReplayGainConfig &_replay_gain_config)
+	:mutex(_mutex), client_cond(_client_cond),
+	 configured_audio_format(_configured_audio_format),
+	 replay_gain_config(_replay_gain_config) {}
 
 DecoderControl::~DecoderControl()
 {
@@ -47,6 +51,27 @@ DecoderControl::WaitForDecoder()
 
 	assert(client_is_waiting);
 	client_is_waiting = false;
+}
+
+void
+DecoderControl::SetReady(const AudioFormat audio_format,
+			 bool _seekable, SignedSongTime _duration)
+{
+	assert(state == DecoderState::START);
+	assert(pipe != nullptr);
+	assert(pipe->IsEmpty());
+	assert(audio_format.IsDefined());
+	assert(audio_format.IsValid());
+
+	in_audio_format = audio_format;
+	out_audio_format = audio_format;
+	out_audio_format.ApplyMask(configured_audio_format);
+
+	seekable = _seekable;
+	total_time = _duration;
+
+	state = DecoderState::DECODE;
+	client_cond.signal();
 }
 
 bool

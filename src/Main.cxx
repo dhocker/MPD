@@ -45,7 +45,7 @@
 #include "playlist/PlaylistRegistry.hxx"
 #include "zeroconf/ZeroconfGlue.hxx"
 #include "decoder/DecoderList.hxx"
-#include "AudioConfig.hxx"
+#include "AudioParser.hxx"
 #include "pcm/PcmConvert.hxx"
 #include "unix/SignalHandlers.hxx"
 #include "system/FatalError.hxx"
@@ -57,6 +57,7 @@
 #include "config/ConfigOption.hxx"
 #include "config/ConfigError.hxx"
 #include "Stats.hxx"
+#include "util/RuntimeError.hxx"
 
 #ifdef ENABLE_DAEMON
 #include "unix/Daemon.hxx"
@@ -326,10 +327,34 @@ initialize_decoder_and_player(void)
 		config_get_positive(ConfigOption::MAX_PLAYLIST_LENGTH,
 				    DEFAULT_PLAYLIST_MAX_LENGTH);
 
+	AudioFormat configured_audio_format = AudioFormat::Undefined();
+	param = config_get_param(ConfigOption::AUDIO_OUTPUT_FORMAT);
+	if (param != nullptr) {
+		try {
+			configured_audio_format = ParseAudioFormat(param->value.c_str(),
+								   true);
+		} catch (const std::runtime_error &) {
+			std::throw_with_nested(FormatRuntimeError("error parsing line %i",
+								  param->line));
+		}
+	}
+
 	instance->partition = new Partition(*instance,
 					    max_length,
 					    buffered_chunks,
-					    buffered_before_play);
+					    buffered_before_play,
+					    configured_audio_format,
+					    replay_gain_config);
+
+	try {
+		param = config_get_param(ConfigOption::REPLAYGAIN);
+		if (param != nullptr)
+			instance->partition->replay_gain_mode =
+				FromString(param->value.c_str());
+	} catch (...) {
+		std::throw_with_nested(FormatRuntimeError("Failed to parse line %i",
+							  param->line));
+	}
 }
 
 void
@@ -357,7 +382,8 @@ int main(int argc, char *argv[])
 
 #endif
 
-static int mpd_main_after_fork(struct options);
+static int
+mpd_main_after_fork();
 
 #ifdef ANDROID
 static inline
@@ -405,6 +431,7 @@ try {
 
 	stats_global_init();
 	TagLoadConfig();
+	replay_gain_global_init();
 
 	log_init(options.verbose, options.log_stderr);
 
@@ -441,19 +468,20 @@ try {
 	   This must be run after forking; if dispatch is called before forking,
 	   the child process will have a broken internal dispatch state. */
 	dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
-		exit(mpd_main_after_fork(options));
+		exit(mpd_main_after_fork());
 	});
 	dispatch_main();
 	return EXIT_FAILURE; // unreachable, because dispatch_main never returns
 #else
-	return mpd_main_after_fork(options);
+	return mpd_main_after_fork();
 #endif
 } catch (const std::exception &e) {
 	LogError(e);
 	return EXIT_FAILURE;
 }
 
-static int mpd_main_after_fork(struct options options)
+static int
+mpd_main_after_fork()
 try {
 	ConfigureFS();
 
@@ -476,11 +504,10 @@ try {
 	glue_sticker_init();
 
 	command_init();
-	initAudioConfig();
 	instance->partition->outputs.Configure(instance->event_loop,
+					       replay_gain_config,
 					       instance->partition->pc);
 	client_manager_init();
-	replay_gain_global_init();
 	input_stream_global_init();
 	playlist_list_global_init();
 
@@ -489,7 +516,7 @@ try {
 #endif
 
 #ifndef ANDROID
-	setup_log_output(options.log_stderr);
+	setup_log_output();
 
 	SignalHandlersInit(instance->event_loop);
 #endif
@@ -516,8 +543,6 @@ try {
 #endif
 
 	glue_state_file_init();
-
-	instance->partition->UpdateEffectiveReplayGainMode(replay_gain_mode);
 
 #ifdef ENABLE_DATABASE
 	if (config_get_bool(ConfigOption::AUTO_UPDATE, false)) {

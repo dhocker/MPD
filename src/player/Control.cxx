@@ -29,17 +29,14 @@
 PlayerControl::PlayerControl(PlayerListener &_listener,
 			     MultipleOutputs &_outputs,
 			     unsigned _buffer_chunks,
-			     unsigned _buffered_before_play)
+			     unsigned _buffered_before_play,
+			     AudioFormat _configured_audio_format,
+			     const ReplayGainConfig &_replay_gain_config)
 	:listener(_listener), outputs(_outputs),
 	 buffer_chunks(_buffer_chunks),
 	 buffered_before_play(_buffered_before_play),
-	 command(PlayerCommand::NONE),
-	 state(PlayerState::STOP),
-	 error_type(PlayerError::NONE),
-	 tagged_song(nullptr),
-	 next_song(nullptr),
-	 total_play_time(0),
-	 border_pause(false)
+	 configured_audio_format(_configured_audio_format),
+	 replay_gain_config(_replay_gain_config)
 {
 }
 

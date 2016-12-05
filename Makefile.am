@@ -76,7 +76,6 @@ libmpd_a_SOURCES = \
 	src/open.h \
 	src/poison.h \
 	src/notify.cxx src/notify.hxx \
-	src/AudioConfig.cxx src/AudioConfig.hxx \
 	src/protocol/Ack.cxx src/protocol/Ack.hxx \
 	src/protocol/ArgParser.cxx src/protocol/ArgParser.hxx \
 	src/protocol/Result.cxx src/protocol/Result.hxx \
@@ -1979,7 +1978,6 @@ test_run_filter_LDADD = \
 	libsystem.a \
 	libutil.a
 test_run_filter_SOURCES = test/run_filter.cxx \
-	test/FakeReplayGainGlobal.cxx \
 	src/Log.cxx src/LogBackend.cxx \
 	src/filter/FilterPlugin.cxx src/filter/FilterRegistry.cxx
 
@@ -2074,7 +2072,6 @@ test_run_output_LDADD = $(MPD_LIBS) \
 	libthread.a \
 	libutil.a
 test_run_output_SOURCES = test/run_output.cxx \
-	test/FakeReplayGainGlobal.cxx \
 	test/ScopeIOThread.hxx \
 	src/Log.cxx src/LogBackend.cxx \
 	src/IOThread.cxx \

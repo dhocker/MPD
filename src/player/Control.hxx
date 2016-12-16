@@ -20,6 +20,7 @@
 #ifndef MPD_PLAYER_CONTROL_HXX
 #define MPD_PLAYER_CONTROL_HXX
 
+#include "output/Client.hxx"
 #include "AudioFormat.hxx"
 #include "thread/Mutex.hxx"
 #include "thread/Cond.hxx"
@@ -96,7 +97,7 @@ struct player_status {
 	SongTime elapsed_time;
 };
 
-struct PlayerControl {
+struct PlayerControl final : AudioOutputClient {
 	PlayerListener &listener;
 
 	MultipleOutputs &outputs;
@@ -280,6 +281,23 @@ struct PlayerControl {
 		CommandFinished();
 	}
 
+	/**
+	 * Checks if the size of the #MusicPipe is below the #threshold.  If
+	 * not, it attempts to synchronize with all output threads, and waits
+	 * until another #MusicChunk is finished.
+	 *
+	 * Caller must lock the mutex.
+	 *
+	 * @param threshold the maximum number of chunks in the pipe
+	 * @return true if there are less than #threshold chunks in the pipe
+	 */
+	bool WaitOutputConsumed(unsigned threshold);
+
+	bool LockWaitOutputConsumed(unsigned threshold) {
+		const ScopeLock protect(mutex);
+		return WaitOutputConsumed(threshold);
+	}
+
 private:
 	/**
 	 * Wait for the command to be finished by the player thread.
@@ -351,6 +369,17 @@ public:
 	 */
 	void LockSetBorderPause(bool border_pause);
 
+	bool ApplyBorderPause() {
+		if (border_pause)
+			state = PlayerState::PAUSE;
+		return border_pause;
+	}
+
+	bool LockApplyBorderPause() {
+		const ScopeLock lock(mutex);
+		return ApplyBorderPause();
+	}
+
 	void Kill();
 
 	gcc_pure
@@ -368,6 +397,22 @@ public:
 	 * @param type the error type; must not be #PlayerError::NONE
 	 */
 	void SetError(PlayerError type, std::exception_ptr &&_error);
+
+	/**
+	 * Set the error and set state to PlayerState::PAUSE.
+	 */
+	void SetOutputError(std::exception_ptr &&_error) {
+		SetError(PlayerError::OUTPUT, std::move(_error));
+
+		/* pause: the user may resume playback as soon as an
+		   audio output becomes available */
+		state = PlayerState::PAUSE;
+	}
+
+	void LockSetOutputError(std::exception_ptr &&_error) {
+		const ScopeLock lock(mutex);
+		SetOutputError(std::move(_error));
+	}
 
 	/**
 	 * Checks whether an error has occurred, and if so, rethrows
@@ -482,6 +527,15 @@ public:
 
 	double GetTotalPlayTime() const {
 		return total_play_time;
+	}
+
+	/* virtual methods from AudioOutputClient */
+	void ChunksConsumed() override {
+		LockSignal();
+	}
+
+	void ApplyEnabled() override {
+		LockUpdateAudio();
 	}
 };
 

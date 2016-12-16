@@ -19,7 +19,6 @@
 
 #include "config.h"
 #include "MultipleOutputs.hxx"
-#include "player/Control.hxx"
 #include "Internal.hxx"
 #include "Domain.hxx"
 #include "MusicBuffer.hxx"
@@ -43,21 +42,22 @@ MultipleOutputs::MultipleOutputs(MixerListener &_mixer_listener)
 
 MultipleOutputs::~MultipleOutputs()
 {
-	for (auto i : outputs) {
-		i->LockDisableWait();
-		i->Finish();
-	}
+	/* parallel destruction */
+	for (auto i : outputs)
+		i->BeginDestroy();
+	for (auto i : outputs)
+		i->FinishDestroy();
 }
 
 static AudioOutput *
 LoadOutput(EventLoop &event_loop,
 	   const ReplayGainConfig &replay_gain_config,
 	   MixerListener &mixer_listener,
-	   PlayerControl &pc, const ConfigBlock &block)
+	   AudioOutputClient &client, const ConfigBlock &block)
 try {
 	return audio_output_new(event_loop, replay_gain_config, block,
 				mixer_listener,
-				pc);
+				client);
 } catch (const std::runtime_error &e) {
 	if (block.line > 0)
 		std::throw_with_nested(FormatRuntimeError("Failed to configure output in line %i",
@@ -69,13 +69,13 @@ try {
 void
 MultipleOutputs::Configure(EventLoop &event_loop,
 			   const ReplayGainConfig &replay_gain_config,
-			   PlayerControl &pc)
+			   AudioOutputClient &client)
 {
 	for (const auto *param = config_get_block(ConfigBlockOption::AUDIO_OUTPUT);
 	     param != nullptr; param = param->next) {
 		auto output = LoadOutput(event_loop, replay_gain_config,
 					 mixer_listener,
-					 pc, *param);
+					 client, *param);
 		if (FindByName(output->name) != nullptr)
 			throw FormatRuntimeError("output devices with identical "
 						 "names: %s", output->name);
@@ -88,7 +88,7 @@ MultipleOutputs::Configure(EventLoop &event_loop,
 		const ConfigBlock empty;
 		auto output = LoadOutput(event_loop, replay_gain_config,
 					 mixer_listener,
-					 pc, empty);
+					 client, empty);
 		outputs.push_back(output);
 	}
 }
@@ -106,19 +106,16 @@ MultipleOutputs::FindByName(const char *name) const
 void
 MultipleOutputs::EnableDisable()
 {
+	/* parallel execution */
+
 	for (auto ao : outputs) {
-		bool enabled;
+		const ScopeLock lock(ao->mutex);
+		ao->EnableDisableAsync();
+	}
 
-		ao->mutex.lock();
-		enabled = ao->really_enabled;
-		ao->mutex.unlock();
-
-		if (ao->enabled != enabled) {
-			if (ao->enabled)
-				ao->LockEnableWait();
-			else
-				ao->LockDisableWait();
-		}
+	for (auto ao : outputs) {
+		const ScopeLock lock(ao->mutex);
+		ao->WaitForCommand();
 	}
 }
 
@@ -251,46 +248,18 @@ MultipleOutputs::Open(const AudioFormat audio_format,
 	}
 }
 
-/**
- * Has the specified audio output already consumed this chunk?
- */
-gcc_pure
-static bool
-chunk_is_consumed_in(const AudioOutput *ao,
-		     gcc_unused const MusicPipe *pipe,
-		     const MusicChunk *chunk)
-{
-	if (!ao->open)
-		return true;
-
-	if (ao->current_chunk == nullptr)
-		return false;
-
-	assert(chunk == ao->current_chunk ||
-	       pipe->Contains(ao->current_chunk));
-
-	if (chunk != ao->current_chunk) {
-		assert(chunk->next != nullptr);
-		return true;
-	}
-
-	return ao->current_chunk_finished && chunk->next == nullptr;
-}
-
 bool
 MultipleOutputs::IsChunkConsumed(const MusicChunk *chunk) const
 {
-	for (auto ao : outputs) {
-		const ScopeLock protect(ao->mutex);
-		if (!chunk_is_consumed_in(ao, pipe, chunk))
+	for (auto ao : outputs)
+		if (!ao->LockIsChunkConsumed(*chunk))
 			return false;
-	}
 
 	return true;
 }
 
 inline void
-MultipleOutputs::ClearTailChunk(gcc_unused const MusicChunk *chunk,
+MultipleOutputs::ClearTailChunk(const MusicChunk *chunk,
 				bool *locked)
 {
 	assert(chunk->next == nullptr);
@@ -309,9 +278,7 @@ MultipleOutputs::ClearTailChunk(gcc_unused const MusicChunk *chunk,
 			continue;
 		}
 
-		assert(ao->current_chunk == chunk);
-		assert(ao->current_chunk_finished);
-		ao->current_chunk = nullptr;
+		ao->pipe.ClearTail(*chunk);
 	}
 }
 
@@ -361,22 +328,6 @@ MultipleOutputs::Check()
 	}
 
 	return 0;
-}
-
-bool
-MultipleOutputs::Wait(PlayerControl &pc, unsigned threshold)
-{
-	pc.Lock();
-
-	if (Check() < threshold) {
-		pc.Unlock();
-		return true;
-	}
-
-	pc.Wait();
-	pc.Unlock();
-
-	return Check() < threshold;
 }
 
 void

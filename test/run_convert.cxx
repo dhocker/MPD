@@ -49,13 +49,13 @@ try {
 	const auto in_audio_format = ParseAudioFormat(argv[1], false);
 	const auto out_audio_format_mask = ParseAudioFormat(argv[2], false);
 
-	auto out_audio_format = in_audio_format;
-	out_audio_format.ApplyMask(out_audio_format_mask);
+	const auto out_audio_format =
+		in_audio_format.WithMask(out_audio_format_mask);
 
 	const size_t in_frame_size = in_audio_format.GetFrameSize();
 
 	PcmConvert state;
-	state.Open(in_audio_format, out_audio_format_mask);
+	state.Open(in_audio_format, out_audio_format);
 
 	StaticFifoBuffer<uint8_t, 4096> buffer;
 

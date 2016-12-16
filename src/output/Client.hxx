@@ -17,21 +17,31 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-#ifndef MPD_APE_TAG_HXX
-#define MPD_APE_TAG_HXX
+#ifndef MPD_OUTPUT_CLIENT_HXX
+#define MPD_OUTPUT_CLIENT_HXX
 
-#include "TagTable.hxx"
-
-class InputStream;
-struct TagHandler;
+#include "check.h"
 
 /**
- * Scan the APE tags of a stream.
- *
- * @param path_fs the path of the file in filesystem encoding
+ * An interface between the #AudioOutput and the #Player.
  */
-bool
-tag_ape_scan2(InputStream &is,
-	      const TagHandler &handler, void *handler_ctx);
+class AudioOutputClient {
+public:
+	/**
+	 * Notify the client that we have consumed a few chunks.  This
+	 * is called from within the output thread.  The client may
+	 * perform actions to refill the #MusicPipe.
+	 */
+	virtual void ChunksConsumed() = 0;
+
+	/**
+	 * The #AudioOutput has modified the "enabled" flag, and the
+	 * client shall make the #AudioOutput apply this new setting.
+	 * This is called from any thread, one which can't send an
+	 * AudioOutput::Command to the output thread; only the client
+	 * can do that safely.
+	 */
+	virtual void ApplyEnabled() = 0;
+};
 
 #endif

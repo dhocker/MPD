@@ -20,6 +20,7 @@
 #ifndef MPD_OUTPUT_INTERNAL_HXX
 #define MPD_OUTPUT_INTERNAL_HXX
 
+#include "SharedPipeConsumer.hxx"
 #include "AudioFormat.hxx"
 #include "pcm/PcmBuffer.hxx"
 #include "pcm/PcmDither.hxx"
@@ -36,9 +37,9 @@ class MusicPipe;
 class EventLoop;
 class Mixer;
 class MixerListener;
+class AudioOutputClient;
 struct MusicChunk;
 struct ConfigBlock;
-struct PlayerControl;
 struct AudioOutputPlugin;
 struct ReplayGainConfig;
 
@@ -47,13 +48,12 @@ struct AudioOutput {
 		NONE,
 		ENABLE,
 		DISABLE,
-		OPEN,
 
 		/**
-		 * This command is invoked when the input audio format
-		 * changes.
+		 * Open the output, or reopen it if it is already
+		 * open, adjusting for input #AudioFormat changes.
 		 */
-		REOPEN,
+		OPEN,
 
 		CLOSE,
 		PAUSE,
@@ -247,13 +247,7 @@ struct AudioOutput {
 	Command command = Command::NONE;
 
 	/**
-	 * The music pipe which provides music chunks to be played.
-	 */
-	const MusicPipe *pipe;
-
-	/**
-	 * This mutex protects #open, #fail_timer, #current_chunk and
-	 * #current_chunk_finished.
+	 * This mutex protects #open, #fail_timer, #pipe.
 	 */
 	Mutex mutex;
 
@@ -267,20 +261,12 @@ struct AudioOutput {
 	 * The PlayerControl object which "owns" this output.  This
 	 * object is needed to signal command completion.
 	 */
-	PlayerControl *player_control;
+	AudioOutputClient *client;
 
 	/**
-	 * The #MusicChunk which is currently being played.  All
-	 * chunks before this one may be returned to the
-	 * #music_buffer, because they are not going to be used by
-	 * this output anymore.
+	 * A reference to the #MusicPipe and the current position.
 	 */
-	const MusicChunk *current_chunk;
-
-	/**
-	 * Has the output finished playing #current_chunk?
-	 */
-	bool current_chunk_finished;
+	SharedPipeConsumer pipe;
 
 	/**
 	 * Throws #std::runtime_error on error.
@@ -297,7 +283,8 @@ public:
 	void StartThread();
 	void StopThread();
 
-	void Finish();
+	void BeginDestroy();
+	void FinishDestroy();
 
 	bool IsOpen() const {
 		return open;
@@ -336,14 +323,35 @@ public:
 	void LockCommandWait(Command cmd);
 
 	/**
-	 * Enables the device.
+	 * Enables the device, but don't wait for completion.
+	 *
+	 * Caller must lock the mutex.
 	 */
-	void LockEnableWait();
+	void EnableAsync();
 
 	/**
-	 * Disables the device.
+	 * Disables the device, but don't wait for completion.
+	 *
+	 * Caller must lock the mutex.
 	 */
-	void LockDisableWait();
+	void DisableAsync();
+
+	/**
+	 * Attempt to enable or disable the device as specified by the
+	 * #enabled attribute; attempt to sync it with #really_enabled
+	 * (wrapper for EnableAsync() or DisableAsync()).
+	 *
+	 * Caller must lock the mutex.
+	 */
+	void EnableDisableAsync() {
+		if (enabled == really_enabled)
+			return;
+
+		if (enabled)
+			EnableAsync();
+		else
+			DisableAsync();
+	}
 
 	void LockPauseAsync();
 
@@ -394,6 +402,20 @@ public:
 	 */
 	void LockAllowPlay();
 
+	/**
+	 * Did we already consumed this chunk?
+	 *
+	 * Caller must lock the mutex.
+	 */
+	gcc_pure
+	bool IsChunkConsumed(const MusicChunk &chunk) const;
+
+	gcc_pure
+	bool LockIsChunkConsumed(const MusicChunk &chunk) {
+		const ScopeLock protect(mutex);
+		return IsChunkConsumed(chunk);
+	}
+
 private:
 	void CommandFinished();
 
@@ -401,6 +423,26 @@ private:
 	void Disable();
 
 	void Open();
+
+	/**
+	 * Open the #ChainFilter and call OpenOutputAndConvert().
+	 *
+	 * Caller must not lock the mutex.
+	 *
+	 * @return true on success
+	 */
+	bool OpenFilterAndOutput();
+
+	/**
+	 * Invoke OutputPlugin::open() and configure the
+	 * #ConvertFilter.
+	 *
+	 * Caller must not lock the mutex.
+	 *
+	 * @return true on success
+	 */
+	bool OpenOutputAndConvert(AudioFormat audio_format);
+
 	void Close(bool drain);
 	void Reopen();
 
@@ -413,6 +455,8 @@ private:
 
 	/**
 	 * Throws std::runtime_error on error.
+	 *
+	 * Mutex must not be locked.
 	 */
 	AudioFormat OpenFilter(AudioFormat &format);
 
@@ -430,9 +474,6 @@ private:
 	 * command was issued
 	 */
 	bool WaitForDelay();
-
-	gcc_pure
-	const MusicChunk *GetNextChunk() const;
 
 	bool PlayChunk(const MusicChunk *chunk);
 
@@ -469,7 +510,7 @@ audio_output_new(EventLoop &event_loop,
 		 const ReplayGainConfig &replay_gain_config,
 		 const ConfigBlock &block,
 		 MixerListener &mixer_listener,
-		 PlayerControl &pc);
+		 AudioOutputClient &client);
 
 void
 audio_output_free(AudioOutput *ao);

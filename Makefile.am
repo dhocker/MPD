@@ -1328,10 +1328,12 @@ OUTPUT_LIBS = \
 
 OUTPUT_API_SRC = \
 	src/output/OutputAPI.hxx \
+	src/output/Internal.cxx \
 	src/output/Internal.hxx \
 	src/output/Wrapper.hxx \
 	src/output/Registry.cxx src/output/Registry.hxx \
 	src/output/MultipleOutputs.cxx src/output/MultipleOutputs.hxx \
+	src/output/SharedPipeConsumer.cxx src/output/SharedPipeConsumer.hxx \
 	src/output/OutputThread.cxx \
 	src/output/Domain.cxx src/output/Domain.hxx \
 	src/output/OutputControl.cxx \
@@ -1598,8 +1600,13 @@ FILTER_LIBS = \
 
 if HAVE_SYSTEMD
 systemdsystemunit_DATA = \
-	systemd/mpd.socket \
-	systemd/mpd.service
+	systemd/system/mpd.socket \
+	systemd/system/mpd.service
+endif
+
+if HAVE_SYSTEMD_USER
+systemduserunit_DATA = \
+	systemd/user/mpd.service
 endif
 
 
@@ -2355,7 +2362,7 @@ EXTRA_DIST = $(doc_DATA) autogen.sh \
 	$(wildcard $(srcdir)/scripts/*.rb) \
 	$(man_MANS) $(DOCBOOK_FILES) doc/mpdconf.example doc/doxygen.conf \
 	$(wildcard $(srcdir)/doc/include/*.xml) \
-	systemd/mpd.socket \
+	systemd/system/mpd.socket \
 	android/AndroidManifest.xml \
 	android/build.py \
 	android/custom_rules.xml \

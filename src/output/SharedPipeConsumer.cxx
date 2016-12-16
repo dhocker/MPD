@@ -17,21 +17,42 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-#ifndef MPD_APE_TAG_HXX
-#define MPD_APE_TAG_HXX
+#include "config.h"
+#include "SharedPipeConsumer.hxx"
+#include "MusicChunk.hxx"
+#include "MusicPipe.hxx"
 
-#include "TagTable.hxx"
+const MusicChunk *
+SharedPipeConsumer::Get()
+{
+	if (chunk != nullptr) {
+		if (!consumed)
+			return chunk;
 
-class InputStream;
-struct TagHandler;
+		if (chunk->next == nullptr)
+			return nullptr;
 
-/**
- * Scan the APE tags of a stream.
- *
- * @param path_fs the path of the file in filesystem encoding
- */
+		consumed = false;
+		return chunk = chunk->next;
+	} else {
+		/* get the first chunk from the pipe */
+		consumed = false;
+		return chunk = pipe->Peek();
+	}
+}
+
 bool
-tag_ape_scan2(InputStream &is,
-	      const TagHandler &handler, void *handler_ctx);
+SharedPipeConsumer::IsConsumed(const MusicChunk &_chunk) const
+{
+	if (chunk == nullptr)
+		return false;
 
-#endif
+	assert(&_chunk == chunk || pipe->Contains(chunk));
+
+	if (&_chunk != chunk) {
+		assert(_chunk.next != nullptr);
+		return true;
+	}
+
+	return consumed && _chunk.next == nullptr;
+}

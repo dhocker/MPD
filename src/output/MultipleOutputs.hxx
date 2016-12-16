@@ -39,8 +39,8 @@ class MusicBuffer;
 class MusicPipe;
 class EventLoop;
 class MixerListener;
+class AudioOutputClient;
 struct MusicChunk;
-struct PlayerControl;
 struct AudioOutput;
 struct ReplayGainConfig;
 
@@ -78,7 +78,7 @@ public:
 
 	void Configure(EventLoop &event_loop,
 		       const ReplayGainConfig &replay_gain_config,
-		       PlayerControl &pc);
+		       AudioOutputClient &client);
 
 	/**
 	 * Returns the total number of audio output devices, including
@@ -158,16 +158,6 @@ public:
 	 * @return the number of chunks to play left in the #MusicPipe
 	 */
 	unsigned Check();
-
-	/**
-	 * Checks if the size of the #MusicPipe is below the #threshold.  If
-	 * not, it attempts to synchronize with all output threads, and waits
-	 * until another #MusicChunk is finished.
-	 *
-	 * @param threshold the maximum number of chunks in the pipe
-	 * @return true if there are less than #threshold chunks in the pipe
-	 */
-	bool Wait(PlayerControl &pc, unsigned threshold);
 
 	/**
 	 * Puts all audio outputs into pause mode.  Most implementations will

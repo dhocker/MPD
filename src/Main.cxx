@@ -127,6 +127,17 @@ Context *context;
 
 Instance *instance;
 
+struct Config {
+	ReplayGainConfig replay_gain;
+};
+
+gcc_const
+static Config
+LoadConfig()
+{
+	return {LoadReplayGainConfig()};
+}
+
 #ifdef ENABLE_DAEMON
 
 static void
@@ -280,7 +291,7 @@ static void winsock_init(void)
  * Initialize the decoder and player core, including the music pipe.
  */
 static void
-initialize_decoder_and_player(void)
+initialize_decoder_and_player(const ReplayGainConfig &replay_gain_config)
 {
 	const ConfigParam *param;
 
@@ -383,7 +394,7 @@ int main(int argc, char *argv[])
 #endif
 
 static int
-mpd_main_after_fork();
+mpd_main_after_fork(const Config &config);
 
 #ifdef ANDROID
 static inline
@@ -425,13 +436,14 @@ try {
 	ParseCommandLine(argc, argv, &options);
 #endif
 
+	const auto config = LoadConfig();
+
 #ifdef ENABLE_DAEMON
 	glue_daemonize_init(&options);
 #endif
 
 	stats_global_init();
 	TagLoadConfig();
-	replay_gain_global_init();
 
 	log_init(options.verbose, options.log_stderr);
 
@@ -451,7 +463,7 @@ try {
 		config_get_positive(ConfigOption::MAX_CONN, 10);
 	instance->client_list = new ClientList(max_clients);
 
-	initialize_decoder_and_player();
+	initialize_decoder_and_player(config.replay_gain);
 
 	listen_global_init(instance->event_loop, *instance->partition);
 
@@ -468,12 +480,12 @@ try {
 	   This must be run after forking; if dispatch is called before forking,
 	   the child process will have a broken internal dispatch state. */
 	dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
-		exit(mpd_main_after_fork());
+		exit(mpd_main_after_fork(config));
 	});
 	dispatch_main();
 	return EXIT_FAILURE; // unreachable, because dispatch_main never returns
 #else
-	return mpd_main_after_fork();
+	return mpd_main_after_fork(config);
 #endif
 } catch (const std::exception &e) {
 	LogError(e);
@@ -481,7 +493,7 @@ try {
 }
 
 static int
-mpd_main_after_fork()
+mpd_main_after_fork(const Config &config)
 try {
 	ConfigureFS();
 
@@ -504,8 +516,9 @@ try {
 	glue_sticker_init();
 
 	command_init();
+
 	instance->partition->outputs.Configure(instance->event_loop,
-					       replay_gain_config,
+					       config.replay_gain,
 					       instance->partition->pc);
 	client_manager_init();
 	input_stream_global_init();

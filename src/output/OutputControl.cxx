@@ -70,7 +70,7 @@ AudioOutput::LockCommandWait(Command cmd)
 }
 
 void
-AudioOutput::LockEnableWait()
+AudioOutput::EnableAsync()
 {
 	if (!thread.IsDefined()) {
 		if (plugin.enable == nullptr) {
@@ -84,11 +84,11 @@ AudioOutput::LockEnableWait()
 		StartThread();
 	}
 
-	LockCommandWait(Command::ENABLE);
+	CommandAsync(Command::ENABLE);
 }
 
 void
-AudioOutput::LockDisableWait()
+AudioOutput::DisableAsync()
 {
 	if (!thread.IsDefined()) {
 		if (plugin.disable == nullptr)
@@ -101,7 +101,7 @@ AudioOutput::LockDisableWait()
 		return;
 	}
 
-	LockCommandWait(Command::DISABLE);
+	CommandAsync(Command::DISABLE);
 }
 
 inline bool
@@ -113,11 +113,10 @@ AudioOutput::Open(const AudioFormat audio_format, const MusicPipe &mp)
 	fail_timer.Reset();
 
 	if (open && audio_format == in_audio_format) {
-		assert(pipe == &mp || (always_on && pause));
+		assert(&pipe.GetPipe() == &mp || (always_on && pause));
 
 		if (pause) {
-			current_chunk = nullptr;
-			pipe = &mp;
+			pipe.Init(mp);
 
 			/* unpause with the CANCEL command; this is a
 			   hack, but suits well for forcing the thread
@@ -133,16 +132,13 @@ AudioOutput::Open(const AudioFormat audio_format, const MusicPipe &mp)
 	}
 
 	in_audio_format = audio_format;
-	current_chunk = nullptr;
 
-	pipe = &mp;
+	pipe.Init(mp);
 
 	if (!thread.IsDefined())
 		StartThread();
 
-	CommandWait(open
-		    ? Command::REOPEN
-		    : Command::OPEN);
+	CommandWait(Command::OPEN);
 	const bool open2 = open;
 
 	if (open2 && mixer != nullptr) {
@@ -278,14 +274,22 @@ AudioOutput::StopThread()
 }
 
 void
-AudioOutput::Finish()
+AudioOutput::BeginDestroy()
 {
-	LockCloseWait();
+	if (mixer != nullptr)
+		mixer_auto_close(mixer);
 
-	assert(!fail_timer.IsDefined());
+	if (thread.IsDefined()) {
+		const ScopeLock protect(mutex);
+		CommandAsync(Command::KILL);
+	}
+}
 
+void
+AudioOutput::FinishDestroy()
+{
 	if (thread.IsDefined())
-		StopThread();
+		thread.Join();
 
 	audio_output_free(this);
 }

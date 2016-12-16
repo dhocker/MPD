@@ -17,21 +17,14 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-#ifndef MPD_APE_TAG_HXX
-#define MPD_APE_TAG_HXX
+#include "config.h"
+#include "Internal.hxx"
 
-#include "TagTable.hxx"
-
-class InputStream;
-struct TagHandler;
-
-/**
- * Scan the APE tags of a stream.
- *
- * @param path_fs the path of the file in filesystem encoding
- */
 bool
-tag_ape_scan2(InputStream &is,
-	      const TagHandler &handler, void *handler_ctx);
+AudioOutput::IsChunkConsumed(const MusicChunk &chunk) const
+{
+	if (!open)
+		return true;
 
-#endif
+	return pipe.IsConsumed(chunk);
+}

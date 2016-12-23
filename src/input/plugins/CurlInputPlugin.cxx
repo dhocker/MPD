@@ -19,6 +19,8 @@
 
 #include "config.h"
 #include "CurlInputPlugin.hxx"
+#include "lib/curl/Easy.hxx"
+#include "lib/curl/Multi.hxx"
 #include "../AsyncInputStream.hxx"
 #include "../IcyInputStream.hxx"
 #include "../InputPlugin.hxx"
@@ -65,7 +67,7 @@ struct CurlInputStream final : public AsyncInputStream {
 	struct curl_slist *request_headers;
 
 	/** the curl handles */
-	CURL *easy;
+	CurlEasy easy;
 
 	/** error message provided by libcurl */
 	char error_buffer[CURL_ERROR_SIZE];
@@ -78,8 +80,8 @@ struct CurlInputStream final : public AsyncInputStream {
 				  CURL_MAX_BUFFERED,
 				  CURL_RESUME_AT),
 		 request_headers(nullptr),
+		 easy(nullptr),
 		 icy(new IcyInputStream(this)) {
-		InitEasy();
 	}
 
 	~CurlInputStream();
@@ -130,17 +132,17 @@ struct CurlInputStream final : public AsyncInputStream {
 	virtual void DoSeek(offset_type new_offset) override;
 };
 
-class CurlMulti;
+class CurlGlobal;
 
 /**
  * Monitor for one socket created by CURL.
  */
 class CurlSocket final : SocketMonitor {
-	CurlMulti &multi;
+	CurlGlobal &global;
 
 public:
-	CurlSocket(CurlMulti &_multi, EventLoop &_loop, int _fd)
-		:SocketMonitor(_fd, _loop), multi(_multi) {}
+	CurlSocket(CurlGlobal &_global, EventLoop &_loop, int _fd)
+		:SocketMonitor(_fd, _loop), global(_global) {}
 
 	~CurlSocket() {
 		/* TODO: sometimes, CURL uses CURL_POLL_REMOVE after
@@ -192,15 +194,11 @@ private:
 /**
  * Manager for the global CURLM object.
  */
-class CurlMulti final : private TimeoutMonitor {
-	CURLM *const multi;
+class CurlGlobal final : private TimeoutMonitor {
+	CurlMulti multi;
 
 public:
-	CurlMulti(EventLoop &_loop, CURLM *_multi);
-
-	~CurlMulti() {
-		curl_multi_cleanup(multi);
-	}
+	explicit CurlGlobal(EventLoop &_loop);
 
 	void Add(CurlInputStream *c);
 	void Remove(CurlInputStream *c);
@@ -213,7 +211,7 @@ public:
 	void ReadInfo();
 
 	void Assign(curl_socket_t fd, CurlSocket &cs) {
-		curl_multi_assign(multi, fd, &cs);
+		curl_multi_assign(multi.Get(), fd, &cs);
 	}
 
 	void SocketAction(curl_socket_t fd, int ev_bitmask);
@@ -229,11 +227,11 @@ public:
 	 */
 	void ResumeSockets() {
 		int running_handles;
-		curl_multi_socket_all(multi, &running_handles);
+		curl_multi_socket_all(multi.Get(), &running_handles);
 	}
 
 private:
-	static int TimerFunction(CURLM *multi, long timeout_ms, void *userp);
+	static int TimerFunction(CURLM *global, long timeout_ms, void *userp);
 
 	virtual void OnTimeout() override;
 };
@@ -252,20 +250,19 @@ static unsigned proxy_port;
 
 static bool verify_peer, verify_host;
 
-static CurlMulti *curl_multi;
+static CurlGlobal *curl_global;
 
 static constexpr Domain curl_domain("curl");
 static constexpr Domain curlm_domain("curlm");
 
-CurlMulti::CurlMulti(EventLoop &_loop, CURLM *_multi)
-	:TimeoutMonitor(_loop), multi(_multi)
+CurlGlobal::CurlGlobal(EventLoop &_loop)
+	:TimeoutMonitor(_loop)
 {
-	curl_multi_setopt(multi, CURLMOPT_SOCKETFUNCTION,
-			  CurlSocket::SocketFunction);
-	curl_multi_setopt(multi, CURLMOPT_SOCKETDATA, this);
+	multi.SetOption(CURLMOPT_SOCKETFUNCTION, CurlSocket::SocketFunction);
+	multi.SetOption(CURLMOPT_SOCKETDATA, this);
 
-	curl_multi_setopt(multi, CURLMOPT_TIMERFUNCTION, TimerFunction);
-	curl_multi_setopt(multi, CURLMOPT_TIMERDATA, this);
+	multi.SetOption(CURLMOPT_TIMERFUNCTION, TimerFunction);
+	multi.SetOption(CURLMOPT_TIMERDATA, this);
 }
 
 /**
@@ -294,15 +291,15 @@ CurlInputStream::DoResume()
 
 	mutex.unlock();
 
-	curl_easy_pause(easy, CURLPAUSE_CONT);
+	curl_easy_pause(easy.Get(), CURLPAUSE_CONT);
 
 	if (curl_version_num < 0x072000)
 		/* libcurl older than 7.32.0 does not update
 		   its sockets after curl_easy_pause(); force
 		   libcurl to do it now */
-		curl_multi->ResumeSockets();
+		curl_global->ResumeSockets();
 
-	curl_multi->InvalidateSockets();
+	curl_global->InvalidateSockets();
 
 	mutex.lock();
 }
@@ -311,7 +308,7 @@ int
 CurlSocket::SocketFunction(gcc_unused CURL *easy,
 			   curl_socket_t s, int action,
 			   void *userp, void *socketp) {
-	CurlMulti &multi = *(CurlMulti *)userp;
+	auto &global = *(CurlGlobal *)userp;
 	CurlSocket *cs = (CurlSocket *)socketp;
 
 	assert(io_thread_inside());
@@ -322,8 +319,8 @@ CurlSocket::SocketFunction(gcc_unused CURL *easy,
 	}
 
 	if (cs == nullptr) {
-		cs = new CurlSocket(multi, io_thread_get(), s);
-		multi.Assign(s, *cs);
+		cs = new CurlSocket(global, io_thread_get(), s);
+		global.Assign(s, *cs);
 	} else {
 #ifdef USE_EPOLL
 		/* when using epoll, we need to unregister the socket
@@ -349,7 +346,7 @@ CurlSocket::OnSocketReady(unsigned flags)
 {
 	assert(io_thread_inside());
 
-	multi.SocketAction(Get(), FlagsToCurlCSelect(flags));
+	global.SocketAction(Get(), FlagsToCurlCSelect(flags));
 	return true;
 }
 
@@ -359,13 +356,13 @@ CurlSocket::OnSocketReady(unsigned flags)
  * Throws std::runtime_error on error.
  */
 inline void
-CurlMulti::Add(CurlInputStream *c)
+CurlGlobal::Add(CurlInputStream *c)
 {
 	assert(io_thread_inside());
 	assert(c != nullptr);
-	assert(c->easy != nullptr);
+	assert(c->easy);
 
-	CURLMcode mcode = curl_multi_add_handle(multi, c->easy);
+	CURLMcode mcode = curl_multi_add_handle(multi.Get(), c->easy.Get());
 	if (mcode != CURLM_OK)
 		throw FormatRuntimeError("curl_multi_add_handle() failed: %s",
 					 curl_multi_strerror(mcode));
@@ -383,17 +380,17 @@ static void
 input_curl_easy_add_indirect(CurlInputStream *c)
 {
 	assert(c != nullptr);
-	assert(c->easy != nullptr);
+	assert(c->easy);
 
 	BlockingCall(io_thread_get(), [c](){
-			curl_multi->Add(c);
+			curl_global->Add(c);
 		});
 }
 
 inline void
-CurlMulti::Remove(CurlInputStream *c)
+CurlGlobal::Remove(CurlInputStream *c)
 {
-	curl_multi_remove_handle(multi, c->easy);
+	curl_multi_remove_handle(multi.Get(), c->easy.Get());
 }
 
 void
@@ -401,12 +398,11 @@ CurlInputStream::FreeEasy()
 {
 	assert(io_thread_inside());
 
-	if (easy == nullptr)
+	if (!easy)
 		return;
 
-	curl_multi->Remove(this);
+	curl_global->Remove(this);
 
-	curl_easy_cleanup(easy);
 	easy = nullptr;
 
 	curl_slist_free_all(request_headers);
@@ -418,10 +414,10 @@ CurlInputStream::FreeEasyIndirect()
 {
 	BlockingCall(io_thread_get(), [this](){
 			FreeEasy();
-			curl_multi->InvalidateSockets();
+			curl_global->InvalidateSockets();
 		});
 
-	assert(easy == nullptr);
+	assert(!easy);
 }
 
 inline void
@@ -464,10 +460,10 @@ input_curl_handle_done(CURL *easy_handle, CURLcode result)
 }
 
 void
-CurlMulti::SocketAction(curl_socket_t fd, int ev_bitmask)
+CurlGlobal::SocketAction(curl_socket_t fd, int ev_bitmask)
 {
 	int running_handles;
-	CURLMcode mcode = curl_multi_socket_action(multi, fd, ev_bitmask,
+	CURLMcode mcode = curl_multi_socket_action(multi.Get(), fd, ev_bitmask,
 						   &running_handles);
 	if (mcode != CURLM_OK)
 		FormatError(curlm_domain,
@@ -483,14 +479,14 @@ CurlMulti::SocketAction(curl_socket_t fd, int ev_bitmask)
  * Runs in the I/O thread.  The caller must not hold locks.
  */
 inline void
-CurlMulti::ReadInfo()
+CurlGlobal::ReadInfo()
 {
 	assert(io_thread_inside());
 
 	CURLMsg *msg;
 	int msgs_in_queue;
 
-	while ((msg = curl_multi_info_read(multi,
+	while ((msg = curl_multi_info_read(multi.Get(),
 					   &msgs_in_queue)) != nullptr) {
 		if (msg->msg == CURLMSG_DONE)
 			input_curl_handle_done(msg->easy_handle, msg->data.result);
@@ -498,13 +494,13 @@ CurlMulti::ReadInfo()
 }
 
 int
-CurlMulti::TimerFunction(gcc_unused CURLM *_multi, long timeout_ms, void *userp)
+CurlGlobal::TimerFunction(gcc_unused CURLM *_global, long timeout_ms, void *userp)
 {
-	CurlMulti &multi = *(CurlMulti *)userp;
-	assert(_multi == multi.multi);
+	auto &global = *(CurlGlobal *)userp;
+	assert(_global == global.multi.Get());
 
 	if (timeout_ms < 0) {
-		multi.Cancel();
+		global.Cancel();
 		return 0;
 	}
 
@@ -515,12 +511,12 @@ CurlMulti::TimerFunction(gcc_unused CURLM *_multi, long timeout_ms, void *userp)
 		   of 10ms. */
 		timeout_ms = 10;
 
-	multi.Schedule(timeout_ms);
+	global.Schedule(timeout_ms);
 	return 0;
 }
 
 void
-CurlMulti::OnTimeout()
+CurlGlobal::OnTimeout()
 {
 	SocketAction(CURL_SOCKET_TIMEOUT, 0);
 }
@@ -566,21 +562,21 @@ input_curl_init(const ConfigBlock &block)
 	verify_peer = block.GetBlockValue("verify_peer", true);
 	verify_host = block.GetBlockValue("verify_host", true);
 
-	CURLM *multi = curl_multi_init();
-	if (multi == nullptr) {
+	try {
+		curl_global = new CurlGlobal(io_thread_get());
+	} catch (const std::runtime_error &e) {
+		LogError(e);
 		curl_slist_free_all(http_200_aliases);
 		curl_global_cleanup();
 		throw PluginUnavailable("curl_multi_init() failed");
 	}
-
-	curl_multi = new CurlMulti(io_thread_get(), multi);
 }
 
 static void
 input_curl_finish(void)
 {
 	BlockingCall(io_thread_get(), [](){
-			delete curl_multi;
+			delete curl_global;
 		});
 
 	curl_slist_free_all(http_200_aliases);
@@ -727,55 +723,47 @@ input_curl_writefunction(void *ptr, size_t size, size_t nmemb, void *stream)
 void
 CurlInputStream::InitEasy()
 {
-	easy = curl_easy_init();
-	if (easy == nullptr)
-		throw std::runtime_error("curl_easy_init() failed");
+	easy = CurlEasy();
 
-	curl_easy_setopt(easy, CURLOPT_PRIVATE, (void *)this);
-	curl_easy_setopt(easy, CURLOPT_USERAGENT,
-			 "Music Player Daemon " VERSION);
-	curl_easy_setopt(easy, CURLOPT_HEADERFUNCTION,
-			 input_curl_headerfunction);
-	curl_easy_setopt(easy, CURLOPT_WRITEHEADER, this);
-	curl_easy_setopt(easy, CURLOPT_WRITEFUNCTION,
-			 input_curl_writefunction);
-	curl_easy_setopt(easy, CURLOPT_WRITEDATA, this);
-	curl_easy_setopt(easy, CURLOPT_HTTP200ALIASES, http_200_aliases);
-	curl_easy_setopt(easy, CURLOPT_FOLLOWLOCATION, 1l);
-	curl_easy_setopt(easy, CURLOPT_NETRC, 1l);
-	curl_easy_setopt(easy, CURLOPT_MAXREDIRS, 5l);
-	curl_easy_setopt(easy, CURLOPT_FAILONERROR, 1l);
-	curl_easy_setopt(easy, CURLOPT_ERRORBUFFER, error_buffer);
-	curl_easy_setopt(easy, CURLOPT_NOPROGRESS, 1l);
-	curl_easy_setopt(easy, CURLOPT_NOSIGNAL, 1l);
-	curl_easy_setopt(easy, CURLOPT_CONNECTTIMEOUT, 10l);
+	easy.SetOption(CURLOPT_PRIVATE, (void *)this);
+	easy.SetOption(CURLOPT_USERAGENT, "Music Player Daemon " VERSION);
+	easy.SetOption(CURLOPT_HEADERFUNCTION, input_curl_headerfunction);
+	easy.SetOption(CURLOPT_WRITEHEADER, this);
+	easy.SetOption(CURLOPT_WRITEFUNCTION, input_curl_writefunction);
+	easy.SetOption(CURLOPT_WRITEDATA, this);
+	easy.SetOption(CURLOPT_HTTP200ALIASES, http_200_aliases);
+	easy.SetOption(CURLOPT_FOLLOWLOCATION, 1l);
+	easy.SetOption(CURLOPT_NETRC, 1l);
+	easy.SetOption(CURLOPT_MAXREDIRS, 5l);
+	easy.SetOption(CURLOPT_FAILONERROR, 1l);
+	easy.SetOption(CURLOPT_ERRORBUFFER, error_buffer);
+	easy.SetOption(CURLOPT_NOPROGRESS, 1l);
+	easy.SetOption(CURLOPT_NOSIGNAL, 1l);
+	easy.SetOption(CURLOPT_CONNECTTIMEOUT, 10l);
 
 	if (proxy != nullptr)
-		curl_easy_setopt(easy, CURLOPT_PROXY, proxy);
+		easy.SetOption(CURLOPT_PROXY, proxy);
 
 	if (proxy_port > 0)
-		curl_easy_setopt(easy, CURLOPT_PROXYPORT, (long)proxy_port);
+		easy.SetOption(CURLOPT_PROXYPORT, (long)proxy_port);
 
 	if (proxy_user != nullptr && proxy_password != nullptr) {
 		char proxy_auth_str[1024];
 		snprintf(proxy_auth_str, sizeof(proxy_auth_str),
 			 "%s:%s",
 			 proxy_user, proxy_password);
-		curl_easy_setopt(easy, CURLOPT_PROXYUSERPWD, proxy_auth_str);
+		easy.SetOption(CURLOPT_PROXYUSERPWD, proxy_auth_str);
 	}
 
-	curl_easy_setopt(easy, CURLOPT_SSL_VERIFYPEER, verify_peer ? 1l : 0l);
-	curl_easy_setopt(easy, CURLOPT_SSL_VERIFYHOST, verify_host ? 2l : 0l);
+	easy.SetOption(CURLOPT_SSL_VERIFYPEER, verify_peer ? 1l : 0l);
+	easy.SetOption(CURLOPT_SSL_VERIFYHOST, verify_host ? 2l : 0l);
 
-	CURLcode code = curl_easy_setopt(easy, CURLOPT_URL, GetURI());
-	if (code != CURLE_OK)
-		throw FormatRuntimeError("curl_easy_setopt() failed: %s",
-					 curl_easy_strerror(code));
+	easy.SetOption(CURLOPT_URL, GetURI());
 
 	request_headers = nullptr;
 	request_headers = curl_slist_append(request_headers,
 					       "Icy-Metadata: 1");
-	curl_easy_setopt(easy, CURLOPT_HTTPHEADER, request_headers);
+	easy.SetOption(CURLOPT_HTTPHEADER, request_headers);
 }
 
 void
@@ -810,7 +798,7 @@ CurlInputStream::DoSeek(offset_type new_offset)
 
 	if (offset > 0) {
 		sprintf(range, "%lld-", (long long)offset);
-		curl_easy_setopt(easy, CURLOPT_RANGE, range);
+		easy.SetOption(CURLOPT_RANGE, range);
 	}
 
 	try {

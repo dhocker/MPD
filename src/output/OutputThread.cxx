@@ -36,6 +36,7 @@
 #include "thread/Name.hxx"
 #include "util/ConstBuffer.hxx"
 #include "util/ScopeExit.hxx"
+#include "util/RuntimeError.hxx"
 #include "Log.hxx"
 #include "Compiler.h"
 
@@ -133,7 +134,7 @@ inline void
 AudioOutput::Open()
 {
 	assert(!open);
-	assert(in_audio_format.IsValid());
+	assert(request.audio_format.IsValid());
 
 	fail_timer.Reset();
 
@@ -142,6 +143,9 @@ AudioOutput::Open()
 	if (!Enable())
 		/* still no luck */
 		return;
+
+	in_audio_format = request.audio_format;
+	pipe.Init(*request.pipe);
 
 	bool success;
 
@@ -281,13 +285,17 @@ AudioOutput::Reopen()
 {
 	assert(open);
 
-	if (!config_audio_format.IsFullyDefined()) {
+	if ((request.audio_format != in_audio_format &&
+	     !config_audio_format.IsFullyDefined()) ||
+	    request.pipe != &pipe.GetPipe()) {
 		Close(true);
 		Open();
-	} else
+	} else {
 		/* the audio format has changed, and all filters have
 		   to be reconfigured */
+		in_audio_format = request.audio_format;
 		ReopenFilter();
+	}
 }
 
 /**
@@ -312,63 +320,51 @@ AudioOutput::WaitForDelay()
 }
 
 static ConstBuffer<void>
-ao_chunk_data(AudioOutput *ao, const MusicChunk *chunk,
+ao_chunk_data(AudioOutput &ao, const MusicChunk &chunk,
 	      Filter *replay_gain_filter,
 	      unsigned *replay_gain_serial_p)
 {
-	assert(chunk != nullptr);
-	assert(!chunk->IsEmpty());
-	assert(chunk->CheckFormat(ao->in_audio_format));
+	assert(!chunk.IsEmpty());
+	assert(chunk.CheckFormat(ao.in_audio_format));
 
-	ConstBuffer<void> data(chunk->data, chunk->length);
+	ConstBuffer<void> data(chunk.data, chunk.length);
 
-	(void)ao;
-
-	assert(data.size % ao->in_audio_format.GetFrameSize() == 0);
+	assert(data.size % ao.in_audio_format.GetFrameSize() == 0);
 
 	if (!data.IsEmpty() && replay_gain_filter != nullptr) {
 		replay_gain_filter_set_mode(*replay_gain_filter,
-					    ao->replay_gain_mode);
+					    ao.replay_gain_mode);
 
-		if (chunk->replay_gain_serial != *replay_gain_serial_p) {
+		if (chunk.replay_gain_serial != *replay_gain_serial_p) {
 			replay_gain_filter_set_info(*replay_gain_filter,
-						    chunk->replay_gain_serial != 0
-						    ? &chunk->replay_gain_info
+						    chunk.replay_gain_serial != 0
+						    ? &chunk.replay_gain_info
 						    : nullptr);
-			*replay_gain_serial_p = chunk->replay_gain_serial;
+			*replay_gain_serial_p = chunk.replay_gain_serial;
 		}
 
-		try {
-			data = replay_gain_filter->FilterPCM(data);
-		} catch (const std::runtime_error &e) {
-			FormatError(e, "\"%s\" [%s] failed to filter",
-				    ao->name, ao->plugin.name);
-			return nullptr;
-		}
+		data = replay_gain_filter->FilterPCM(data);
 	}
 
 	return data;
 }
 
 static ConstBuffer<void>
-ao_filter_chunk(AudioOutput *ao, const MusicChunk *chunk)
+ao_filter_chunk(AudioOutput &ao, const MusicChunk &chunk)
 {
 	ConstBuffer<void> data =
-		ao_chunk_data(ao, chunk, ao->replay_gain_filter_instance,
-			      &ao->replay_gain_serial);
+		ao_chunk_data(ao, chunk, ao.replay_gain_filter_instance,
+			      &ao.replay_gain_serial);
 	if (data.IsEmpty())
 		return data;
 
 	/* cross-fade */
 
-	if (chunk->other != nullptr) {
+	if (chunk.other != nullptr) {
 		ConstBuffer<void> other_data =
-			ao_chunk_data(ao, chunk->other,
-				      ao->other_replay_gain_filter_instance,
-				      &ao->other_replay_gain_serial);
-		if (other_data.IsNull())
-			return nullptr;
-
+			ao_chunk_data(ao, *chunk.other,
+				      ao.other_replay_gain_filter_instance,
+				      &ao.other_replay_gain_serial);
 		if (other_data.IsEmpty())
 			return data;
 
@@ -380,7 +376,7 @@ ao_filter_chunk(AudioOutput *ao, const MusicChunk *chunk)
 		if (data.size > other_data.size)
 			data.size = other_data.size;
 
-		float mix_ratio = chunk->mix_ratio;
+		float mix_ratio = chunk.mix_ratio;
 		if (mix_ratio >= 0)
 			/* reverse the mix ratio (because the
 			   arguments to pcm_mix() are reversed), but
@@ -389,16 +385,13 @@ ao_filter_chunk(AudioOutput *ao, const MusicChunk *chunk)
 			   case */
 			mix_ratio = 1.0 - mix_ratio;
 
-		void *dest = ao->cross_fade_buffer.Get(other_data.size);
+		void *dest = ao.cross_fade_buffer.Get(other_data.size);
 		memcpy(dest, other_data.data, other_data.size);
-		if (!pcm_mix(ao->cross_fade_dither, dest, data.data, data.size,
-			     ao->in_audio_format.format,
-			     mix_ratio)) {
-			FormatError(output_domain,
-				    "Cannot cross-fade format %s",
-				    sample_format_to_string(ao->in_audio_format.format));
-			return nullptr;
-		}
+		if (!pcm_mix(ao.cross_fade_dither, dest, data.data, data.size,
+			     ao.in_audio_format.format,
+			     mix_ratio))
+			throw FormatRuntimeError("Cannot cross-fade format %s",
+						 sample_format_to_string(ao.in_audio_format.format));
 
 		data.data = dest;
 		data.size = other_data.size;
@@ -406,32 +399,32 @@ ao_filter_chunk(AudioOutput *ao, const MusicChunk *chunk)
 
 	/* apply filter chain */
 
-	try {
-		return ao->filter_instance->FilterPCM(data);
-	} catch (const std::runtime_error &e) {
-		FormatError(e, "\"%s\" [%s] failed to filter",
-			    ao->name, ao->plugin.name);
-		return nullptr;
-	}
+	return ao.filter_instance->FilterPCM(data);
 }
 
 inline bool
-AudioOutput::PlayChunk(const MusicChunk *chunk)
+AudioOutput::PlayChunk(const MusicChunk &chunk)
 {
 	assert(filter_instance != nullptr);
 
-	if (tags && gcc_unlikely(chunk->tag != nullptr)) {
+	if (tags && gcc_unlikely(chunk.tag != nullptr)) {
 		const ScopeUnlock unlock(mutex);
 		try {
-			ao_plugin_send_tag(this, *chunk->tag);
+			ao_plugin_send_tag(this, *chunk.tag);
 		} catch (const std::runtime_error &e) {
 			FormatError(e, "Failed to send tag to \"%s\" [%s]",
 				    name, plugin.name);
 		}
 	}
 
-	auto data = ConstBuffer<char>::FromVoid(ao_filter_chunk(this, chunk));
-	if (data.IsNull()) {
+	ConstBuffer<uint8_t> data;
+
+	try {
+		data = data.FromVoid(ao_filter_chunk(*this, chunk));
+	} catch (const std::runtime_error &e) {
+		FormatError(e, "Failed to filter for output \"%s\" [%s]",
+			    name, plugin.name);
+
 		Close(false);
 
 		/* don't automatically reopen this device for 10
@@ -467,11 +460,9 @@ AudioOutput::PlayChunk(const MusicChunk *chunk)
 			return false;
 		}
 
-		assert(nbytes <= data.size);
 		assert(nbytes % out_audio_format.GetFrameSize() == 0);
 
-		data.data += nbytes;
-		data.size -= nbytes;
+		data.skip_front(nbytes);
 	}
 
 	return true;
@@ -508,7 +499,7 @@ AudioOutput::Play()
 			n = 0;
 		}
 
-		if (!PlayChunk(chunk))
+		if (!PlayChunk(*chunk))
 			break;
 
 		pipe.Consume(*chunk);

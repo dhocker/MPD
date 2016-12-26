@@ -91,27 +91,18 @@ AudioOutput::Disable()
 
 inline AudioFormat
 AudioOutput::OpenFilter(AudioFormat &format)
-try {
+{
 	assert(format.IsValid());
 
-	/* the replay_gain filter cannot fail here */
-	if (prepared_replay_gain_filter != nullptr)
-		replay_gain_filter_instance =
-			prepared_replay_gain_filter->Open(format);
-
-	if (prepared_other_replay_gain_filter != nullptr)
-		other_replay_gain_filter_instance =
-			prepared_other_replay_gain_filter->Open(format);
-
-	filter_instance = prepared_filter->Open(format);
+	const auto result = source.Open(format, *request.pipe,
+					prepared_replay_gain_filter,
+					prepared_other_replay_gain_filter,
+					prepared_filter);
 
 	if (mixer != nullptr && mixer->IsPlugin(software_mixer_plugin))
 		software_mixer_set_filter(*mixer, volume_filter.Get());
 
-	return filter_instance->GetOutAudioFormat();
-} catch (...) {
-	CloseFilter();
-	throw;
+	return result;
 }
 
 void
@@ -120,67 +111,55 @@ AudioOutput::CloseFilter()
 	if (mixer != nullptr && mixer->IsPlugin(software_mixer_plugin))
 		software_mixer_set_filter(*mixer, nullptr);
 
-	delete replay_gain_filter_instance;
-	replay_gain_filter_instance = nullptr;
-
-	delete other_replay_gain_filter_instance;
-	other_replay_gain_filter_instance = nullptr;
-
-	delete filter_instance;
-	filter_instance = nullptr;
+	source.Close();
 }
 
 inline void
 AudioOutput::Open()
 {
-	assert(!open);
 	assert(request.audio_format.IsValid());
 
 	fail_timer.Reset();
 
 	/* enable the device (just in case the last enable has failed) */
-
-	if (!Enable())
+	if (!Enable()) {
 		/* still no luck */
+		fail_timer.Update();
 		return;
-
-	in_audio_format = request.audio_format;
-	pipe.Init(*request.pipe);
-
-	bool success;
-
-	{
-		const ScopeUnlock unlock(mutex);
-		success = OpenFilterAndOutput();
 	}
 
-	if (success)
-		open = true;
-	else
-		fail_timer.Update();
-}
+	AudioFormat f;
 
-bool
-AudioOutput::OpenFilterAndOutput()
-{
-	AudioFormat filter_audio_format;
 	try {
-		filter_audio_format = OpenFilter(in_audio_format);
+		f = source.Open(request.audio_format, *request.pipe,
+				prepared_replay_gain_filter,
+				prepared_other_replay_gain_filter,
+				prepared_filter)
+			.WithMask(config_audio_format);
 	} catch (const std::runtime_error &e) {
 		FormatError(e, "Failed to open filter for \"%s\" [%s]",
 			    name, plugin.name);
-		return false;
+		fail_timer.Update();
+		return;
 	}
 
-	assert(filter_audio_format.IsValid());
+	if (open && f != filter_audio_format) {
+		/* if the filter's output format changes, the output
+		   must be reopened as well */
+		CloseOutput(true);
+		open = false;
+	}
 
-	const auto audio_format =
-		filter_audio_format.WithMask(config_audio_format);
-	bool success = OpenOutputAndConvert(audio_format);
-	if (!success)
-		CloseFilter();
+	filter_audio_format = f;
 
-	return success;
+	if (!open) {
+		if (OpenOutputAndConvert(filter_audio_format)) {
+			open = true;
+		} else {
+			CloseFilter();
+			fail_timer.Update();
+		}
+	}
 }
 
 bool
@@ -226,9 +205,9 @@ AudioOutput::OpenOutputAndConvert(AudioFormat desired_audio_format)
 		    plugin.name, name,
 		    audio_format_to_string(out_audio_format, &af_string));
 
-	if (in_audio_format != out_audio_format)
+	if (source.GetInputAudioFormat() != out_audio_format)
 		FormatDebug(output_domain, "converting from %s",
-			    audio_format_to_string(in_audio_format,
+			    audio_format_to_string(source.GetInputAudioFormat(),
 						   &af_string));
 
 	return true;
@@ -238,8 +217,6 @@ void
 AudioOutput::Close(bool drain)
 {
 	assert(open);
-
-	pipe.Cancel();
 
 	open = false;
 
@@ -263,41 +240,6 @@ AudioOutput::CloseOutput(bool drain)
 	ao_plugin_close(this);
 }
 
-void
-AudioOutput::ReopenFilter()
-{
-	try {
-		const ScopeUnlock unlock(mutex);
-		CloseFilter();
-		OpenFilter(in_audio_format);
-		convert_filter_set(convert_filter.Get(), out_audio_format);
-	} catch (const std::runtime_error &e) {
-		FormatError(e,
-			    "Failed to open filter for \"%s\" [%s]",
-			    name, plugin.name);
-
-		Close(false);
-	}
-}
-
-void
-AudioOutput::Reopen()
-{
-	assert(open);
-
-	if ((request.audio_format != in_audio_format &&
-	     !config_audio_format.IsFullyDefined()) ||
-	    request.pipe != &pipe.GetPipe()) {
-		Close(true);
-		Open();
-	} else {
-		/* the audio format has changed, and all filters have
-		   to be reconfigured */
-		in_audio_format = request.audio_format;
-		ReopenFilter();
-	}
-}
-
 /**
  * Wait until the output's delay reaches zero.
  *
@@ -319,121 +261,43 @@ AudioOutput::WaitForDelay()
 	}
 }
 
-static ConstBuffer<void>
-ao_chunk_data(AudioOutput &ao, const MusicChunk &chunk,
-	      Filter *replay_gain_filter,
-	      unsigned *replay_gain_serial_p)
-{
-	assert(!chunk.IsEmpty());
-	assert(chunk.CheckFormat(ao.in_audio_format));
+bool
+AudioOutput::FillSourceOrClose()
+try {
+	return source.Fill();
+} catch (const std::runtime_error &e) {
+	FormatError(e, "Failed to filter for output \"%s\" [%s]",
+		    name, plugin.name);
 
-	ConstBuffer<void> data(chunk.data, chunk.length);
+	Close(false);
 
-	assert(data.size % ao.in_audio_format.GetFrameSize() == 0);
-
-	if (!data.IsEmpty() && replay_gain_filter != nullptr) {
-		replay_gain_filter_set_mode(*replay_gain_filter,
-					    ao.replay_gain_mode);
-
-		if (chunk.replay_gain_serial != *replay_gain_serial_p) {
-			replay_gain_filter_set_info(*replay_gain_filter,
-						    chunk.replay_gain_serial != 0
-						    ? &chunk.replay_gain_info
-						    : nullptr);
-			*replay_gain_serial_p = chunk.replay_gain_serial;
-		}
-
-		data = replay_gain_filter->FilterPCM(data);
-	}
-
-	return data;
-}
-
-static ConstBuffer<void>
-ao_filter_chunk(AudioOutput &ao, const MusicChunk &chunk)
-{
-	ConstBuffer<void> data =
-		ao_chunk_data(ao, chunk, ao.replay_gain_filter_instance,
-			      &ao.replay_gain_serial);
-	if (data.IsEmpty())
-		return data;
-
-	/* cross-fade */
-
-	if (chunk.other != nullptr) {
-		ConstBuffer<void> other_data =
-			ao_chunk_data(ao, *chunk.other,
-				      ao.other_replay_gain_filter_instance,
-				      &ao.other_replay_gain_serial);
-		if (other_data.IsEmpty())
-			return data;
-
-		/* if the "other" chunk is longer, then that trailer
-		   is used as-is, without mixing; it is part of the
-		   "next" song being faded in, and if there's a rest,
-		   it means cross-fading ends here */
-
-		if (data.size > other_data.size)
-			data.size = other_data.size;
-
-		float mix_ratio = chunk.mix_ratio;
-		if (mix_ratio >= 0)
-			/* reverse the mix ratio (because the
-			   arguments to pcm_mix() are reversed), but
-			   only if the mix ratio is non-negative; a
-			   negative mix ratio is a MixRamp special
-			   case */
-			mix_ratio = 1.0 - mix_ratio;
-
-		void *dest = ao.cross_fade_buffer.Get(other_data.size);
-		memcpy(dest, other_data.data, other_data.size);
-		if (!pcm_mix(ao.cross_fade_dither, dest, data.data, data.size,
-			     ao.in_audio_format.format,
-			     mix_ratio))
-			throw FormatRuntimeError("Cannot cross-fade format %s",
-						 sample_format_to_string(ao.in_audio_format.format));
-
-		data.data = dest;
-		data.size = other_data.size;
-	}
-
-	/* apply filter chain */
-
-	return ao.filter_instance->FilterPCM(data);
+	/* don't automatically reopen this device for 10
+	   seconds */
+	fail_timer.Update();
+	return false;
 }
 
 inline bool
-AudioOutput::PlayChunk(const MusicChunk &chunk)
+AudioOutput::PlayChunk()
 {
-	assert(filter_instance != nullptr);
-
-	if (tags && gcc_unlikely(chunk.tag != nullptr)) {
-		const ScopeUnlock unlock(mutex);
-		try {
-			ao_plugin_send_tag(this, *chunk.tag);
-		} catch (const std::runtime_error &e) {
-			FormatError(e, "Failed to send tag to \"%s\" [%s]",
-				    name, plugin.name);
+	if (tags) {
+		const auto *tag = source.ReadTag();
+		if (tag != nullptr) {
+			const ScopeUnlock unlock(mutex);
+			try {
+				ao_plugin_send_tag(this, *tag);
+			} catch (const std::runtime_error &e) {
+				FormatError(e, "Failed to send tag to \"%s\" [%s]",
+					    name, plugin.name);
+			}
 		}
 	}
 
-	ConstBuffer<uint8_t> data;
+	while (command == Command::NONE) {
+		const auto data = source.PeekData();
+		if (data.IsEmpty())
+			break;
 
-	try {
-		data = data.FromVoid(ao_filter_chunk(*this, chunk));
-	} catch (const std::runtime_error &e) {
-		FormatError(e, "Failed to filter for output \"%s\" [%s]",
-			    name, plugin.name);
-
-		Close(false);
-
-		/* don't automatically reopen this device for 10
-		   seconds */
-		fail_timer.Update();
-		return false;
-	}
-
-	while (!data.IsEmpty() && command == Command::NONE) {
 		if (!WaitForDelay())
 			break;
 
@@ -462,7 +326,7 @@ AudioOutput::PlayChunk(const MusicChunk &chunk)
 
 		assert(nbytes % out_audio_format.GetFrameSize() == 0);
 
-		data.skip_front(nbytes);
+		source.ConsumeData(nbytes);
 	}
 
 	return true;
@@ -471,8 +335,7 @@ AudioOutput::PlayChunk(const MusicChunk &chunk)
 inline bool
 AudioOutput::Play()
 {
-	const MusicChunk *chunk = pipe.Get();
-	if (chunk == nullptr)
+	if (!FillSourceOrClose())
 		/* no chunk available */
 		return false;
 
@@ -499,12 +362,9 @@ AudioOutput::Play()
 			n = 0;
 		}
 
-		if (!PlayChunk(*chunk))
+		if (!PlayChunk())
 			break;
-
-		pipe.Consume(*chunk);
-		chunk = pipe.Get();
-	} while (chunk != nullptr);
+	} while (FillSourceOrClose());
 
 	const ScopeUnlock unlock(mutex);
 	client->ChunksConsumed();
@@ -578,10 +438,7 @@ AudioOutput::Task()
 			break;
 
 		case Command::OPEN:
-			if (open)
-				Reopen();
-			else
-				Open();
+			Open();
 			CommandFinished();
 			break;
 
@@ -611,9 +468,6 @@ AudioOutput::Task()
 
 		case Command::DRAIN:
 			if (open) {
-				assert(pipe.IsInitial());
-				assert(pipe.GetPipe().Peek() == nullptr);
-
 				const ScopeUnlock unlock(mutex);
 				ao_plugin_drain(this);
 			}
@@ -622,7 +476,7 @@ AudioOutput::Task()
 			continue;
 
 		case Command::CANCEL:
-			pipe.Cancel();
+			source.Cancel();
 
 			if (open) {
 				const ScopeUnlock unlock(mutex);
@@ -634,7 +488,7 @@ AudioOutput::Task()
 
 		case Command::KILL:
 			Disable();
-			pipe.Cancel();
+			source.Cancel();
 			CommandFinished();
 			return;
 		}

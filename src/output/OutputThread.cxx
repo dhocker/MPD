@@ -89,22 +89,6 @@ AudioOutput::Disable()
 	}
 }
 
-inline AudioFormat
-AudioOutput::OpenFilter(AudioFormat &format)
-{
-	assert(format.IsValid());
-
-	const auto result = source.Open(format, *request.pipe,
-					prepared_replay_gain_filter,
-					prepared_other_replay_gain_filter,
-					prepared_filter);
-
-	if (mixer != nullptr && mixer->IsPlugin(software_mixer_plugin))
-		software_mixer_set_filter(*mixer, volume_filter.Get());
-
-	return result;
-}
-
 void
 AudioOutput::CloseFilter()
 {
@@ -136,6 +120,9 @@ AudioOutput::Open()
 				prepared_other_replay_gain_filter,
 				prepared_filter)
 			.WithMask(config_audio_format);
+
+		if (mixer != nullptr && mixer->IsPlugin(software_mixer_plugin))
+			software_mixer_set_filter(*mixer, volume_filter.Get());
 	} catch (const std::runtime_error &e) {
 		FormatError(e, "Failed to open filter for \"%s\" [%s]",
 			    name, plugin.name);
@@ -264,7 +251,7 @@ AudioOutput::WaitForDelay()
 bool
 AudioOutput::FillSourceOrClose()
 try {
-	return source.Fill();
+	return source.Fill(mutex);
 } catch (const std::runtime_error &e) {
 	FormatError(e, "Failed to filter for output \"%s\" [%s]",
 		    name, plugin.name);
@@ -422,7 +409,7 @@ AudioOutput::Task()
 
 	const ScopeLock lock(mutex);
 
-	while (1) {
+	while (true) {
 		switch (command) {
 		case Command::NONE:
 			break;
@@ -443,9 +430,8 @@ AudioOutput::Task()
 			break;
 
 		case Command::CLOSE:
-			assert(open);
-
-			Close(false);
+			if (open)
+				Close(false);
 			CommandFinished();
 			break;
 

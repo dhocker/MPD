@@ -56,7 +56,6 @@
 #include "config/ConfigDefaults.hxx"
 #include "config/ConfigOption.hxx"
 #include "config/ConfigError.hxx"
-#include "Stats.hxx"
 #include "util/RuntimeError.hxx"
 
 #ifdef ENABLE_DAEMON
@@ -258,7 +257,7 @@ glue_state_file_init()
 #endif
 	}
 
-	const unsigned interval =
+	const auto interval =
 		config_get_unsigned(ConfigOption::STATE_FILE_INTERVAL,
 				    StateFile::DEFAULT_INTERVAL);
 
@@ -442,7 +441,6 @@ try {
 	glue_daemonize_init(&options);
 #endif
 
-	stats_global_init();
 	TagLoadConfig();
 
 	log_init(options.verbose, options.log_stderr);

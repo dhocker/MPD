@@ -76,9 +76,9 @@ MultipleOutputs::Configure(EventLoop &event_loop,
 		auto output = LoadOutput(event_loop, replay_gain_config,
 					 mixer_listener,
 					 client, *param);
-		if (FindByName(output->name) != nullptr)
+		if (FindByName(output->GetName()) != nullptr)
 			throw FormatRuntimeError("output devices with identical "
-						 "names: %s", output->name);
+						 "names: %s", output->GetName());
 
 		outputs.push_back(output);
 	}
@@ -97,7 +97,7 @@ AudioOutput *
 MultipleOutputs::FindByName(const char *name) const
 {
 	for (auto i : outputs)
-		if (strcmp(i->name, name) == 0)
+		if (strcmp(i->GetName(), name) == 0)
 			return i;
 
 	return nullptr;
@@ -145,23 +145,8 @@ MultipleOutputs::AllowPlay()
 		ao->LockAllowPlay();
 }
 
-static void
-audio_output_reset_reopen(AudioOutput *ao)
-{
-	const ScopeLock protect(ao->mutex);
-
-	ao->fail_timer.Reset();
-}
-
-void
-MultipleOutputs::ResetReopen()
-{
-	for (auto ao : outputs)
-		audio_output_reset_reopen(ao);
-}
-
 bool
-MultipleOutputs::Update()
+MultipleOutputs::Update(bool force)
 {
 	bool ret = false;
 
@@ -169,7 +154,7 @@ MultipleOutputs::Update()
 		return false;
 
 	for (auto ao : outputs)
-		ret = ao->LockUpdate(input_audio_format, *pipe)
+		ret = ao->LockUpdate(input_audio_format, *pipe, force)
 			|| ret;
 
 	return ret;
@@ -190,7 +175,7 @@ MultipleOutputs::Play(MusicChunk *chunk)
 	assert(chunk != nullptr);
 	assert(chunk->CheckFormat(input_audio_format));
 
-	if (!Update())
+	if (!Update(false))
 		/* TODO: obtain real error */
 		throw std::runtime_error("Failed to open audio output");
 
@@ -224,16 +209,21 @@ MultipleOutputs::Open(const AudioFormat audio_format,
 
 	input_audio_format = audio_format;
 
-	ResetReopen();
 	EnableDisable();
-	Update();
+	Update(true);
+
+	std::exception_ptr first_error;
 
 	for (auto ao : outputs) {
-		if (ao->enabled)
+		const ScopeLock lock(ao->mutex);
+
+		if (ao->IsEnabled())
 			enabled = true;
 
-		if (ao->open)
+		if (ao->IsOpen())
 			ret = true;
+		else if (!first_error)
+			first_error = ao->GetLastError();
 	}
 
 	if (!enabled) {
@@ -243,8 +233,12 @@ MultipleOutputs::Open(const AudioFormat audio_format,
 	} else if (!ret) {
 		/* close all devices if there was an error */
 		Close();
-		/* TODO: obtain real error */
-		throw std::runtime_error("Failed to open audio output");
+
+		if (first_error)
+			/* we have details, so throw that */
+			std::rethrow_exception(first_error);
+		else
+			throw std::runtime_error("Failed to open audio output");
 	}
 }
 
@@ -271,7 +265,7 @@ MultipleOutputs::ClearTailChunk(const MusicChunk *chunk,
 		/* this mutex will be unlocked by the caller when it's
 		   ready */
 		ao->mutex.lock();
-		locked[i] = ao->open;
+		locked[i] = ao->IsOpen();
 
 		if (!locked[i]) {
 			ao->mutex.unlock();
@@ -333,7 +327,7 @@ MultipleOutputs::Check()
 void
 MultipleOutputs::Pause()
 {
-	Update();
+	Update(false);
 
 	for (auto ao : outputs)
 		ao->LockPauseAsync();

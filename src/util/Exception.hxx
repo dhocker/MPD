@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2016 Max Kellermann <max@duempel.org>
+ * Copyright (C) 2016 Max Kellermann <max@duempel.org>
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -27,43 +27,17 @@
  * OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef THREAD_MUTEX_HXX
-#define THREAD_MUTEX_HXX
+#ifndef EXCEPTION_HXX
+#define EXCEPTION_HXX
 
-#include <mutex>
-
-#ifdef WIN32
-
-#include "CriticalSection.hxx"
-class Mutex : public CriticalSection {};
-
-#else
-
-#include "PosixMutex.hxx"
-class Mutex : public PosixMutex {};
-
-#endif
-
-using ScopeLock = std::unique_lock<Mutex>;
+#include <exception>
+#include <string>
 
 /**
- * Within the scope of an instance, this class will keep a #Mutex
- * unlocked.
+ * Extract the full message of a C++ exception, considering its nested
+ * exceptions (if any).
  */
-class ScopeUnlock {
-	Mutex &mutex;
-
-public:
-	explicit ScopeUnlock(Mutex &_mutex):mutex(_mutex) {
-		mutex.unlock();
-	};
-
-	~ScopeUnlock() {
-		mutex.lock();
-	}
-
-	ScopeUnlock(const ScopeUnlock &other) = delete;
-	ScopeUnlock &operator=(const ScopeUnlock &other) = delete;
-};
+std::string
+FullMessage(std::exception_ptr ep);
 
 #endif

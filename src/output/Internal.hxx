@@ -29,6 +29,8 @@
 #include "thread/Thread.hxx"
 #include "system/PeriodClock.hxx"
 
+#include <exception>
+
 class PreparedFilter;
 class MusicPipe;
 class EventLoop;
@@ -236,7 +238,7 @@ struct AudioOutput {
 	/**
 	 * This mutex protects #open, #fail_timer, #pipe.
 	 */
-	Mutex mutex;
+	mutable Mutex mutex;
 
 	/**
 	 * This condition object wakes up the output thread after
@@ -256,6 +258,14 @@ struct AudioOutput {
 	AudioOutputSource source;
 
 	/**
+	 * The error that occurred in the output thread.  It is
+	 * cleared whenever the output is opened successfully.
+	 *
+	 * Protected by #mutex.
+	 */
+	std::exception_ptr last_error;
+
+	/**
 	 * Throws #std::runtime_error on error.
 	 */
 	AudioOutput(const AudioOutputPlugin &_plugin,
@@ -267,18 +277,47 @@ private:
 	void Configure(const ConfigBlock &block);
 
 public:
+	void Setup(EventLoop &event_loop,
+		   const ReplayGainConfig &replay_gain_config,
+		   MixerListener &mixer_listener,
+		   const ConfigBlock &block);
+
 	void StartThread();
 	void StopThread();
 
 	void BeginDestroy();
 	void FinishDestroy();
 
+	const char *GetName() const {
+		return name;
+	}
+
+	/**
+	 * Caller must lock the mutex.
+	 */
+	bool IsEnabled() const {
+		return enabled;
+	}
+
+	/**
+	 * Caller must lock the mutex.
+	 */
 	bool IsOpen() const {
 		return open;
 	}
 
+	/**
+	 * Caller must lock the mutex.
+	 */
 	bool IsCommandFinished() const {
 		return command == Command::NONE;
+	}
+
+	/**
+	 * Caller must lock the mutex.
+	 */
+	const std::exception_ptr &GetLastError() const {
+		return last_error;
 	}
 
 	/**
@@ -368,10 +407,12 @@ public:
 	 * Opens or closes the device, depending on the "enabled"
 	 * flag.
 	 *
+	 * @param force true to ignore the #fail_timer
 	 * @return true if the device is open
 	 */
 	bool LockUpdate(const AudioFormat audio_format,
-			const MusicPipe &mp);
+			const MusicPipe &mp,
+			bool force);
 
 	void LockPlay();
 
@@ -410,20 +451,27 @@ public:
 private:
 	void CommandFinished();
 
-	bool Enable();
+	/**
+	 * Throws #std::runtime_error on error.
+	 */
+	void Enable();
+
 	void Disable();
 
+	/**
+	 * Throws #std::runtime_error on error.
+	 */
 	void Open();
 
 	/**
 	 * Invoke OutputPlugin::open() and configure the
 	 * #ConvertFilter.
 	 *
-	 * Caller must not lock the mutex.
+	 * Throws #std::runtime_error on error.
 	 *
-	 * @return true on success
+	 * Caller must not lock the mutex.
 	 */
-	bool OpenOutputAndConvert(AudioFormat audio_format);
+	void OpenOutputAndConvert(AudioFormat audio_format);
 
 	void Close(bool drain);
 

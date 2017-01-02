@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2016 Max Kellermann <max@duempel.org>
+ * Copyright (C) 2016 Max Kellermann <max@duempel.org>
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -27,43 +27,24 @@
  * OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef THREAD_MUTEX_HXX
-#define THREAD_MUTEX_HXX
+#include "Exception.hxx"
 
-#include <mutex>
+#include <stdexcept>
 
-#ifdef WIN32
-
-#include "CriticalSection.hxx"
-class Mutex : public CriticalSection {};
-
-#else
-
-#include "PosixMutex.hxx"
-class Mutex : public PosixMutex {};
-
-#endif
-
-using ScopeLock = std::unique_lock<Mutex>;
-
-/**
- * Within the scope of an instance, this class will keep a #Mutex
- * unlocked.
- */
-class ScopeUnlock {
-	Mutex &mutex;
-
-public:
-	explicit ScopeUnlock(Mutex &_mutex):mutex(_mutex) {
-		mutex.unlock();
-	};
-
-	~ScopeUnlock() {
-		mutex.lock();
+std::string
+FullMessage(std::exception_ptr ep)
+{
+	try {
+		std::rethrow_exception(ep);
+	} catch (const std::exception &e) {
+		try {
+			std::rethrow_if_nested(e);
+			return e.what();
+		} catch (...) {
+			return std::string(e.what()) + "; " +
+				FullMessage(std::current_exception());
+		}
 	}
 
-	ScopeUnlock(const ScopeUnlock &other) = delete;
-	ScopeUnlock &operator=(const ScopeUnlock &other) = delete;
-};
-
-#endif
+	return std::string("Unknown error");
+}

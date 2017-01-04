@@ -1,5 +1,5 @@
 /*
- * Copyright 2003-2016 The Music Player Daemon Project
+ * Copyright 2003-2017 The Music Player Daemon Project
  * http://www.musicpd.org
  *
  * This program is free software; you can redistribute it and/or modify
@@ -60,7 +60,7 @@ public:
 
 private:
 	bool LockWaitFinished() {
-		const ScopeLock protect(mutex);
+		const std::lock_guard<Mutex> protect(mutex);
 		while (!finished)
 			if (!cond.timed_wait(mutex, timeout))
 				return false;
@@ -73,7 +73,7 @@ private:
 	 * thread.
 	 */
 	void LockSetFinished() {
-		const ScopeLock protect(mutex);
+		const std::lock_guard<Mutex> protect(mutex);
 		finished = true;
 		cond.signal();
 	}

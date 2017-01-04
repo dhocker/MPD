@@ -1,5 +1,5 @@
 /*
- * Copyright 2003-2016 The Music Player Daemon Project
+ * Copyright 2003-2017 The Music Player Daemon Project
  * http://www.musicpd.org
  *
  * This program is free software; you can redistribute it and/or modify
@@ -64,7 +64,7 @@ PlayerControl::Play(DetachedSong *song)
 {
 	assert(song != nullptr);
 
-	const ScopeLock protect(mutex);
+	const std::lock_guard<Mutex> protect(mutex);
 	SeekLocked(song, SongTime::zero());
 
 	if (state == PlayerState::PAUSE)
@@ -118,14 +118,14 @@ PlayerControl::PauseLocked()
 void
 PlayerControl::LockPause()
 {
-	const ScopeLock protect(mutex);
+	const std::lock_guard<Mutex> protect(mutex);
 	PauseLocked();
 }
 
 void
 PlayerControl::LockSetPause(bool pause_flag)
 {
-	const ScopeLock protect(mutex);
+	const std::lock_guard<Mutex> protect(mutex);
 
 	switch (state) {
 	case PlayerState::STOP:
@@ -146,7 +146,7 @@ PlayerControl::LockSetPause(bool pause_flag)
 void
 PlayerControl::LockSetBorderPause(bool _border_pause)
 {
-	const ScopeLock protect(mutex);
+	const std::lock_guard<Mutex> protect(mutex);
 	border_pause = _border_pause;
 }
 
@@ -155,7 +155,7 @@ PlayerControl::LockGetStatus()
 {
 	player_status status;
 
-	const ScopeLock protect(mutex);
+	const std::lock_guard<Mutex> protect(mutex);
 	SynchronousCommand(PlayerCommand::REFRESH);
 
 	status.state = state;
@@ -183,14 +183,14 @@ PlayerControl::SetError(PlayerError type, std::exception_ptr &&_error)
 void
 PlayerControl::LockClearError()
 {
-	const ScopeLock protect(mutex);
+	const std::lock_guard<Mutex> protect(mutex);
 	ClearError();
 }
 
 void
 PlayerControl::LockSetTaggedSong(const DetachedSong &song)
 {
-	const ScopeLock protect(mutex);
+	const std::lock_guard<Mutex> protect(mutex);
 	delete tagged_song;
 	tagged_song = new DetachedSong(song);
 }
@@ -207,7 +207,7 @@ PlayerControl::LockEnqueueSong(DetachedSong *song)
 {
 	assert(song != nullptr);
 
-	const ScopeLock protect(mutex);
+	const std::lock_guard<Mutex> protect(mutex);
 	EnqueueSongLocked(song);
 }
 
@@ -246,7 +246,7 @@ PlayerControl::LockSeek(DetachedSong *song, SongTime t)
 	assert(song != nullptr);
 
 	{
-		const ScopeLock protect(mutex);
+		const std::lock_guard<Mutex> protect(mutex);
 		SeekLocked(song, t);
 	}
 

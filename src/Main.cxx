@@ -1,5 +1,5 @@
 /*
- * Copyright 2003-2016 The Music Player Daemon Project
+ * Copyright 2003-2017 The Music Player Daemon Project
  * http://www.musicpd.org
  *
  * This program is free software; you can redistribute it and/or modify
@@ -518,6 +518,8 @@ try {
 	instance->partition->outputs.Configure(instance->event_loop,
 					       config.replay_gain,
 					       instance->partition->pc);
+	instance->partition->UpdateEffectiveReplayGainMode();
+
 	client_manager_init();
 	input_stream_global_init();
 	playlist_list_global_init();

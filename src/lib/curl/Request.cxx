@@ -46,7 +46,8 @@
 
 CurlRequest::CurlRequest(CurlGlobal &_global, const char *url,
 			 CurlResponseHandler &_handler)
-	:global(_global), handler(_handler)
+	:DeferredMonitor(_global.GetEventLoop()),
+	 global(_global), handler(_handler)
 {
 	error_buffer[0] = 0;
 
@@ -62,8 +63,6 @@ CurlRequest::CurlRequest(CurlGlobal &_global, const char *url,
 	easy.SetOption(CURLOPT_NOSIGNAL, 1l);
 	easy.SetOption(CURLOPT_CONNECTTIMEOUT, 10l);
 	easy.SetOption(CURLOPT_URL, url);
-
-	global.Add(easy.Get(), *this);
 }
 
 CurlRequest::~CurlRequest()
@@ -72,18 +71,39 @@ CurlRequest::~CurlRequest()
 }
 
 void
+CurlRequest::Start()
+{
+	assert(!registered);
+
+	global.Add(easy.Get(), *this);
+	registered = true;
+}
+
+void
+CurlRequest::Stop()
+{
+	if (!registered)
+		return;
+
+	global.Remove(easy.Get());
+	registered = false;
+}
+
+void
 CurlRequest::FreeEasy()
 {
 	if (!easy)
 		return;
 
-	global.Remove(easy.Get());
+	Stop();
 	easy = nullptr;
 }
 
 void
 CurlRequest::Resume()
 {
+	assert(registered);
+
 	curl_easy_pause(easy.Get(), CURLPAUSE_CONT);
 
 	if (IsCurlOlderThan(0x072000))
@@ -95,32 +115,24 @@ CurlRequest::Resume()
 	global.InvalidateSockets();
 }
 
-bool
+void
 CurlRequest::FinishHeaders()
 {
 	if (state != State::HEADERS)
-		return true;
+		return;
 
 	state = State::BODY;
 
 	long status = 0;
 	curl_easy_getinfo(easy.Get(), CURLINFO_RESPONSE_CODE, &status);
 
-	try {
-		handler.OnHeaders(status, std::move(headers));
-		return true;
-	} catch (...) {
-		state = State::CLOSED;
-		handler.OnError(std::current_exception());
-		return false;
-	}
+	handler.OnHeaders(status, std::move(headers));
 }
 
 void
 CurlRequest::FinishBody()
 {
-	if (!FinishHeaders())
-		return;
+	FinishHeaders();
 
 	if (state != State::BODY)
 		return;
@@ -132,7 +144,7 @@ CurlRequest::FinishBody()
 void
 CurlRequest::Done(CURLcode result)
 {
-	FreeEasy();
+	Stop();
 
 	try {
 		if (result != CURLE_OK) {
@@ -148,7 +160,12 @@ CurlRequest::Done(CURLcode result)
 		return;
 	}
 
-	FinishBody();
+	try {
+		FinishBody();
+	} catch (...) {
+		state = State::CLOSED;
+		handler.OnError(std::current_exception());
+	}
 }
 
 inline void
@@ -202,18 +219,19 @@ CurlRequest::DataReceived(const void *ptr, size_t received_size)
 {
 	assert(received_size > 0);
 
-	if (!FinishHeaders())
-		return 0;
-
 	try {
+		FinishHeaders();
 		handler.OnData({ptr, received_size});
 		return received_size;
 	} catch (Pause) {
 		return CURL_WRITEFUNC_PAUSE;
 	} catch (...) {
 		state = State::CLOSED;
-		handler.OnError(std::current_exception());
-		return 0;
+		/* move the CurlResponseHandler::OnError() call into a
+		   "safe" stack frame */
+		postponed_error = std::current_exception();
+		DeferredMonitor::Schedule();
+		return CURL_WRITEFUNC_PAUSE;
 	}
 
 }
@@ -228,4 +246,12 @@ CurlRequest::WriteFunction(void *ptr, size_t size, size_t nmemb, void *stream)
 		return 0;
 
 	return c.DataReceived(ptr, size);
+}
+
+void
+CurlRequest::RunDeferred()
+{
+	assert(postponed_error);
+
+	handler.OnError(postponed_error);
 }

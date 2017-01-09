@@ -96,7 +96,7 @@ private:
 };
 
 CurlGlobal::CurlGlobal(EventLoop &_loop)
-	:TimeoutMonitor(_loop)
+	:TimeoutMonitor(_loop), DeferredMonitor(_loop)
 {
 	multi.SetOption(CURLMOPT_SOCKETFUNCTION, CurlSocket::SocketFunction);
 	multi.SetOption(CURLMOPT_SOCKETDATA, this);
@@ -217,25 +217,31 @@ CurlGlobal::ReadInfo()
 	}
 }
 
-int
-CurlGlobal::TimerFunction(gcc_unused CURLM *_global, long timeout_ms, void *userp)
+inline void
+CurlGlobal::UpdateTimeout(long timeout_ms)
 {
-	auto &global = *(CurlGlobal *)userp;
-	assert(_global == global.multi.Get());
-
 	if (timeout_ms < 0) {
-		global.Cancel();
-		return 0;
+		TimeoutMonitor::Cancel();
+		return;
 	}
 
-	if (timeout_ms >= 0 && timeout_ms < 10)
+	if (timeout_ms < 10)
 		/* CURL 7.21.1 likes to report "timeout=0", which
 		   means we're running in a busy loop.  Quite a bad
 		   idea to waste so much CPU.  Let's use a lower limit
 		   of 10ms. */
 		timeout_ms = 10;
 
-	global.Schedule(std::chrono::milliseconds(timeout_ms));
+	TimeoutMonitor::Schedule(std::chrono::milliseconds(timeout_ms));
+}
+
+int
+CurlGlobal::TimerFunction(gcc_unused CURLM *_global, long timeout_ms, void *userp)
+{
+	auto &global = *(CurlGlobal *)userp;
+	assert(_global == global.multi.Get());
+
+	global.UpdateTimeout(timeout_ms);
 	return 0;
 }
 
@@ -256,5 +262,11 @@ CurlGlobal::SocketAction(curl_socket_t fd, int ev_bitmask)
 			    "curl_multi_socket_action() failed: %s",
 			    curl_multi_strerror(mcode));
 
+	DeferredMonitor::Schedule();
+}
+
+void
+CurlGlobal::RunDeferred()
+{
 	ReadInfo();
 }

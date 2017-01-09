@@ -233,6 +233,15 @@ libmpd_a_SOURCES += \
 	src/db/Selection.cxx src/db/Selection.hxx
 endif
 
+CURL_SOURCES = \
+	src/lib/curl/Version.cxx src/lib/curl/Version.hxx \
+	src/lib/curl/Global.cxx src/lib/curl/Global.hxx \
+	src/lib/curl/Request.cxx src/lib/curl/Request.hxx \
+	src/lib/curl/Handler.hxx \
+	src/lib/curl/Easy.hxx \
+	src/lib/curl/Multi.hxx \
+	src/lib/curl/Slist.hxx
+
 UPNP_SOURCES = \
 	src/lib/upnp/Init.cxx src/lib/upnp/Init.hxx \
 	src/lib/upnp/ClientInit.cxx src/lib/upnp/ClientInit.hxx \
@@ -420,6 +429,7 @@ libutil_a_SOURCES = \
 	src/util/FormatString.cxx src/util/FormatString.hxx \
 	src/util/Tokenizer.cxx src/util/Tokenizer.hxx \
 	src/util/TextFile.hxx \
+	src/util/TimeParser.cxx src/util/TimeParser.hxx \
 	src/util/UriUtil.cxx src/util/UriUtil.hxx \
 	src/util/Manual.hxx \
 	src/util/RefCount.hxx \
@@ -689,6 +699,8 @@ libstorage_a_CPPFLAGS = $(AM_CPPFLAGS) \
 
 STORAGE_LIBS = \
 	libstorage.a \
+	$(CURL_LIBS) \
+	$(EXPAT_LIBS) \
 	$(NFS_LIBS) \
 	$(SMBCLIENT_LIBS)
 
@@ -702,6 +714,12 @@ if ENABLE_NFS
 libstorage_a_SOURCES += \
 	$(NFS_SOURCES) \
 	src/storage/plugins/NfsStorage.cxx src/storage/plugins/NfsStorage.hxx
+endif
+
+if ENABLE_WEBDAV
+libstorage_a_SOURCES += \
+	src/lib/expat/ExpatParser.cxx \
+	src/storage/plugins/CurlStorage.cxx src/storage/plugins/CurlStorage.hxx
 endif
 
 endif
@@ -1279,12 +1297,7 @@ if ENABLE_CURL
 libinput_a_SOURCES += \
 	src/input/IcyInputStream.cxx src/input/IcyInputStream.hxx \
 	src/input/plugins/CurlInputPlugin.cxx src/input/plugins/CurlInputPlugin.hxx \
-	src/lib/curl/Version.cxx src/lib/curl/Version.hxx \
-	src/lib/curl/Global.cxx src/lib/curl/Global.hxx \
-	src/lib/curl/Request.cxx src/lib/curl/Request.hxx \
-	src/lib/curl/Handler.hxx \
-	src/lib/curl/Easy.hxx \
-	src/lib/curl/Multi.hxx \
+	$(CURL_SOURCES) \
 	src/IcyMetaDataParser.cxx src/IcyMetaDataParser.hxx
 endif
 
@@ -1382,6 +1395,7 @@ libmixer_plugins_a_SOURCES = \
 	src/mixer/plugins/NullMixerPlugin.cxx \
 	src/mixer/plugins/SoftwareMixerPlugin.cxx \
 	src/mixer/plugins/SoftwareMixerPlugin.hxx
+
 libmixer_plugins_a_CPPFLAGS = $(AM_CPPFLAGS) \
 	$(ALSA_CFLAGS) \
 	$(PULSE_CFLAGS)
@@ -1390,7 +1404,10 @@ if ENABLE_ALSA
 liboutput_plugins_a_SOURCES += \
 	src/output/plugins/AlsaOutputPlugin.cxx \
 	src/output/plugins/AlsaOutputPlugin.hxx
-libmixer_plugins_a_SOURCES += src/mixer/plugins/AlsaMixerPlugin.cxx
+libmixer_plugins_a_SOURCES += \
+	src/mixer/plugins/volume_mapping.h \
+	src/mixer/plugins/volume_mapping.c \
+	src/mixer/plugins/AlsaMixerPlugin.cxx
 endif
 
 if ANDROID
@@ -1573,6 +1590,7 @@ endif
 
 if ENABLE_EXPAT
 libplaylist_plugins_a_SOURCES += \
+	src/lib/expat/StreamExpatParser.cxx \
 	src/lib/expat/ExpatParser.cxx src/lib/expat/ExpatParser.hxx \
 	src/playlist/plugins/XspfPlaylistPlugin.cxx \
 	src/playlist/plugins/XspfPlaylistPlugin.hxx \
@@ -1757,6 +1775,10 @@ test_run_storage_SOURCES = \
 	src/IOThread.cxx \
 	test/ScopeIOThread.hxx \
 	test/run_storage.cxx
+
+if ENABLE_WEBDAV
+test_run_storage_SOURCES += $(CURL_SOURCES)
+endif
 
 endif
 

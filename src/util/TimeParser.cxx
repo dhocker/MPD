@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016 Max Kellermann <max@duempel.org>
+ * Copyright (C) 2014-2017 Max Kellermann <max@duempel.org>
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -27,65 +27,55 @@
  * OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef CURL_MULTI_HXX
-#define CURL_MULTI_HXX
+#include "TimeParser.hxx"
 
-#include <curl/curl.h>
-
-#include <utility>
 #include <stdexcept>
-#include <cstddef>
+
+#include <assert.h>
+#include <time.h>
+
+#if !defined(__GLIBC__) && !defined(WIN32)
 
 /**
- * An OO wrapper for a "CURLM*" (a libCURL "multi" handle).
+ * Determine the time zone offset in a portable way.
  */
-class CurlMulti {
-	CURLM *handle = nullptr;
-
-public:
-	/**
-	 * Allocate a new CURLM*.
-	 *
-	 * Throws std::runtime_error on error.
-	 */
-	CurlMulti()
-		:handle(curl_multi_init())
-	{
-		if (handle == nullptr)
-			throw std::runtime_error("curl_multi_init() failed");
-	}
-
-	/**
-	 * Create an empty instance.
-	 */
-	CurlMulti(std::nullptr_t):handle(nullptr) {}
-
-	CurlMulti(CurlMulti &&src):handle(std::exchange(src.handle, nullptr)) {}
-
-	~CurlMulti() {
-		if (handle != nullptr)
-			curl_multi_cleanup(handle);
-	}
-
-	operator bool() const {
-		return handle != nullptr;
-	}
-
-	CurlMulti &operator=(CurlMulti &&src) {
-		std::swap(handle, src.handle);
-		return *this;
-	}
-
-	CURLM *Get() {
-		return handle;
-	}
-
-	template<typename T>
-	void SetOption(CURLMoption option, T value) {
-		auto code = curl_multi_setopt(handle, option, value);
-		if (code != CURLM_OK)
-			throw std::runtime_error(curl_multi_strerror(code));
-	}
-};
+gcc_const
+static time_t
+GetTimeZoneOffset()
+{
+	time_t t = 1234567890;
+	struct tm tm;
+	tm.tm_isdst = 0;
+	gmtime_r(&t, &tm);
+	return t - mktime(&tm);
+}
 
 #endif
+
+std::chrono::system_clock::time_point
+ParseTimePoint(const char *s, const char *format)
+{
+	assert(s != nullptr);
+	assert(format != nullptr);
+
+#ifdef WIN32
+	/* TODO: emulate strptime()? */
+	throw std::runtime_error("Time parsing not implemented on Windows");
+#else
+	struct tm tm;
+	const char *end = strptime(s, format, &tm);
+	if (end == nullptr || *end != 0)
+		throw std::runtime_error("Failed to parse time stamp");
+
+#ifdef __GLIBC__
+	/* timegm() is a GNU extension */
+	const auto t = timegm(&tm);
+#else
+	tm.tm_isdst = 0;
+	const auto t = mktime(&tm) + GetTimeZoneOffset();
+#endif /* !__GLIBC__ */
+
+	return std::chrono::system_clock::from_time_t(t);
+
+#endif /* !WIN32 */
+}

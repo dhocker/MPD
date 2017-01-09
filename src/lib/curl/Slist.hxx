@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016 Max Kellermann <max@duempel.org>
+ * Copyright (C) 2008-2017 Max Kellermann <max@duempel.org>
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -27,64 +27,49 @@
  * OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef CURL_MULTI_HXX
-#define CURL_MULTI_HXX
+#ifndef CURL_SLIST_HXX
+#define CURL_SLIST_HXX
 
 #include <curl/curl.h>
 
-#include <utility>
-#include <stdexcept>
-#include <cstddef>
+#include <algorithm>
 
 /**
- * An OO wrapper for a "CURLM*" (a libCURL "multi" handle).
+ * OO wrapper for "struct curl_slist *".
  */
-class CurlMulti {
-	CURLM *handle = nullptr;
+class CurlSlist {
+	struct curl_slist *head = nullptr;
 
 public:
-	/**
-	 * Allocate a new CURLM*.
-	 *
-	 * Throws std::runtime_error on error.
-	 */
-	CurlMulti()
-		:handle(curl_multi_init())
-	{
-		if (handle == nullptr)
-			throw std::runtime_error("curl_multi_init() failed");
+	CurlSlist() = default;
+
+	CurlSlist(CurlSlist &&src)
+		:head(std::exchange(src.head, nullptr)) {}
+
+	~CurlSlist() {
+		if (head != nullptr)
+			curl_slist_free_all(head);
 	}
 
-	/**
-	 * Create an empty instance.
-	 */
-	CurlMulti(std::nullptr_t):handle(nullptr) {}
-
-	CurlMulti(CurlMulti &&src):handle(std::exchange(src.handle, nullptr)) {}
-
-	~CurlMulti() {
-		if (handle != nullptr)
-			curl_multi_cleanup(handle);
-	}
-
-	operator bool() const {
-		return handle != nullptr;
-	}
-
-	CurlMulti &operator=(CurlMulti &&src) {
-		std::swap(handle, src.handle);
+	CurlSlist &operator=(CurlSlist &&src) {
+		std::swap(head, src.head);
 		return *this;
 	}
 
-	CURLM *Get() {
-		return handle;
+	struct curl_slist *Get() {
+		return head;
 	}
 
-	template<typename T>
-	void SetOption(CURLMoption option, T value) {
-		auto code = curl_multi_setopt(handle, option, value);
-		if (code != CURLM_OK)
-			throw std::runtime_error(curl_multi_strerror(code));
+	void Clear() {
+		curl_slist_free_all(head);
+		head = nullptr;
+	}
+
+	void Append(const char *value) {
+		auto *new_head = curl_slist_append(head, value);
+		if (new_head == nullptr)
+			throw std::runtime_error("curl_slist_append() failed");
+		head = new_head;
 	}
 };
 

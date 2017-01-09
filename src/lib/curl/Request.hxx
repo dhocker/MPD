@@ -31,15 +31,17 @@
 #define CURL_REQUEST_HXX
 
 #include "Easy.hxx"
+#include "event/DeferredMonitor.hxx"
 
 #include <map>
 #include <string>
+#include <exception>
 
 struct StringView;
 class CurlGlobal;
 class CurlResponseHandler;
 
-class CurlRequest {
+class CurlRequest final : DeferredMonitor {
 	CurlGlobal &global;
 
 	CurlResponseHandler &handler;
@@ -55,16 +57,46 @@ class CurlRequest {
 
 	std::multimap<std::string, std::string> headers;
 
+	/**
+	 * An exception caught by DataReceived(), which will be
+	 * forwarded into a "safe" stack frame by
+	 * DeferredMonitor::RunDeferred().  This works around the
+	 * problem that libcurl crashes if you call
+	 * curl_multi_remove_handle() from within the WRITEFUNCTION
+	 * (i.e. DataReceived()).
+	 */
+	std::exception_ptr postponed_error;
+
 	/** error message provided by libcurl */
 	char error_buffer[CURL_ERROR_SIZE];
 
+	bool registered = false;
+
 public:
+	/**
+	 * To start sending the request, call Start().
+	 */
 	CurlRequest(CurlGlobal &_global, const char *url,
 		    CurlResponseHandler &_handler);
 	~CurlRequest();
 
 	CurlRequest(const CurlRequest &) = delete;
 	CurlRequest &operator=(const CurlRequest &) = delete;
+
+	/**
+	 * Register this request via CurlGlobal::Add(), which starts
+	 * the request.
+	 *
+	 * This method must be called in the event loop thread.
+	 */
+	void Start();
+
+	/**
+	 * Unregister this request via CurlGlobal::Remove().
+	 *
+	 * This method must be called in the event loop thread.
+	 */
+	void Stop();
 
 	CURL *Get() {
 		return easy.Get();
@@ -95,7 +127,7 @@ private:
 	 */
 	void FreeEasy();
 
-	bool FinishHeaders();
+	void FinishHeaders();
 	void FinishBody();
 
 	size_t DataReceived(const void *ptr, size_t size);
@@ -109,6 +141,9 @@ private:
 	/** called by curl when new data is available */
 	static size_t WriteFunction(void *ptr, size_t size, size_t nmemb,
 				    void *stream);
+
+	/* virtual methods from class DeferredMonitor */
+	void RunDeferred() override;
 };
 
 #endif

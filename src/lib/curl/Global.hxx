@@ -32,6 +32,7 @@
 
 #include "Multi.hxx"
 #include "event/TimeoutMonitor.hxx"
+#include "event/DeferredMonitor.hxx"
 
 class CurlSocket;
 class CurlRequest;
@@ -39,11 +40,13 @@ class CurlRequest;
 /**
  * Manager for the global CURLM object.
  */
-class CurlGlobal final : private TimeoutMonitor {
+class CurlGlobal final : TimeoutMonitor, DeferredMonitor {
 	CurlMulti multi;
 
 public:
 	explicit CurlGlobal(EventLoop &_loop);
+
+	using TimeoutMonitor::GetEventLoop;
 
 	void Add(CURL *easy, CurlRequest &request);
 	void Remove(CURL *easy);
@@ -76,9 +79,14 @@ public:
 	}
 
 private:
+	void UpdateTimeout(long timeout_ms);
 	static int TimerFunction(CURLM *global, long timeout_ms, void *userp);
 
-	virtual void OnTimeout() override;
+	/* virtual methods from class TimeoutMonitor */
+	void OnTimeout() override;
+
+	/* virtual methods from class DeferredMonitor */
+	void RunDeferred() override;
 };
 
 #endif

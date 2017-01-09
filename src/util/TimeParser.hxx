@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016 Max Kellermann <max@duempel.org>
+ * Copyright (C) 2014-2017 Max Kellermann <max@duempel.org>
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -27,65 +27,20 @@
  * OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef CURL_MULTI_HXX
-#define CURL_MULTI_HXX
+#ifndef TIME_PARSER_HXX
+#define TIME_PARSER_HXX
 
-#include <curl/curl.h>
+#include "Compiler.h"
 
-#include <utility>
-#include <stdexcept>
-#include <cstddef>
+#include <chrono>
 
 /**
- * An OO wrapper for a "CURLM*" (a libCURL "multi" handle).
+ * Parse a time stamp.
+ *
+ * Throws std::runtime_error on error.
  */
-class CurlMulti {
-	CURLM *handle = nullptr;
-
-public:
-	/**
-	 * Allocate a new CURLM*.
-	 *
-	 * Throws std::runtime_error on error.
-	 */
-	CurlMulti()
-		:handle(curl_multi_init())
-	{
-		if (handle == nullptr)
-			throw std::runtime_error("curl_multi_init() failed");
-	}
-
-	/**
-	 * Create an empty instance.
-	 */
-	CurlMulti(std::nullptr_t):handle(nullptr) {}
-
-	CurlMulti(CurlMulti &&src):handle(std::exchange(src.handle, nullptr)) {}
-
-	~CurlMulti() {
-		if (handle != nullptr)
-			curl_multi_cleanup(handle);
-	}
-
-	operator bool() const {
-		return handle != nullptr;
-	}
-
-	CurlMulti &operator=(CurlMulti &&src) {
-		std::swap(handle, src.handle);
-		return *this;
-	}
-
-	CURLM *Get() {
-		return handle;
-	}
-
-	template<typename T>
-	void SetOption(CURLMoption option, T value) {
-		auto code = curl_multi_setopt(handle, option, value);
-		if (code != CURLM_OK)
-			throw std::runtime_error(curl_multi_strerror(code));
-	}
-};
+gcc_pure
+std::chrono::system_clock::time_point
+ParseTimePoint(const char *s, const char *format);
 
 #endif

@@ -48,10 +48,4 @@ public:
 				   ConstBuffer<uint8_t> src);
 };
 
-/**
- * Convert DSD_U8 to DSD_U32 (native endian).
- */
-ConstBuffer<uint32_t>
-Dsd8To32(PcmBuffer &buffer, unsigned channels, ConstBuffer<uint8_t> src);
-
 #endif

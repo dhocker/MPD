@@ -17,39 +17,20 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-#include "config.h"
-#include "test_pcm_all.hxx"
-#include "test_pcm_util.hxx"
-#include "pcm/PcmDither.cxx"
+#ifndef MPD_PCM_DSD_32_HXX
+#define MPD_PCM_DSD_32_HXX
 
-void
-PcmDitherTest::TestDither24()
-{
-	constexpr unsigned N = 509;
-	const auto src = TestDataBuffer<int32_t, N>(RandomInt24());
+#include "check.h"
 
-	int16_t dest[N];
-	PcmDither dither;
-	dither.Dither24To16(dest, src.begin(), src.end());
+#include <stdint.h>
 
-	for (unsigned i = 0; i < N; ++i) {
-		CPPUNIT_ASSERT(dest[i] >= (src[i] >> 8) - 8);
-		CPPUNIT_ASSERT(dest[i] < (src[i] >> 8) + 8);
-	}
-}
+template<typename T> struct ConstBuffer;
+class PcmBuffer;
 
-void
-PcmDitherTest::TestDither32()
-{
-	constexpr unsigned N = 509;
-	const auto src = TestDataBuffer<int32_t, N>();
+/**
+ * Convert DSD_U8 to DSD_U32 (native endian, oldest bits in MSB).
+ */
+ConstBuffer<uint32_t>
+Dsd8To32(PcmBuffer &buffer, unsigned channels, ConstBuffer<uint8_t> src);
 
-	int16_t dest[N];
-	PcmDither dither;
-	dither.Dither32To16(dest, src.begin(), src.end());
-
-	for (unsigned i = 0; i < N; ++i) {
-		CPPUNIT_ASSERT(dest[i] >= (src[i] >> 16) - 8);
-		CPPUNIT_ASSERT(dest[i] < (src[i] >> 16) + 8);
-	}
-}
+#endif

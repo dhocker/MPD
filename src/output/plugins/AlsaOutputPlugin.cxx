@@ -141,6 +141,7 @@ struct AlsaOutput {
 	void Open(AudioFormat &audio_format);
 	void Close();
 
+	size_t PlayRaw(ConstBuffer<void> data);
 	size_t Play(const void *chunk, size_t size);
 	void Drain();
 	void Cancel();
@@ -384,7 +385,7 @@ AlsaTryFormatOrByteSwap(snd_pcm_t *pcm, snd_pcm_hw_params_t *hwparams,
 
 /**
  * Attempts to configure the specified sample format.  On DSD_U8
- * failure, attempt to switch to DSD_U32.
+ * failure, attempt to switch to DSD_U32 or DSD_U16.
  */
 static int
 AlsaTryFormatDsd(snd_pcm_t *pcm, snd_pcm_hw_params_t *hwparams,
@@ -393,8 +394,10 @@ AlsaTryFormatDsd(snd_pcm_t *pcm, snd_pcm_hw_params_t *hwparams,
 	int err = AlsaTryFormatOrByteSwap(pcm, hwparams, fmt, params);
 
 #if defined(ENABLE_DSD) && defined(HAVE_ALSA_DSD_U32)
-	if (err == 0)
+	if (err == 0) {
+		params.dsd_u16 = false;
 		params.dsd_u32 = false;
+	}
 
 	if (err == -EINVAL && fmt == SND_PCM_FORMAT_DSD_U8) {
 		/* attempt to switch to DSD_U32 */
@@ -404,6 +407,20 @@ AlsaTryFormatDsd(snd_pcm_t *pcm, snd_pcm_hw_params_t *hwparams,
 		err = AlsaTryFormatOrByteSwap(pcm, hwparams, fmt, params);
 		if (err == 0)
 			params.dsd_u32 = true;
+		else
+			fmt = SND_PCM_FORMAT_DSD_U8;
+	}
+
+	if (err == -EINVAL && fmt == SND_PCM_FORMAT_DSD_U8) {
+		/* attempt to switch to DSD_U16 */
+		fmt = IsLittleEndian()
+			? SND_PCM_FORMAT_DSD_U16_LE
+			: SND_PCM_FORMAT_DSD_U16_BE;
+		err = AlsaTryFormatOrByteSwap(pcm, hwparams, fmt, params);
+		if (err == 0)
+			params.dsd_u16 = true;
+		else
+			fmt = SND_PCM_FORMAT_DSD_U8;
 	}
 #endif
 
@@ -469,7 +486,6 @@ static void
 AlsaSetup(AlsaOutput *ad, AudioFormat &audio_format,
 	  PcmExport::Params &params)
 {
-	unsigned int sample_rate = audio_format.sample_rate;
 	unsigned int channels = audio_format.channels;
 	int err;
 	unsigned retry = MPD_ALSA_RETRY_NR;
@@ -513,18 +529,23 @@ configure_hw:
 
 	audio_format.channels = (int8_t)channels;
 
+	const unsigned requested_sample_rate =
+		params.CalcOutputSampleRate(audio_format.sample_rate);
+	unsigned output_sample_rate = requested_sample_rate;
+
 	err = snd_pcm_hw_params_set_rate_near(ad->pcm, hwparams,
-					      &sample_rate, nullptr);
+					      &output_sample_rate, nullptr);
 	if (err < 0)
 		throw FormatRuntimeError("Failed to configure sample rate %u Hz: %s",
-					 audio_format.sample_rate,
+					 requested_sample_rate,
 					 snd_strerror(-err));
 
-	if (sample_rate == 0)
+	if (output_sample_rate == 0)
 		throw FormatRuntimeError("Failed to configure sample rate %u Hz",
 					 audio_format.sample_rate);
 
-	audio_format.sample_rate = sample_rate;
+	if (output_sample_rate != requested_sample_rate)
+		audio_format.sample_rate = params.CalcInputSampleRate(output_sample_rate);
 
 	snd_pcm_uframes_t buffer_size_min, buffer_size_max;
 	snd_pcm_hw_params_get_buffer_size_min(hwparams, &buffer_size_min);
@@ -662,7 +683,6 @@ AlsaOutput::SetupDop(const AudioFormat audio_format,
 
 	AudioFormat dop_format = audio_format;
 	dop_format.format = SampleFormat::S24_P32;
-	dop_format.sample_rate /= 2;
 
 	const AudioFormat check = dop_format;
 
@@ -694,11 +714,12 @@ AlsaOutput::SetupOrDop(AudioFormat &audio_format, PcmExport::Params &params)
 	std::exception_ptr dop_error;
 	if (dop && audio_format.format == SampleFormat::DSD) {
 		try {
-			SetupDop(audio_format, params);
 			params.dop = true;
+			SetupDop(audio_format, params);
 			return;
 		} catch (...) {
 			dop_error = std::current_exception();
+			params.dop = false;
 		}
 	}
 
@@ -741,6 +762,11 @@ AlsaOutput::Open(AudioFormat &audio_format)
 		std::throw_with_nested(FormatRuntimeError("Error opening ALSA device \"%s\"",
 							  GetDevice()));
 	}
+
+#ifdef ENABLE_DSD
+	if (params.dop)
+		FormatDebug(alsa_output_domain, "DoP (DSD over PCM) enabled");
+#endif
 
 	pcm_export->Open(audio_format.format,
 			 audio_format.channels,
@@ -822,6 +848,8 @@ AlsaOutput::Cancel()
 	must_prepare = true;
 
 	snd_pcm_drop(pcm);
+
+	pcm_export->Reset();
 }
 
 inline void
@@ -829,6 +857,36 @@ AlsaOutput::Close()
 {
 	snd_pcm_close(pcm);
 	delete[] silence;
+}
+
+inline size_t
+AlsaOutput::PlayRaw(ConstBuffer<void> data)
+{
+	if (data.IsEmpty())
+		return 0;
+
+	assert(data.size % out_frame_size == 0);
+
+	const size_t n_frames = data.size / out_frame_size;
+	assert(n_frames > 0);
+
+	while (true) {
+		const auto frames_written = snd_pcm_writei(pcm, data.data,
+							   n_frames);
+		if (frames_written > 0) {
+			period_position = (period_position + frames_written)
+				% period_frames;
+
+			return frames_written * out_frame_size;
+		}
+
+		if (frames_written < 0 && frames_written != -EAGAIN &&
+		    frames_written != -EINTR &&
+		    Recover(frames_written) < 0)
+			throw FormatRuntimeError("snd_pcm_writei() failed: %s",
+						 snd_strerror(-frames_written));
+	}
+
 }
 
 inline size_t
@@ -856,29 +914,8 @@ AlsaOutput::Play(const void *chunk, size_t size)
 		   been played */
 		return size;
 
-	chunk = e.data;
-	size = e.size;
-
-	assert(size % out_frame_size == 0);
-
-	size /= out_frame_size;
-	assert(size > 0);
-
-	while (true) {
-		snd_pcm_sframes_t ret = snd_pcm_writei(pcm, chunk, size);
-		if (ret > 0) {
-			period_position = (period_position + ret)
-				% period_frames;
-
-			size_t bytes_written = ret * out_frame_size;
-			return pcm_export->CalcSourceSize(bytes_written);
-		}
-
-		if (ret < 0 && ret != -EAGAIN && ret != -EINTR &&
-		    Recover(ret) < 0)
-			throw FormatRuntimeError("snd_pcm_writei() failed: %s",
-						 snd_strerror(-ret));
-	}
+	const size_t bytes_written = PlayRaw(e);
+	return pcm_export->CalcSourceSize(bytes_written);
 }
 
 typedef AudioOutputWrapper<AlsaOutput> Wrapper;

@@ -28,6 +28,7 @@
 #include "AlsaInputPlugin.hxx"
 #include "../InputPlugin.hxx"
 #include "../AsyncInputStream.hxx"
+#include "event/Call.hxx"
 #include "util/Domain.hxx"
 #include "util/RuntimeError.hxx"
 #include "util/StringCompare.hxx"
@@ -68,8 +69,8 @@ static constexpr size_t read_buffer_size = 4096;
 class AlsaInputStream final
 	: public AsyncInputStream,
 	  MultiSocketMonitor, DeferredMonitor {
-	snd_pcm_t *capture_handle;
-	size_t frame_size;
+	snd_pcm_t *const capture_handle;
+	const size_t frame_size;
 
 	ReusableArray<pollfd> pfd_buffer;
 
@@ -99,6 +100,14 @@ public:
 	}
 
 	~AlsaInputStream() {
+		/* ClearSocketList must be called from within the
+		   IOThread; if we don't do it manually here, the
+		   ~MultiSocketMonitor() will do it in the current
+		   thread */
+		BlockingCall(MultiSocketMonitor::GetEventLoop(), [this](){
+				ClearSocketList();
+			});
+
 		snd_pcm_close(capture_handle);
 	}
 

@@ -415,6 +415,7 @@ libutil_a_SOURCES = \
 	src/util/CharUtil.hxx \
 	src/util/NumberParser.hxx \
 	src/util/MimeType.cxx src/util/MimeType.hxx \
+	src/util/StringBuffer.hxx \
 	src/util/StringPointer.hxx \
 	src/util/StringView.cxx src/util/StringView.hxx \
 	src/util/AllocatedString.cxx src/util/AllocatedString.hxx \
@@ -539,6 +540,10 @@ ICU_LDADD = libicu.a $(ICU_LIBS)
 # PCM library
 
 libpcm_a_SOURCES = \
+	src/CheckAudioFormat.cxx src/CheckAudioFormat.hxx \
+	src/AudioFormat.cxx src/AudioFormat.hxx \
+	src/AudioParser.cxx src/AudioParser.hxx \
+	src/pcm/SampleFormat.cxx src/pcm/SampleFormat.hxx \
 	src/pcm/Traits.hxx \
 	src/pcm/Interleave.cxx src/pcm/Interleave.hxx \
 	src/pcm/PcmBuffer.cxx src/pcm/PcmBuffer.hxx \
@@ -615,7 +620,8 @@ libxiph_a_SOURCES += \
 	src/lib/xiph/OggStreamState.hxx
 endif
 
-XIPH_LIBS = libxiph.a
+XIPH_LIBS = libxiph.a \
+	$(OGG_LIBS)
 
 endif
 
@@ -871,9 +877,6 @@ ARCHIVE_LIBS =
 endif
 
 libbasic_a_SOURCES = \
-	src/CheckAudioFormat.cxx src/CheckAudioFormat.hxx \
-	src/AudioFormat.cxx src/AudioFormat.hxx \
-	src/AudioParser.cxx src/AudioParser.hxx \
 	src/ReplayGainConfig.hxx \
 	src/ReplayGainMode.cxx src/ReplayGainMode.hxx \
 	src/ReplayGainInfo.cxx src/ReplayGainInfo.hxx
@@ -2227,6 +2230,7 @@ test_test_icy_parser_LDADD = \
 endif
 
 test_test_pcm_SOURCES = \
+	test/TestAudioFormat.cxx test/TestAudioFormat.hxx \
 	test/test_pcm_util.hxx \
 	test/test_pcm_dither.cxx \
 	test/test_pcm_pack.cxx \

@@ -17,21 +17,23 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-#ifndef MPD_PCM_ORDER_HXX
-#define MPD_PCM_ORDER_HXX
+#ifndef MPD_TEST_AUDIO_FORMAT_HXX
+#define MPD_TEST_AUDIO_FORMAT_HXX
 
 #include "check.h"
-#include "SampleFormat.hxx"
 
-class PcmBuffer;
-template<typename T> struct ConstBuffer;
+#include <cppunit/TestFixture.h>
+#include <cppunit/extensions/HelperMacros.h>
 
-/**
- * Convert the given buffer from FLAC channel order
- * (https://xiph.org/flac/format.html) to ALSA channel order.
- */
-ConstBuffer<void>
-ToAlsaChannelOrder(PcmBuffer &buffer, ConstBuffer<void> src,
-		   SampleFormat sample_format, unsigned channels);
+class AudioFormatTest : public CppUnit::TestFixture {
+	CPPUNIT_TEST_SUITE(AudioFormatTest);
+	CPPUNIT_TEST(TestToString);
+	CPPUNIT_TEST(TestParse);
+	CPPUNIT_TEST_SUITE_END();
+
+public:
+	void TestToString();
+	void TestParse();
+};
 
 #endif

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015 Max Kellermann <max.kellermann@gmail.com>
+ * Copyright (C) 2010-2017 Max Kellermann <max.kellermann@gmail.com>
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -27,46 +27,82 @@
  * OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef STRING_POINTER_HXX
-#define STRING_POINTER_HXX
+#ifndef STRING_BUFFER_HPP
+#define STRING_BUFFER_HPP
+
+#include <array>
 
 /**
- * Simple OO wrapper for a const string pointer.
+ * A statically allocated string buffer.
  */
-template<typename T=char>
-class StringPointer {
+template<typename T, size_t CAPACITY>
+class BasicStringBuffer {
 public:
 	typedef T value_type;
-	typedef T &reference_type;
-	typedef const T &const_reference_type;
-	typedef T *pointer_type;
-	typedef const T *const_pointer_type;
+	typedef T &reference;
+	typedef T *pointer;
+	typedef const T *const_pointer;
+	typedef const_pointer const_iterator;
+	typedef size_t size_type;
 
 	static constexpr value_type SENTINEL = '\0';
 
-private:
-	const_pointer_type value;
+protected:
+	std::array<value_type, CAPACITY> the_data;
 
 public:
-	StringPointer() = default;
-	constexpr StringPointer(const_pointer_type _value)
-		:value(_value) {}
+	constexpr size_type capacity() const {
+		return CAPACITY;
+	}
+
+	constexpr bool empty() const {
+		return front() == SENTINEL;
+	}
+
+	void clear() {
+		the_data[0] = SENTINEL;
+	}
+
+	constexpr const_pointer c_str() const {
+		return &the_data.front();
+	}
+
+	pointer data() {
+		return &the_data.front();
+	}
+
+	constexpr value_type front() const {
+		return c_str()[0];
+	}
 
 	/**
-	 * Check if this is a "nulled" instance.  A "nulled" instance
-	 * must not be used.
+	 * Returns one character.  No bounds checking.
 	 */
-	constexpr bool IsNull() const {
-		return value == nullptr;
+	value_type operator[](size_type i) const {
+		return the_data[i];
 	}
 
-	constexpr const_pointer_type c_str() const {
-		return value;
+	/**
+	 * Returns one writable character.  No bounds checking.
+	 */
+	reference operator[](size_type i) {
+		return the_data[i];
 	}
 
-	bool empty() const {
-		return *value == SENTINEL;
+	constexpr const_iterator begin() const {
+		return the_data;
+	}
+
+	constexpr const_iterator end() const {
+		return the_data + capacity();
+	}
+
+	constexpr operator const_pointer() const {
+		return c_str();
 	}
 };
+
+template<size_t CAPACITY>
+class StringBuffer : public BasicStringBuffer<char, CAPACITY> {};
 
 #endif

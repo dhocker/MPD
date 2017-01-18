@@ -576,10 +576,11 @@ systemctl start mpd.socket</programlisting>
               </entry>
               <entry>
                 <para>
-                  Always open the audio output with the specified audio
-                  format (samplerate:bits:channels), regardless of the
-                  format of the input file.  This is optional for most
-                  plugins.
+                  Always open the audio output with the specified
+                  audio format
+                  (<replaceable>samplerate:bits:channels</replaceable>),
+                  regardless of the format of the input file.  This is
+                  optional for most plugins.
                 </para>
                 <para>
                   Any of the three attributes may be an asterisk to
@@ -596,7 +597,20 @@ systemctl start mpd.socket</programlisting>
                   24 bit integer samples padded to 32 bit),
                   <varname>32</varname> (signed 32 bit integer
                   samples), <varname>f</varname> (32 bit floating
-                  point, -1.0 to 1.0).
+                  point, -1.0 to 1.0), "<varname>dsd</varname>" means
+                  DSD (Direct Stream Digital).  For DSD, there are
+                  special cases such as "<varname>dsd64</varname>",
+                  which allows you to omit the sample rate
+                  (e.g. <parameter>dsd512:2</parameter> for stereo
+                  DSD512, i.e. 22.5792 MHz).
+                </para>
+                <para>
+                  The sample rate is special for DSD:
+                  <application>MPD</application> counts the number of
+                  bytes, not bits.  Thus, a DSD "bit" rate of 22.5792
+                  MHz (DSD512) is 2822400 from
+                  <application>MPD</application>'s point of view
+                  (44100*512/8).
                 </para>
               </entry>
             </row>

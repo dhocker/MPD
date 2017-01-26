@@ -23,7 +23,9 @@
 #include "../InputPlugin.hxx"
 #include "lib/nfs/Glue.hxx"
 #include "lib/nfs/FileReader.hxx"
+#include "thread/Cond.hxx"
 #include "util/StringCompare.hxx"
+#include "IOThread.hxx"
 
 #include <string.h>
 
@@ -49,6 +51,7 @@ public:
 		:AsyncInputStream(_uri, _mutex, _cond,
 				  NFS_MAX_BUFFERED,
 				  NFS_RESUME_AT),
+		 NfsFileReader(io_thread_get()),
 		 reconnect_on_resume(false), reconnecting(false) {}
 
 	virtual ~NfsInputStream() {
@@ -206,7 +209,7 @@ NfsInputStream::OnNfsFileError(std::exception_ptr &&e)
 static void
 input_nfs_init(const ConfigBlock &)
 {
-	nfs_init();
+	nfs_init(io_thread_get());
 }
 
 static void

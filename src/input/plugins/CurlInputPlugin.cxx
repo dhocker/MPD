@@ -31,7 +31,9 @@
 #include "config/Block.hxx"
 #include "tag/TagBuilder.hxx"
 #include "event/Call.hxx"
+#include "event/Loop.hxx"
 #include "IOThread.hxx"
+#include "thread/Cond.hxx"
 #include "util/ASCII.hxx"
 #include "util/StringUtil.hxx"
 #include "util/NumberParser.hxx"
@@ -137,7 +139,7 @@ static constexpr Domain curl_domain("curl");
 void
 CurlInputStream::DoResume()
 {
-	assert(io_thread_inside());
+	assert(GetEventLoop().IsInside());
 
 	mutex.unlock();
 	request->Resume();
@@ -147,7 +149,7 @@ CurlInputStream::DoResume()
 void
 CurlInputStream::FreeEasy()
 {
-	assert(io_thread_inside());
+	assert(GetEventLoop().IsInside());
 
 	if (request == nullptr)
 		return;
@@ -161,7 +163,7 @@ CurlInputStream::FreeEasy()
 void
 CurlInputStream::FreeEasyIndirect()
 {
-	BlockingCall(io_thread_get(), [this](){
+	BlockingCall(GetEventLoop(), [this](){
 			FreeEasy();
 			curl_global->InvalidateSockets();
 		});
@@ -171,7 +173,7 @@ void
 CurlInputStream::OnHeaders(unsigned status,
 			   std::multimap<std::string, std::string> &&headers)
 {
-	assert(io_thread_inside());
+	assert(GetEventLoop().IsInside());
 	assert(!postponed_exception);
 
 	if (status < 200 || status >= 300)
@@ -328,7 +330,7 @@ input_curl_init(const ConfigBlock &block)
 static void
 input_curl_finish(void)
 {
-	BlockingCall(io_thread_get(), [](){
+	BlockingCall(curl_global->GetEventLoop(), [](){
 			delete curl_global;
 		});
 
@@ -410,7 +412,7 @@ CurlInputStream::DoSeek(offset_type new_offset)
 
 	const ScopeUnlock unlock(mutex);
 
-	BlockingCall(io_thread_get(), [this, new_offset](){
+	BlockingCall(GetEventLoop(), [this, new_offset](){
 			SeekInternal(new_offset);
 		});
 }
@@ -421,7 +423,7 @@ CurlInputStream::Open(const char *url, Mutex &mutex, Cond &cond)
 	CurlInputStream *c = new CurlInputStream(url, mutex, cond);
 
 	try {
-		BlockingCall(io_thread_get(), [c](){
+		BlockingCall(c->GetEventLoop(), [c](){
 				c->InitEasy();
 			});
 	} catch (...) {

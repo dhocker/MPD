@@ -48,6 +48,14 @@ nfs_finish()
 	BlockingCall(nfs_glue->GetEventLoop(), [](){ nfs_glue.Destruct(); });
 }
 
+EventLoop &
+nfs_get_event_loop()
+{
+	assert(in_use > 0);
+
+	return nfs_glue->GetEventLoop();
+}
+
 NfsConnection &
 nfs_get_connection(const char *server, const char *export_name)
 {

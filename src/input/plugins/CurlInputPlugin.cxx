@@ -32,7 +32,6 @@
 #include "tag/TagBuilder.hxx"
 #include "event/Call.hxx"
 #include "event/Loop.hxx"
-#include "IOThread.hxx"
 #include "thread/Cond.hxx"
 #include "util/ASCII.hxx"
 #include "util/StringUtil.hxx"
@@ -74,8 +73,9 @@ struct CurlInputStream final : public AsyncInputStream, CurlResponseHandler {
 	/** parser for icy-metadata */
 	IcyInputStream *icy;
 
-	CurlInputStream(const char *_url, Mutex &_mutex, Cond &_cond)
-		:AsyncInputStream(_url, _mutex, _cond,
+	CurlInputStream(EventLoop &event_loop, const char *_url,
+			Mutex &_mutex, Cond &_cond)
+		:AsyncInputStream(event_loop, _url, _mutex, _cond,
 				  CURL_MAX_BUFFERED,
 				  CURL_RESUME_AT),
 		 icy(new IcyInputStream(this)) {
@@ -284,7 +284,7 @@ CurlInputStream::OnError(std::exception_ptr e)
  */
 
 static void
-input_curl_init(const ConfigBlock &block)
+input_curl_init(EventLoop &event_loop, const ConfigBlock &block)
 {
 	CURLcode code = curl_global_init(CURL_GLOBAL_ALL);
 	if (code != CURLE_OK)
@@ -318,7 +318,7 @@ input_curl_init(const ConfigBlock &block)
 	verify_host = block.GetBlockValue("verify_host", true);
 
 	try {
-		curl_global = new CurlGlobal(io_thread_get());
+		curl_global = new CurlGlobal(event_loop);
 	} catch (const std::runtime_error &e) {
 		LogError(e);
 		curl_slist_free_all(http_200_aliases);
@@ -420,7 +420,8 @@ CurlInputStream::DoSeek(offset_type new_offset)
 inline InputStream *
 CurlInputStream::Open(const char *url, Mutex &mutex, Cond &cond)
 {
-	CurlInputStream *c = new CurlInputStream(url, mutex, cond);
+	CurlInputStream *c = new CurlInputStream(curl_global->GetEventLoop(),
+						 url, mutex, cond);
 
 	try {
 		BlockingCall(c->GetEventLoop(), [c](){

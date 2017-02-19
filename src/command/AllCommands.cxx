@@ -31,9 +31,11 @@
 #include "OutputCommands.hxx"
 #include "MessageCommands.hxx"
 #include "NeighborCommands.hxx"
+#include "ClientCommands.hxx"
+#include "PartitionCommands.hxx"
 #include "OtherCommands.hxx"
 #include "Permission.hxx"
-#include "tag/TagType.h"
+#include "tag/Type.h"
 #include "Partition.hxx"
 #include "client/Client.hxx"
 #include "client/Response.hxx"
@@ -154,6 +156,7 @@ build_command_map()
 #ifdef ENABLE_NEIGHBOR_PLUGINS
 	insert_command("listneighbors", PERMISSION_READ, 0, 0, handle_listneighbors);
 #endif
+	insert_command("listpartitions", PERMISSION_READ, 0, 0, handle_listpartitions);
 	insert_command("listplaylist", PERMISSION_READ, 1, 1, handle_listplaylist);
 	insert_command("listplaylistinfo", PERMISSION_READ, 1, 1, handle_listplaylistinfo);
 	insert_command("listplaylists", PERMISSION_READ, 0, 0, handle_listplaylists);
@@ -166,6 +169,7 @@ build_command_map()
 #endif
 	insert_command("move", PERMISSION_CONTROL, 2, 2, handle_move);
 	insert_command("moveid", PERMISSION_CONTROL, 2, 2, handle_moveid);
+	insert_command("newpartition", PERMISSION_ADMIN, 1, 1, handle_newpartition);
 	insert_command("next", PERMISSION_CONTROL, 0, 0, handle_next);
 	insert_command("notcommands", PERMISSION_NONE, 0, 0, handle_not_commands);
 	insert_command("outputs", PERMISSION_READ, 0, 0, handle_devices);
@@ -222,7 +226,7 @@ build_command_map()
 	insert_command("subscribe", PERMISSION_READ, 1, 1, handle_subscribe);
 	insert_command("swap", PERMISSION_CONTROL, 2, 2, handle_swap);
 	insert_command("swapid", PERMISSION_CONTROL, 2, 2, handle_swapid);
-	insert_command("tagtypes", PERMISSION_READ, 0, 0, handle_tagtypes);
+	insert_command("tagtypes", PERMISSION_READ, 0, -1, handle_tagtypes);
 	insert_command("toggleoutput", PERMISSION_ADMIN, 1, 1, handle_toggleoutput);
 #ifdef ENABLE_DATABASE
 	insert_command("unmount", PERMISSION_ADMIN, 1, 1, handle_unmount);

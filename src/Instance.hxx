@@ -22,6 +22,7 @@
 
 #include "check.h"
 #include "event/Loop.hxx"
+#include "event/Thread.hxx"
 #include "event/MaskMonitor.hxx"
 #include "Compiler.h"
 
@@ -36,6 +37,8 @@ class Database;
 class Storage;
 class UpdateService;
 #endif
+
+#include <list>
 
 class ClientList;
 struct Partition;
@@ -64,6 +67,8 @@ struct Instance final
 	public NeighborListener
 #endif
 {
+	EventThread io_thread;
+
 	MaskMonitor idle_monitor;
 
 #ifdef ENABLE_NEIGHBOR_PLUGINS
@@ -84,12 +89,11 @@ struct Instance final
 
 	ClientList *client_list;
 
-	Partition *partition;
+	std::list<Partition> partitions;
 
-	StateFile *state_file;
+	StateFile *state_file = nullptr;
 
-	Instance()
-		:idle_monitor(event_loop, BIND_THIS_METHOD(OnIdle)), state_file(nullptr) {}
+	Instance();
 
 	/**
 	 * Initiate shutdown.  Wrapper for EventLoop::Break().

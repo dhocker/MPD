@@ -23,6 +23,7 @@
 #include "check.h"
 #include "ClientMessage.hxx"
 #include "command/CommandListBuilder.hxx"
+#include "tag/Mask.hxx"
 #include "event/FullyBufferedSocket.hxx"
 #include "event/TimeoutMonitor.hxx"
 #include "Compiler.h"
@@ -69,6 +70,11 @@ public:
 
 	/** idle flags that the client wants to receive */
 	unsigned idle_subscriptions;
+
+	/**
+	 * The tags this client is interested in.
+	 */
+	TagMask tag_mask = TagMask::All();
 
 	/**
 	 * A list of channel names this client is subscribed to.
@@ -198,12 +204,12 @@ public:
 
 private:
 	/* virtual methods from class BufferedSocket */
-	virtual InputResult OnSocketInput(void *data, size_t length) override;
+	InputResult OnSocketInput(void *data, size_t length) override;
 	void OnSocketError(std::exception_ptr ep) override;
-	virtual void OnSocketClosed() override;
+	void OnSocketClosed() override;
 
 	/* virtual methods from class TimeoutMonitor */
-	virtual void OnTimeout() override;
+	void OnTimeout() override;
 };
 
 void

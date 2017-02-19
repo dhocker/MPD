@@ -30,7 +30,7 @@
 #include "SongPrint.hxx"
 #include "TagPrint.hxx"
 #include "TagStream.hxx"
-#include "tag/TagHandler.hxx"
+#include "tag/Handler.hxx"
 #include "TimePrint.hxx"
 #include "decoder/DecoderPrint.hxx"
 #include "ls.hxx"
@@ -39,7 +39,6 @@
 #include "util/StringAPI.hxx"
 #include "fs/AllocatedPath.hxx"
 #include "Stats.hxx"
-#include "Permission.hxx"
 #include "PlaylistFile.hxx"
 #include "db/PlaylistVector.hxx"
 #include "client/Client.hxx"
@@ -87,25 +86,10 @@ handle_decoders(gcc_unused Client &client, gcc_unused Request args,
 }
 
 CommandResult
-handle_tagtypes(gcc_unused Client &client, gcc_unused Request request,
-		Response &r)
-{
-	tag_print_types(r);
-	return CommandResult::OK;
-}
-
-CommandResult
 handle_kill(gcc_unused Client &client, gcc_unused Request request,
 	    gcc_unused Response &r)
 {
 	return CommandResult::KILL;
-}
-
-CommandResult
-handle_close(gcc_unused Client &client, gcc_unused Request args,
-	     gcc_unused Response &r)
-{
-	return CommandResult::FINISH;
 }
 
 static void
@@ -113,7 +97,8 @@ print_tag(TagType type, const char *value, void *ctx)
 {
 	auto &r = *(Response *)ctx;
 
-	tag_print(r, type, value);
+	if (r.GetClient().tag_mask.Test(type))
+		tag_print(r, type, value);
 }
 
 CommandResult
@@ -132,7 +117,8 @@ handle_listfiles(Client &client, Request args, Response &r)
 	case LocatedUri::Type::ABSOLUTE:
 #ifdef ENABLE_DATABASE
 		/* use storage plugin to list remote directory */
-		return handle_listfiles_storage(r, located_uri.canonical_uri);
+		return handle_listfiles_storage(client, r,
+						located_uri.canonical_uri);
 #else
 		r.Error(ACK_ERROR_NO_EXIST, "No database");
 		return CommandResult::ERROR;
@@ -381,27 +367,6 @@ CommandResult
 handle_stats(Client &client, gcc_unused Request args, Response &r)
 {
 	stats_print(r, client.partition);
-	return CommandResult::OK;
-}
-
-CommandResult
-handle_ping(gcc_unused Client &client, gcc_unused Request args,
-	    gcc_unused Response &r)
-{
-	return CommandResult::OK;
-}
-
-CommandResult
-handle_password(Client &client, Request args, Response &r)
-{
-	unsigned permission = 0;
-	if (getPermissionFromPassword(args.front(), &permission) < 0) {
-		r.Error(ACK_ERROR_PASSWORD, "incorrect password");
-		return CommandResult::ERROR;
-	}
-
-	client.SetPermission(permission);
-
 	return CommandResult::OK;
 }
 

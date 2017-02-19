@@ -28,7 +28,8 @@
 #include "CommandError.hxx"
 #include "client/Client.hxx"
 #include "client/Response.hxx"
-#include "tag/Tag.hxx"
+#include "tag/ParseName.hxx"
+#include "tag/Mask.hxx"
 #include "util/ConstBuffer.hxx"
 #include "util/StringAPI.hxx"
 #include "SongFilter.hxx"
@@ -66,6 +67,16 @@ handle_match(Client &client, Request args, Response &r, bool fold_case)
 	} else
 		window.SetAll();
 
+	TagType sort = TAG_NUM_OF_ITEM_TYPES;
+	if (args.size >= 2 && StringIsEqual(args[args.size - 2], "sort")) {
+		sort = tag_name_parse_i(args.back());
+		if (sort == TAG_NUM_OF_ITEM_TYPES)
+			throw ProtocolError(ACK_ERROR_ARG, "Unknown sort tag");
+
+		args.pop_back();
+		args.pop_back();
+	}
+
 	SongFilter filter;
 	if (!filter.Parse(args, fold_case)) {
 		r.Error(ACK_ERROR_ARG, "incorrect arguments");
@@ -76,6 +87,7 @@ handle_match(Client &client, Request args, Response &r, bool fold_case)
 
 	db_selection_print(r, client.partition,
 			   selection, true, false,
+			   sort,
 			   window.start, window.end);
 	return CommandResult::OK;
 }
@@ -133,7 +145,7 @@ handle_searchaddpl(Client &client, Request args, Response &r)
 
 	const Database &db = client.GetDatabaseOrThrow();
 
-	search_add_to_playlist(db, *client.GetStorage(),
+	search_add_to_playlist(db, client.GetStorage(),
 			       "", playlist, &filter);
 	return CommandResult::OK;
 }
@@ -191,7 +203,7 @@ handle_list(Client &client, Request args, Response &r)
 	}
 
 	std::unique_ptr<SongFilter> filter;
-	tag_mask_t group_mask = 0;
+	TagMask group_mask = TagMask::None();
 
 	if (args.size == 1) {
 		/* for compatibility with < 0.12.0 */
@@ -216,7 +228,7 @@ handle_list(Client &client, Request args, Response &r)
 			return CommandResult::ERROR;
 		}
 
-		group_mask |= tag_mask_t(1) << unsigned(gt);
+		group_mask |= gt;
 
 		args.pop_back();
 		args.pop_back();
@@ -231,7 +243,7 @@ handle_list(Client &client, Request args, Response &r)
 	}
 
 	if (tagType < TAG_NUM_OF_ITEM_TYPES &&
-	    group_mask & (tag_mask_t(1) << tagType)) {
+	    group_mask.Test(TagType(tagType))) {
 		r.Error(ACK_ERROR_ARG, "Conflicting group");
 		return CommandResult::ERROR;
 	}

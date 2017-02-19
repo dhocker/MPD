@@ -34,6 +34,11 @@
 
 #include <stdexcept>
 
+Instance::Instance()
+	:idle_monitor(event_loop, BIND_THIS_METHOD(OnIdle))
+{
+}
+
 #ifdef ENABLE_DATABASE
 
 const Database &
@@ -54,7 +59,9 @@ Instance::OnDatabaseModified()
 	/* propagate the change to all subsystems */
 
 	stats_invalidate();
-	partition->DatabaseModified(*database);
+
+	for (auto &partition : partitions)
+		partition.DatabaseModified(*database);
 }
 
 void
@@ -72,7 +79,8 @@ Instance::OnDatabaseSongRemoved(const char *uri)
 	}
 #endif
 
-	partition->StaleSong(uri);
+	for (auto &partition : partitions)
+		partition.StaleSong(uri);
 }
 
 #endif
@@ -82,13 +90,15 @@ Instance::OnDatabaseSongRemoved(const char *uri)
 void
 Instance::FoundNeighbor(gcc_unused const NeighborInfo &info)
 {
-	partition->EmitIdle(IDLE_NEIGHBOR);
+	for (auto &partition : partitions)
+		partition.EmitIdle(IDLE_NEIGHBOR);
 }
 
 void
 Instance::LostNeighbor(gcc_unused const NeighborInfo &info)
 {
-	partition->EmitIdle(IDLE_NEIGHBOR);
+	for (auto &partition : partitions)
+		partition.EmitIdle(IDLE_NEIGHBOR);
 }
 
 #endif

@@ -187,8 +187,8 @@ build_command_map()
 	insert_command("playlistinfo", PERMISSION_READ, 0, 1, handle_playlistinfo);
 	insert_command("playlistmove", PERMISSION_CONTROL, 3, 3, handle_playlistmove);
 	insert_command("playlistsearch", PERMISSION_READ, 2, -1, handle_playlistsearch);
-	insert_command("plchanges", PERMISSION_READ, 1, 1, handle_plchanges);
-	insert_command("plchangesposid", PERMISSION_READ, 1, 1, handle_plchangesposid);
+	insert_command("plchanges", PERMISSION_READ, 1, 2, handle_plchanges);
+	insert_command("plchangesposid", PERMISSION_READ, 1, 2, handle_plchangesposid);
 	insert_command("previous", PERMISSION_CONTROL, 0, 0, handle_previous);
 	insert_command("prio", PERMISSION_CONTROL, 2, -1, handle_prio);
 	insert_command("prioid", PERMISSION_CONTROL, 2, -1, handle_prioid);
@@ -294,7 +294,7 @@ PrintUnavailableCommands(Response &r, unsigned permission)
 static CommandResult
 handle_commands(Client &client, gcc_unused Request request, Response &r)
 {
-	return PrintAvailableCommands(r, client.partition,
+	return PrintAvailableCommands(r, client.GetPartition(),
 				      client.GetPermission());
 }
 

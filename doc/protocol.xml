@@ -364,8 +364,9 @@
               </listitem>
               <listitem>
                 <para>
-                  <returnvalue>output</returnvalue>: an audio output has
-                  been enabled or disabled
+                  <returnvalue>output</returnvalue>: an audio output
+                  has been added, removed or modified (e.g. renamed,
+                  enabled or disabled)
                 </para>
               </listitem>
               <listitem>
@@ -2367,6 +2368,20 @@ OK
       </para>
 
       <variablelist>
+        <varlistentry id="command_partition">
+          <term>
+            <cmdsynopsis>
+              <command>partition</command>
+              <arg choice="req"><replaceable>NAME</replaceable></arg>
+            </cmdsynopsis>
+          </term>
+          <listitem>
+            <para>
+              Switch the client to a different partition.
+            </para>
+          </listitem>
+        </varlistentry>
+
         <varlistentry id="command_listpartitions">
           <term>
             <cmdsynopsis>

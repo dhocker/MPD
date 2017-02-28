@@ -40,18 +40,19 @@
 class SocketAddress;
 class EventLoop;
 class Path;
+struct Instance;
 struct Partition;
+struct PlayerControl;
+struct playlist;
 class Database;
 class Storage;
 
 class Client final
 	: FullyBufferedSocket, TimeoutMonitor,
 	  public boost::intrusive::list_base_hook<boost::intrusive::link_mode<boost::intrusive::normal_link>> {
-public:
-	Partition &partition;
-	struct playlist &playlist;
-	struct PlayerControl &player_control;
+	Partition *partition;
 
+public:
 	unsigned permission;
 
 	/** the uid of the client process, or -1 if unknown */
@@ -186,6 +187,25 @@ public:
 	 * @param path_fs the absolute path name in filesystem encoding
 	 */
 	void AllowFile(Path path_fs) const;
+
+	Partition &GetPartition() {
+		return *partition;
+	}
+
+	void SetPartition(Partition &new_partition) {
+		partition = &new_partition;
+
+		// TODO: set various idle flags?
+	}
+
+	gcc_pure
+	Instance &GetInstance();
+
+	gcc_pure
+	playlist &GetPlaylist();
+
+	gcc_pure
+	PlayerControl &GetPlayerControl();
 
 	/**
 	 * Wrapper for Instance::GetDatabase().

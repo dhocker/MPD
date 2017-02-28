@@ -29,9 +29,24 @@
 #include "util/CharUtil.hxx"
 
 CommandResult
+handle_partition(Client &client, Request request, Response &response)
+{
+	const char *name = request.front();
+	auto &instance = client.GetInstance();
+	auto *partition = instance.FindPartition(name);
+	if (partition == nullptr) {
+		response.Error(ACK_ERROR_NO_EXIST, "partition does not exist");
+		return CommandResult::ERROR;
+	}
+
+	client.SetPartition(*partition);
+	return CommandResult::OK;
+}
+
+CommandResult
 handle_listpartitions(Client &client, Request, Response &r)
 {
-	for (const auto &partition : client.partition.instance.partitions) {
+	for (const auto &partition : client.GetInstance().partitions) {
 		r.Format("partition: %s\n", partition.name.c_str());
 	}
 
@@ -58,13 +73,9 @@ IsValidPartitionName(const char *name)
 
 gcc_pure
 static bool
-HasPartitionNamed(const Instance &instance, const char *name)
+HasPartitionNamed(Instance &instance, const char *name)
 {
-	for (const auto &partition : instance.partitions)
-		if (partition.name == name)
-			return true;
-
-	return false;
+	return instance.FindPartition(name) != nullptr;
 }
 
 CommandResult
@@ -76,7 +87,7 @@ handle_newpartition(Client &client, Request request, Response &response)
 		return CommandResult::ERROR;
 	}
 
-	auto &instance = client.partition.instance;
+	auto &instance = client.GetInstance();
 	if (HasPartitionNamed(instance, name)) {
 		response.Error(ACK_ERROR_EXIST, "name already exists");
 		return CommandResult::ERROR;

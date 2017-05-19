@@ -51,8 +51,7 @@
 
 AudioOutput::AudioOutput(const AudioOutputPlugin &_plugin,
 			 const ConfigBlock &block)
-	:plugin(_plugin),
-	 thread(BIND_THIS_METHOD(Task))
+	:plugin(_plugin)
 {
 	assert(plugin.finish != nullptr);
 	assert(plugin.open != nullptr);
@@ -90,7 +89,7 @@ audio_output_detect()
  */
 gcc_pure
 static MixerType
-audio_output_mixer_type(const ConfigBlock &block)
+audio_output_mixer_type(const ConfigBlock &block) noexcept
 {
 	/* read the local "mixer_type" setting */
 	const char *p = block.GetBlockValue("mixer_type");

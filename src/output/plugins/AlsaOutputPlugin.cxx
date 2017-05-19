@@ -26,6 +26,7 @@
 #include "mixer/MixerList.hxx"
 #include "pcm/PcmExport.hxx"
 #include "system/ByteOrder.hxx"
+#include "thread/Cond.hxx"
 #include "util/Manual.hxx"
 #include "util/RuntimeError.hxx"
 #include "util/Domain.hxx"
@@ -482,7 +483,7 @@ alsa_test_default_device()
  */
 gcc_const
 static snd_pcm_format_t
-ToAlsaPcmFormat(SampleFormat sample_format)
+ToAlsaPcmFormat(SampleFormat sample_format) noexcept
 {
 	switch (sample_format) {
 	case SampleFormat::UNDEFINED:
@@ -520,7 +521,7 @@ ToAlsaPcmFormat(SampleFormat sample_format)
  * SND_PCM_FORMAT_UNKNOWN if the format cannot be byte-swapped.
  */
 static snd_pcm_format_t
-ByteSwapAlsaPcmFormat(snd_pcm_format_t fmt)
+ByteSwapAlsaPcmFormat(snd_pcm_format_t fmt) noexcept
 {
 	switch (fmt) {
 	case SND_PCM_FORMAT_S16_LE: return SND_PCM_FORMAT_S16_BE;
@@ -1008,7 +1009,7 @@ MaybeDmix(snd_pcm_type_t type)
 
 gcc_pure
 static bool
-MaybeDmix(snd_pcm_t *pcm)
+MaybeDmix(snd_pcm_t *pcm) noexcept
 {
 	return MaybeDmix(snd_pcm_type(pcm));
 }

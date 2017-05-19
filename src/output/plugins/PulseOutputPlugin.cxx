@@ -90,7 +90,6 @@ public:
 		Signal();
 	}
 
-	gcc_const
 	static bool TestDefaultDevice();
 
 	static PulseOutput *Create(EventLoop &event_loop,
@@ -102,7 +101,7 @@ public:
 	void Open(AudioFormat &audio_format);
 	void Close();
 
-	std::chrono::steady_clock::duration Delay();
+	std::chrono::steady_clock::duration Delay() noexcept;
 	size_t Play(const void *chunk, size_t size);
 	void Cancel();
 	bool Pause();
@@ -742,7 +741,7 @@ PulseOutput::StreamPause(bool pause)
 }
 
 inline std::chrono::steady_clock::duration
-PulseOutput::Delay()
+PulseOutput::Delay() noexcept
 {
 	Pulse::LockGuard lock(mainloop);
 

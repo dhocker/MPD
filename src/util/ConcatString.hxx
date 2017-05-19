@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017 Max Kellermann <max.kellermann@gmail.com>
+ * Copyright (C) 2014-2017 Max Kellermann <max.kellermann@gmail.com>
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -27,13 +27,40 @@
  * OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "Version.hxx"
+#ifndef CONCAT_STRING_HXX
+#define CONCAT_STRING_HXX
 
-#include <curl/curl.h>
+#include <algorithm>
 
-bool
-IsCurlOlderThan(unsigned version_num) noexcept
+#include <string.h>
+
+template<typename... Args>
+size_t
+FillLengths(size_t *lengths, const char *a, Args&&... args)
 {
-	const auto *const info = curl_version_info(CURLVERSION_FIRST);
-	return info == nullptr || info->version_num < version_num;
+	return FillLengths(lengths, a) + FillLengths(lengths + 1, args...);
 }
+
+template<>
+size_t
+FillLengths(size_t *lengths, const char *a)
+{
+	return *lengths = strlen(a);
+}
+
+template<typename... Args>
+char *
+StringCat(char *p, const size_t *lengths, const char *a, Args&&... args)
+{
+	return StringCat(StringCat(p, lengths, a),
+			 lengths + 1, args...);
+}
+
+template<>
+char *
+StringCat(char *p, const size_t *lengths, const char *a)
+{
+	return std::copy_n(a, *lengths, p);
+}
+
+#endif

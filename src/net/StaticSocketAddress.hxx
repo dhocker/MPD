@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012-2015 Max Kellermann <max.kellermann@gmail.com>
+ * Copyright (C) 2012-2017 Max Kellermann <max.kellermann@gmail.com>
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -49,7 +49,7 @@ private:
 public:
 	StaticSocketAddress() = default;
 
-	StaticSocketAddress &operator=(SocketAddress other);
+	StaticSocketAddress &operator=(SocketAddress other) noexcept;
 
 	operator SocketAddress() const {
 		return SocketAddress(reinterpret_cast<const struct sockaddr *>(&address),
@@ -90,6 +90,22 @@ public:
 	void Clear() {
 		address.ss_family = AF_UNSPEC;
 	}
+
+#ifdef HAVE_TCP
+	/**
+	 * Extract the port number.  Returns 0 if not applicable.
+	 */
+	gcc_pure
+	unsigned GetPort() const {
+		return ((SocketAddress)*this).GetPort();
+	}
+
+	/**
+	 * @return true on success, false if this address cannot have
+	 * a port number
+	 */
+	bool SetPort(unsigned port);
+#endif
 
 	gcc_pure
 	bool operator==(SocketAddress other) const {

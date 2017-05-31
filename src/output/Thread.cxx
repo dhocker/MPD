@@ -48,7 +48,7 @@
 #include <string.h>
 
 void
-AudioOutputControl::CommandFinished()
+AudioOutputControl::CommandFinished() noexcept
 {
 	assert(command != Command::NONE);
 	command = Command::NONE;
@@ -75,7 +75,7 @@ AudioOutput::Enable()
 }
 
 inline void
-AudioOutput::Disable()
+AudioOutput::Disable() noexcept
 {
 	if (open)
 		Close(false);
@@ -89,7 +89,7 @@ AudioOutput::Disable()
 }
 
 void
-AudioOutput::CloseFilter()
+AudioOutput::CloseFilter() noexcept
 {
 	if (mixer != nullptr && mixer->IsPlugin(software_mixer_plugin))
 		software_mixer_set_filter(*mixer, nullptr);
@@ -203,8 +203,25 @@ AudioOutput::OpenOutputAndConvert(AudioFormat desired_audio_format)
 	}
 }
 
+inline void
+AudioOutputControl::InternalOpen(const AudioFormat audio_format,
+				 const MusicPipe &pipe) noexcept
+{
+	last_error = nullptr;
+	fail_timer.Reset();
+	skip_delay = true;
+
+	try {
+		output->Open(audio_format, pipe);
+	} catch (const std::runtime_error &e) {
+		LogError(e);
+		fail_timer.Update();
+		last_error = std::current_exception();
+	}
+}
+
 void
-AudioOutput::Close(bool drain)
+AudioOutput::Close(bool drain) noexcept
 {
 	assert(open);
 
@@ -220,7 +237,7 @@ AudioOutput::Close(bool drain)
 }
 
 inline void
-AudioOutput::CloseOutput(bool drain)
+AudioOutput::CloseOutput(bool drain) noexcept
 {
 	if (drain)
 		ao_plugin_drain(*this);
@@ -237,7 +254,7 @@ AudioOutput::CloseOutput(bool drain)
  * was issued
  */
 inline bool
-AudioOutputControl::WaitForDelay()
+AudioOutputControl::WaitForDelay() noexcept
 {
 	while (true) {
 		const auto delay = ao_plugin_delay(*output);
@@ -268,9 +285,9 @@ try {
 }
 
 inline bool
-AudioOutputControl::PlayChunk()
+AudioOutputControl::PlayChunk() noexcept
 {
-	if (output->tags) {
+	if (tags) {
 		const auto *tag = output->source.ReadTag();
 		if (tag != nullptr) {
 			const ScopeUnlock unlock(mutex);
@@ -288,7 +305,9 @@ AudioOutputControl::PlayChunk()
 		if (data.IsEmpty())
 			break;
 
-		if (!WaitForDelay())
+		if (skip_delay)
+			skip_delay = false;
+		else if (!WaitForDelay())
 			break;
 
 		size_t nbytes;
@@ -324,7 +343,7 @@ AudioOutputControl::PlayChunk()
 }
 
 inline bool
-AudioOutputControl::Play()
+AudioOutputControl::InternalPlay() noexcept
 {
 	if (!FillSourceOrClose())
 		/* no chunk available */
@@ -349,7 +368,7 @@ AudioOutputControl::Play()
 			   give it a chance to refill the pipe before
 			   it runs empty */
 			const ScopeUnlock unlock(mutex);
-			output->client->ChunksConsumed();
+			client.ChunksConsumed();
 			n = 0;
 		}
 
@@ -358,24 +377,20 @@ AudioOutputControl::Play()
 	} while (FillSourceOrClose());
 
 	const ScopeUnlock unlock(mutex);
-	output->client->ChunksConsumed();
+	client.ChunksConsumed();
 
 	return true;
 }
 
 inline void
-AudioOutput::BeginPause()
+AudioOutput::BeginPause() noexcept
 {
-	{
-		const ScopeUnlock unlock(mutex);
-		ao_plugin_cancel(*this);
-	}
-
-	pause = true;
+	const ScopeUnlock unlock(mutex);
+	ao_plugin_cancel(*this);
 }
 
 inline bool
-AudioOutput::IteratePause()
+AudioOutput::IteratePause() noexcept
 {
 	bool success;
 
@@ -395,9 +410,11 @@ AudioOutput::IteratePause()
 }
 
 inline void
-AudioOutputControl::Pause()
+AudioOutputControl::InternalPause() noexcept
 {
 	output->BeginPause();
+	pause = true;
+
 	CommandFinished();
 
 	do {
@@ -408,7 +425,10 @@ AudioOutputControl::Pause()
 			break;
 	} while (command == Command::NONE);
 
+	pause = false;
 	output->EndPause();
+
+	skip_delay = true;
 }
 
 void
@@ -452,18 +472,7 @@ AudioOutputControl::Task()
 			break;
 
 		case Command::OPEN:
-			last_error = nullptr;
-			fail_timer.Reset();
-
-			try {
-				output->Open(request.audio_format,
-					     *request.pipe);
-			} catch (const std::runtime_error &e) {
-				LogError(e);
-				fail_timer.Update();
-				last_error = std::current_exception();
-			}
-
+			InternalOpen(request.audio_format, *request.pipe);
 			CommandFinished();
 			break;
 
@@ -483,7 +492,7 @@ AudioOutputControl::Task()
 				break;
 			}
 
-			Pause();
+			InternalPause();
 			/* don't "break" here: this might cause
 			   Play() to be called when command==CLOSE
 			   ends the paused state - "continue" checks
@@ -517,7 +526,7 @@ AudioOutputControl::Task()
 			return;
 		}
 
-		if (output->open && allow_play && Play())
+		if (output->open && allow_play && InternalPlay())
 			/* don't wait for an event if there are more
 			   chunks in the pipe */
 			continue;

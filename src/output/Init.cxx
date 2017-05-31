@@ -171,10 +171,6 @@ AudioOutput::Configure(const ConfigBlock &block)
 		config_audio_format.Clear();
 	}
 
-	tags = block.GetBlockValue("tags", true);
-	always_on = block.GetBlockValue("always_on", false);
-	enabled = block.GetBlockValue("enabled", true);
-
 	/* set up the filter chain */
 
 	prepared_filter = filter_chain_new();
@@ -269,8 +265,7 @@ AudioOutput *
 audio_output_new(EventLoop &event_loop,
 		 const ReplayGainConfig &replay_gain_config,
 		 const ConfigBlock &block,
-		 MixerListener &mixer_listener,
-		 AudioOutputClient &client)
+		 MixerListener &mixer_listener)
 {
 	const AudioOutputPlugin *plugin;
 
@@ -306,6 +301,5 @@ audio_output_new(EventLoop &event_loop,
 		throw;
 	}
 
-	ao->client = &client;
 	return ao;
 }

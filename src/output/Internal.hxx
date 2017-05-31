@@ -30,7 +30,6 @@ class MusicPipe;
 class EventLoop;
 class Mixer;
 class MixerListener;
-class AudioOutputClient;
 struct MusicChunk;
 struct ConfigBlock;
 struct AudioOutputPlugin;
@@ -55,24 +54,6 @@ struct AudioOutput {
 	Mixer *mixer = nullptr;
 
 	/**
-	 * Will this output receive tags from the decoder?  The
-	 * default is true, but it may be configured to false to
-	 * suppress sending tags to the output.
-	 */
-	bool tags;
-
-	/**
-	 * Shall this output always play something (i.e. silence),
-	 * even when playback is stopped?
-	 */
-	bool always_on;
-
-	/**
-	 * Has the user enabled this device?
-	 */
-	bool enabled = true;
-
-	/**
 	 * Is this device actually enabled, i.e. the "enable" method
 	 * has succeeded?
 	 */
@@ -87,12 +68,6 @@ struct AudioOutput {
 	 * performed while the lock is held.
 	 */
 	bool open = false;
-
-	/**
-	 * Is the device paused?  i.e. the output thread is in the
-	 * ao_pause() loop.
-	 */
-	bool pause = false;
 
 	/**
 	 * The configured audio format.
@@ -154,12 +129,6 @@ struct AudioOutput {
 	mutable Mutex mutex;
 
 	/**
-	 * The PlayerControl object which "owns" this output.  This
-	 * object is needed to signal command completion.
-	 */
-	AudioOutputClient *client;
-
-	/**
 	 * Source of audio data.
 	 */
 	AudioOutputSource source;
@@ -181,18 +150,11 @@ public:
 		   MixerListener &mixer_listener,
 		   const ConfigBlock &block);
 
-	void BeginDestroy();
-	void FinishDestroy();
+	void BeginDestroy() noexcept;
+	void FinishDestroy() noexcept;
 
 	const char *GetName() const {
 		return name;
-	}
-
-	/**
-	 * Caller must lock the mutex.
-	 */
-	bool IsEnabled() const {
-		return enabled;
 	}
 
 	/**
@@ -202,7 +164,7 @@ public:
 		return open;
 	}
 
-	void SetReplayGainMode(ReplayGainMode _mode) {
+	void SetReplayGainMode(ReplayGainMode _mode) noexcept {
 		source.SetReplayGainMode(_mode);
 	}
 
@@ -229,14 +191,14 @@ public:
 	 */
 	void Enable();
 
-	void Disable();
+	void Disable() noexcept;
 
 	/**
 	 * Throws #std::runtime_error on error.
 	 */
 	void Open(AudioFormat audio_format, const MusicPipe &pipe);
 
-	void Close(bool drain);
+	void Close(bool drain) noexcept;
 
 private:
 	/**
@@ -254,19 +216,18 @@ private:
 	 *
 	 * Mutex must not be locked.
 	 */
-	void CloseOutput(bool drain);
+	void CloseOutput(bool drain) noexcept;
 
 	/**
 	 * Mutex must not be locked.
 	 */
-	void CloseFilter();
+	void CloseFilter() noexcept;
 
 public:
-	void BeginPause();
-	bool IteratePause();
+	void BeginPause() noexcept;
+	bool IteratePause() noexcept;
 
-	void EndPause() {
-		pause = false;
+	void EndPause() noexcept{
 	}
 };
 
@@ -283,10 +244,9 @@ AudioOutput *
 audio_output_new(EventLoop &event_loop,
 		 const ReplayGainConfig &replay_gain_config,
 		 const ConfigBlock &block,
-		 MixerListener &mixer_listener,
-		 AudioOutputClient &client);
+		 MixerListener &mixer_listener);
 
 void
-audio_output_free(AudioOutput *ao);
+audio_output_free(AudioOutput *ao) noexcept;
 
 #endif

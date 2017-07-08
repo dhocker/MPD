@@ -85,12 +85,6 @@ AudioOutputControl::LockToggleEnabled() noexcept
 	return enabled = !enabled;
 }
 
-bool
-AudioOutputControl::IsOpen() const noexcept
-{
-	return output->IsOpen();
-}
-
 void
 AudioOutputControl::WaitForCommand() noexcept
 {
@@ -132,7 +126,7 @@ AudioOutputControl::EnableAsync()
 			/* don't bother to start the thread now if the
 			   device doesn't even have a enable() method;
 			   just assign the variable and we're done */
-			output->really_enabled = true;
+			really_enabled = true;
 			return;
 		}
 
@@ -147,11 +141,11 @@ AudioOutputControl::DisableAsync() noexcept
 {
 	if (!thread.IsDefined()) {
 		if (output->plugin.disable == nullptr)
-			output->really_enabled = false;
+			really_enabled = false;
 		else
 			/* if there's no thread yet, the device cannot
 			   be enabled */
-			assert(!output->really_enabled);
+			assert(!really_enabled);
 
 		return;
 	}
@@ -162,7 +156,7 @@ AudioOutputControl::DisableAsync() noexcept
 void
 AudioOutputControl::EnableDisableAsync()
 {
-	if (enabled == output->really_enabled)
+	if (enabled == really_enabled)
 		return;
 
 	if (enabled)
@@ -180,7 +174,7 @@ AudioOutputControl::Open(const AudioFormat audio_format,
 
 	fail_timer.Reset();
 
-	if (output->open && audio_format == request.audio_format) {
+	if (open && audio_format == request.audio_format) {
 		assert(request.pipe == &mp || (always_on && pause));
 
 		if (!pause)
@@ -196,7 +190,7 @@ AudioOutputControl::Open(const AudioFormat audio_format,
 		StartThread();
 
 	CommandWait(Command::OPEN);
-	const bool open2 = output->open;
+	const bool open2 = open;
 
 	if (open2 && output->mixer != nullptr) {
 		try {
@@ -218,9 +212,9 @@ AudioOutputControl::CloseWait() noexcept
 	if (output->mixer != nullptr)
 		mixer_auto_close(output->mixer);
 
-	assert(!output->open || !fail_timer.IsDefined());
+	assert(!open || !fail_timer.IsDefined());
 
-	if (output->open)
+	if (open)
 		CommandWait(Command::CLOSE);
 	else
 		fail_timer.Reset();
@@ -233,7 +227,7 @@ AudioOutputControl::LockUpdate(const AudioFormat audio_format,
 {
 	const std::lock_guard<Mutex> protect(mutex);
 
-	if (enabled && output->really_enabled) {
+	if (enabled && really_enabled) {
 		if (force || !fail_timer.IsDefined() ||
 		    fail_timer.Check(REOPEN_AFTER * 1000)) {
 			return Open(audio_format, mp);
@@ -245,15 +239,19 @@ AudioOutputControl::LockUpdate(const AudioFormat audio_format,
 }
 
 bool
-AudioOutputControl::LockIsChunkConsumed(const MusicChunk &chunk) const noexcept
+AudioOutputControl::IsChunkConsumed(const MusicChunk &chunk) const noexcept
 {
-	return output->LockIsChunkConsumed(chunk);
+	if (!open)
+		return true;
+
+	return source.IsChunkConsumed(chunk);
 }
 
-void
-AudioOutputControl::ClearTailChunk(const MusicChunk &chunk) noexcept
+bool
+AudioOutputControl::LockIsChunkConsumed(const MusicChunk &chunk) const noexcept
 {
-	output->ClearTailChunk(chunk);
+	const std::lock_guard<Mutex> protect(mutex);
+	return IsChunkConsumed(chunk);
 }
 
 void
@@ -328,16 +326,10 @@ AudioOutputControl::LockRelease() noexcept
 void
 AudioOutputControl::LockCloseWait() noexcept
 {
-	assert(!output->open || !fail_timer.IsDefined());
+	assert(!open || !fail_timer.IsDefined());
 
 	const std::lock_guard<Mutex> protect(mutex);
 	CloseWait();
-}
-
-void
-AudioOutputControl::SetReplayGainMode(ReplayGainMode _mode) noexcept
-{
-	return output->SetReplayGainMode(_mode);
 }
 
 void

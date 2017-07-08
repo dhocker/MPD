@@ -20,6 +20,7 @@
 #ifndef MPD_OUTPUT_CONTROL_HXX
 #define MPD_OUTPUT_CONTROL_HXX
 
+#include "Source.hxx"
 #include "AudioFormat.hxx"
 #include "thread/Thread.hxx"
 #include "thread/Cond.hxx"
@@ -55,6 +56,11 @@ class AudioOutputControl {
 	 * object is needed to signal command completion.
 	 */
 	AudioOutputClient &client;
+
+	/**
+	 * Source of audio data.
+	 */
+	AudioOutputSource source;
 
 	/**
 	 * The error that occurred in the output thread.  It is
@@ -144,6 +150,22 @@ class AudioOutputControl {
 	bool enabled = true;
 
 	/**
+	 * Is this device actually enabled, i.e. the "enable" method
+	 * has succeeded?
+	 */
+	bool really_enabled = false;
+
+	/**
+	 * Is the device (already) open and functional?
+	 *
+	 * This attribute may only be modified by the output thread.
+	 * It is protected with #mutex: write accesses inside the
+	 * output thread and read accesses outside of it may only be
+	 * performed while the lock is held.
+	 */
+	bool open = false;
+
+	/**
 	 * Is the device paused?  i.e. the output thread is in the
 	 * ao_pause() loop.
 	 */
@@ -190,6 +212,7 @@ public:
 		assert(!fail_timer.IsDefined());
 		assert(!thread.IsDefined());
 		assert(output == nullptr);
+		assert(!open);
 	}
 #endif
 
@@ -228,8 +251,12 @@ public:
 	 */
 	bool LockToggleEnabled() noexcept;
 
-	gcc_pure
-	bool IsOpen() const noexcept;
+	/**
+	 * Caller must lock the mutex.
+	 */
+	bool IsOpen() const noexcept {
+		return open;
+	}
 
 	/**
 	 * Caller must lock the mutex.
@@ -321,7 +348,14 @@ public:
 	 */
 	void LockRelease() noexcept;
 
-	void SetReplayGainMode(ReplayGainMode _mode) noexcept;
+	void SetReplayGainMode(ReplayGainMode _mode) noexcept {
+		source.SetReplayGainMode(_mode);
+	}
+
+	/**
+	 * Throws #std::runtime_error on error.
+	 */
+	void InternalOpen2(AudioFormat in_audio_format);
 
 	/**
 	 * Caller must lock the mutex.
@@ -339,10 +373,20 @@ public:
 			const MusicPipe &mp,
 			bool force) noexcept;
 
+	/**
+	 * Did we already consumed this chunk?
+	 *
+	 * Caller must lock the mutex.
+	 */
+	gcc_pure
+	bool IsChunkConsumed(const MusicChunk &chunk) const noexcept;
+
 	gcc_pure
 	bool LockIsChunkConsumed(const MusicChunk &chunk) const noexcept;
 
-	void ClearTailChunk(const MusicChunk &chunk) noexcept;
+	void ClearTailChunk(const MusicChunk &chunk) {
+		source.ClearTailChunk(chunk);
+	}
 
 	void LockPlay() noexcept;
 	void LockDrainAsync() noexcept;
@@ -362,9 +406,26 @@ public:
 private:
 	/**
 	 * Runs inside the OutputThread.  Handles exceptions.
+	 *
+	 * @return true on success
+	 */
+	bool InternalEnable() noexcept;
+
+	/**
+	 * Runs inside the OutputThread.  Handles exceptions.
+	 */
+	void InternalDisable() noexcept;
+
+	/**
+	 * Runs inside the OutputThread.  Handles exceptions.
 	 */
 	void InternalOpen(AudioFormat audio_format,
 			  const MusicPipe &pipe) noexcept;
+
+	/**
+	 * Runs inside the OutputThread.
+	 */
+	void InternalClose(bool drain) noexcept;
 
 	/**
 	 * Wait until the output's delay reaches zero.

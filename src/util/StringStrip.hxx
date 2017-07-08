@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015 Max Kellermann <max.kellermann@gmail.com>
+ * Copyright (C) 2009-2017 Max Kellermann <max.kellermann@gmail.com>
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -27,23 +27,69 @@
  * OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "AllocatedString.hxx"
-#include "StringAPI.hxx"
+#ifndef STRING_STRIP_HXX
+#define STRING_STRIP_HXX
 
-template<>
-AllocatedString<char>
-AllocatedString<char>::Duplicate(const_pointer_type src)
+#include "Compiler.h"
+
+#include <stddef.h>
+
+/**
+ * Returns a pointer to the first non-whitespace character in the
+ * string, or to the end of the string.
+ */
+gcc_pure
+const char *
+StripLeft(const char *p) noexcept;
+
+gcc_pure
+static inline char *
+StripLeft(char *p) noexcept
 {
-	return Duplicate(src, StringLength(src));
+	return const_cast<char *>(StripLeft((const char *)p));
 }
 
-#ifdef _UNICODE
+gcc_pure
+const char *
+StripLeft(const char *p, const char *end) noexcept;
 
-template<>
-AllocatedString<wchar_t>
-AllocatedString<wchar_t>::Duplicate(const_pointer_type src)
+/**
+ * Determine the string's end as if it was stripped on the right side.
+ */
+gcc_pure
+const char *
+StripRight(const char *p, const char *end) noexcept;
+
+/**
+ * Determine the string's end as if it was stripped on the right side.
+ */
+gcc_pure
+static inline char *
+StripRight(char *p, char *end) noexcept
 {
-	return Duplicate(src, StringLength(src));
+	return const_cast<char *>(StripRight((const char *)p,
+					     (const char *)end));
 }
+
+/**
+ * Determine the string's length as if it was stripped on the right
+ * side.
+ */
+gcc_pure
+size_t
+StripRight(const char *p, size_t length) noexcept;
+
+/**
+ * Strip trailing whitespace by null-terminating the string.
+ */
+void
+StripRight(char *p) noexcept;
+
+/**
+ * Skip whitespace at the beginning and terminate the string after the
+ * last non-whitespace character.
+ */
+char *
+Strip(char *p) noexcept;
 
 #endif

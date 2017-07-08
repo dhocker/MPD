@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016-2017 Max Kellermann <max.kellermann@gmail.com>
+ * Copyright (C) 2009-2017 Max Kellermann <max.kellermann@gmail.com>
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -27,47 +27,21 @@
  * OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "Exception.hxx"
+#include "TruncateString.hxx"
 
-template<typename T>
-static void
-AppendNestedMessage(std::string &result, T &&e,
-		    const char *fallback, const char *separator) noexcept
-{
-	try {
-		std::rethrow_if_nested(std::forward<T>(e));
-	} catch (const std::exception &nested) {
-		result += separator;
-		result += nested.what();
-		AppendNestedMessage(result, nested, fallback, separator);
-	} catch (const std::nested_exception &ne) {
-		AppendNestedMessage(result, ne, fallback, separator);
-	} catch (...) {
-		result += separator;
-		result += fallback;
-	}
-}
+#include <algorithm>
 
-std::string
-GetFullMessage(const std::exception &e,
-	       const char *fallback, const char *separator) noexcept
-{
-	std::string result = e.what();
-	AppendNestedMessage(result, e, fallback, separator);
-	return result;
-}
+#include <string.h>
 
-std::string
-GetFullMessage(std::exception_ptr ep,
-	       const char *fallback, const char *separator) noexcept
+char *
+CopyTruncateString(char *gcc_restrict dest, const char *gcc_restrict src,
+		   size_t size) noexcept
 {
-	try {
-		std::rethrow_exception(ep);
-	} catch (const std::exception &e) {
-		return GetFullMessage(e, fallback, separator);
-	} catch (const std::nested_exception &ne) {
-		return GetFullMessage(ne.nested_ptr(), fallback, separator);
-	} catch (...) {
-		return fallback;
-	}
+	size_t length = strlen(src);
+	if (length >= size)
+		length = size - 1;
+
+	char *p = std::copy_n(src, length, dest);
+	*p = '\0';
+	return p;
 }

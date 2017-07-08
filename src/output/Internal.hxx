@@ -20,7 +20,6 @@
 #ifndef MPD_OUTPUT_INTERNAL_HXX
 #define MPD_OUTPUT_INTERNAL_HXX
 
-#include "Source.hxx"
 #include "AudioFormat.hxx"
 #include "filter/Observer.hxx"
 #include "thread/Mutex.hxx"
@@ -52,22 +51,6 @@ struct AudioOutput {
 	 * configured.
 	 */
 	Mixer *mixer = nullptr;
-
-	/**
-	 * Is this device actually enabled, i.e. the "enable" method
-	 * has succeeded?
-	 */
-	bool really_enabled = false;
-
-	/**
-	 * Is the device (already) open and functional?
-	 *
-	 * This attribute may only be modified by the output thread.
-	 * It is protected with #mutex: write accesses inside the
-	 * output thread and read accesses outside of it may only be
-	 * performed while the lock is held.
-	 */
-	bool open = false;
 
 	/**
 	 * The configured audio format.
@@ -129,11 +112,6 @@ struct AudioOutput {
 	mutable Mutex mutex;
 
 	/**
-	 * Source of audio data.
-	 */
-	AudioOutputSource source;
-
-	/**
 	 * Throws #std::runtime_error on error.
 	 */
 	AudioOutput(const AudioOutputPlugin &_plugin,
@@ -158,49 +136,14 @@ public:
 	}
 
 	/**
-	 * Caller must lock the mutex.
-	 */
-	bool IsOpen() const {
-		return open;
-	}
-
-	void SetReplayGainMode(ReplayGainMode _mode) noexcept {
-		source.SetReplayGainMode(_mode);
-	}
-
-	/**
-	 * Did we already consumed this chunk?
-	 *
-	 * Caller must lock the mutex.
-	 */
-	gcc_pure
-	bool IsChunkConsumed(const MusicChunk &chunk) const noexcept;
-
-	gcc_pure
-	bool LockIsChunkConsumed(const MusicChunk &chunk) noexcept {
-		const std::lock_guard<Mutex> protect(mutex);
-		return IsChunkConsumed(chunk);
-	}
-
-	void ClearTailChunk(const MusicChunk &chunk) {
-		source.ClearTailChunk(chunk);
-	}
-
-	/**
 	 * Throws #std::runtime_error on error.
 	 */
 	void Enable();
 
 	void Disable() noexcept;
 
-	/**
-	 * Throws #std::runtime_error on error.
-	 */
-	void Open(AudioFormat audio_format, const MusicPipe &pipe);
-
 	void Close(bool drain) noexcept;
 
-private:
 	/**
 	 * Invoke OutputPlugin::open() and configure the
 	 * #ConvertFilter.
@@ -223,7 +166,6 @@ private:
 	 */
 	void CloseFilter() noexcept;
 
-public:
 	void BeginPause() noexcept;
 	bool IteratePause() noexcept;
 

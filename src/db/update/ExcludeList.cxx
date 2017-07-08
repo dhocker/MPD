@@ -28,6 +28,7 @@
 #include "fs/NarrowPath.hxx"
 #include "fs/io/TextFile.hxx"
 #include "system/Error.hxx"
+#include "util/StringStrip.hxx"
 #include "Log.hxx"
 
 #include <stdexcept>
@@ -36,7 +37,7 @@
 #include <string.h>
 
 bool
-ExcludeList::LoadFile(Path path_fs)
+ExcludeList::LoadFile(Path path_fs) noexcept
 try {
 #ifdef HAVE_CLASS_GLOB
 	TextFile file(path_fs);
@@ -67,7 +68,7 @@ try {
 }
 
 bool
-ExcludeList::Check(Path name_fs) const
+ExcludeList::Check(Path name_fs) const noexcept
 {
 	assert(!name_fs.IsNull());
 

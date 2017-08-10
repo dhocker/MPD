@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012-2015 Max Kellermann <max.kellermann@gmail.com>
+ * Copyright (C) 2012-2017 Max Kellermann <max.kellermann@gmail.com>
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -57,12 +57,33 @@
 #define O_CLOEXEC 0
 #endif
 
+#ifndef _WIN32
+
+bool
+FileDescriptor::IsValid() const noexcept
+{
+	return IsDefined() && fcntl(fd, F_GETFL) >= 0;
+}
+
+#endif
+
 bool
 FileDescriptor::Open(const char *pathname, int flags, mode_t mode) noexcept
 {
 	fd = ::open(pathname, flags | O_NOCTTY | O_CLOEXEC, mode);
 	return IsDefined();
 }
+
+#ifdef _WIN32
+
+bool
+FileDescriptor::Open(const wchar_t *pathname, int flags, mode_t mode) noexcept
+{
+	fd = ::_wopen(pathname, flags | O_NOCTTY | O_CLOEXEC, mode);
+	return IsDefined();
+}
+
+#endif
 
 bool
 FileDescriptor::OpenReadOnly(const char *pathname) noexcept
@@ -114,6 +135,24 @@ FileDescriptor::SetBlocking() noexcept
 
 	int flags = fcntl(fd, F_GETFL);
 	fcntl(fd, F_SETFL, flags & ~O_NONBLOCK);
+}
+
+void
+FileDescriptor::EnableCloseOnExec() noexcept
+{
+	assert(IsDefined());
+
+	const int old_flags = fcntl(fd, F_GETFD, 0);
+	fcntl(fd, F_SETFD, old_flags | FD_CLOEXEC);
+}
+
+void
+FileDescriptor::DisableCloseOnExec() noexcept
+{
+	assert(IsDefined());
+
+	const int old_flags = fcntl(fd, F_GETFD, 0);
+	fcntl(fd, F_SETFD, old_flags & ~FD_CLOEXEC);
 }
 
 #endif
@@ -210,6 +249,12 @@ int
 FileDescriptor::WaitWritable(int timeout) const noexcept
 {
 	return Poll(POLLOUT, timeout);
+}
+
+bool
+FileDescriptor::IsReadyForWriting() const noexcept
+{
+	return WaitWritable(0) > 0;
 }
 
 #endif

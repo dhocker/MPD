@@ -484,6 +484,8 @@ libnet_a_SOURCES = \
 	src/net/AllocatedSocketAddress.cxx src/net/AllocatedSocketAddress.hxx \
 	src/net/SocketAddress.cxx src/net/SocketAddress.hxx \
 	src/net/SocketUtil.cxx src/net/SocketUtil.hxx \
+	src/net/SocketDescriptor.cxx src/net/SocketDescriptor.hxx \
+	src/net/UniqueSocketDescriptor.hxx \
 	src/net/SocketError.cxx src/net/SocketError.hxx
 
 # System library
@@ -493,6 +495,7 @@ libsystem_a_SOURCES = \
 	src/system/Error.hxx \
 	src/system/FatalError.cxx src/system/FatalError.hxx \
 	src/system/FileDescriptor.cxx src/system/FileDescriptor.hxx \
+	src/system/UniqueFileDescriptor.hxx \
 	src/system/fd_util.c src/system/fd_util.h \
 	src/system/EventPipe.cxx src/system/EventPipe.hxx \
 	src/system/EventFD.cxx src/system/EventFD.hxx \
@@ -1373,8 +1376,8 @@ OUTPUT_LIBS = \
 OUTPUT_API_SRC = \
 	src/output/Client.hxx \
 	src/output/OutputAPI.hxx \
-	src/output/Internal.hxx \
-	src/output/Wrapper.hxx \
+	src/output/Interface.hxx \
+	src/output/Filtered.cxx src/output/Filtered.hxx \
 	src/output/Registry.cxx src/output/Registry.hxx \
 	src/output/MultipleOutputs.cxx src/output/MultipleOutputs.hxx \
 	src/output/SharedPipeConsumer.cxx src/output/SharedPipeConsumer.hxx \
@@ -1636,6 +1639,7 @@ libfilter_plugins_a_SOURCES = \
 	src/filter/plugins/ConvertFilterPlugin.hxx \
 	src/filter/plugins/RouteFilterPlugin.cxx \
 	src/filter/plugins/NormalizeFilterPlugin.cxx \
+	src/filter/plugins/NormalizeFilterPlugin.hxx \
 	src/filter/plugins/ReplayGainFilterPlugin.cxx \
 	src/filter/plugins/ReplayGainFilterPlugin.hxx \
 	src/filter/plugins/VolumeFilterPlugin.cxx \
@@ -2104,11 +2108,10 @@ test_run_convert_LDADD = \
 	libutil.a
 
 test_run_output_LDADD = $(MPD_LIBS) \
-	$(PCM_LIBS) \
 	$(OUTPUT_LIBS) \
 	$(ENCODER_LIBS) \
 	libmixer_plugins.a \
-	$(FILTER_LIBS) \
+	$(PCM_LIBS) \
 	$(TAG_LIBS) \
 	libconf.a \
 	libbasic.a \
@@ -2122,13 +2125,10 @@ test_run_output_LDADD = $(MPD_LIBS) \
 test_run_output_SOURCES = test/run_output.cxx \
 	src/Log.cxx src/LogBackend.cxx \
 	src/output/Domain.cxx \
-	src/output/Init.cxx src/output/Finish.cxx src/output/Registry.cxx \
+	src/output/Registry.cxx \
 	src/output/OutputPlugin.cxx \
 	src/mixer/MixerControl.cxx \
-	src/mixer/MixerType.cxx \
-	src/filter/FilterPlugin.cxx \
-	src/filter/FilterConfig.cxx \
-	src/filter/Observer.cxx
+	src/mixer/MixerType.cxx
 
 test_read_mixer_LDADD = \
 	libpcm.a \

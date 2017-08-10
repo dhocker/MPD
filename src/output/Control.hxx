@@ -23,6 +23,7 @@
 #include "Source.hxx"
 #include "AudioFormat.hxx"
 #include "thread/Thread.hxx"
+#include "thread/Mutex.hxx"
 #include "thread/Cond.hxx"
 #include "system/PeriodClock.hxx"
 #include "Compiler.h"
@@ -37,7 +38,7 @@
 #include <stdint.h>
 
 enum class ReplayGainMode : uint8_t;
-struct AudioOutput;
+struct FilteredAudioOutput;
 struct MusicChunk;
 struct ConfigBlock;
 class MusicPipe;
@@ -49,7 +50,7 @@ class AudioOutputClient;
  * Controller for an #AudioOutput and its output thread.
  */
 class AudioOutputControl {
-	AudioOutput *output;
+	FilteredAudioOutput *output;
 
 	/**
 	 * The PlayerControl object which "owns" this output.  This
@@ -203,9 +204,13 @@ class AudioOutputControl {
 	bool skip_delay;
 
 public:
-	Mutex &mutex;
+	/**
+	 * This mutex protects #open, #fail_timer, #pipe.
+	 */
+	mutable Mutex mutex;
 
-	AudioOutputControl(AudioOutput *_output, AudioOutputClient &_client);
+	AudioOutputControl(FilteredAudioOutput *_output,
+			   AudioOutputClient &_client);
 
 #ifndef NDEBUG
 	~AudioOutputControl() {
@@ -226,6 +231,9 @@ public:
 
 	gcc_pure
 	const char *GetName() const noexcept;
+
+	gcc_pure
+	const char *GetLogName() const noexcept;
 
 	AudioOutputClient &GetClient() noexcept {
 		return client;
@@ -299,16 +307,14 @@ public:
 	void CommandAsync(Command cmd) noexcept;
 
 	/**
-	 * Sends a command to the #AudioOutput object and waits for
-	 * completion.
+	 * Sends a command to the object and waits for completion.
 	 *
 	 * Caller must lock the mutex.
 	 */
 	void CommandWait(Command cmd) noexcept;
 
 	/**
-	 * Lock the #AudioOutput object and execute the command
-	 * synchronously.
+	 * Lock the object and execute the command synchronously.
 	 */
 	void LockCommandWait(Command cmd) noexcept;
 
@@ -353,6 +359,8 @@ public:
 	}
 
 	/**
+	 * Caller must lock the mutex.
+	 *
 	 * Throws #std::runtime_error on error.
 	 */
 	void InternalOpen2(AudioFormat in_audio_format);
@@ -405,27 +413,45 @@ public:
 
 private:
 	/**
-	 * Runs inside the OutputThread.  Handles exceptions.
+	 * Runs inside the OutputThread.
+	 * Caller must lock the mutex.
+	 * Handles exceptions.
 	 *
 	 * @return true on success
 	 */
 	bool InternalEnable() noexcept;
 
 	/**
-	 * Runs inside the OutputThread.  Handles exceptions.
+	 * Runs inside the OutputThread.
+	 * Caller must lock the mutex.
 	 */
 	void InternalDisable() noexcept;
 
 	/**
-	 * Runs inside the OutputThread.  Handles exceptions.
+	 * Runs inside the OutputThread.
+	 * Caller must lock the mutex.
+	 * Handles exceptions.
 	 */
 	void InternalOpen(AudioFormat audio_format,
 			  const MusicPipe &pipe) noexcept;
 
 	/**
 	 * Runs inside the OutputThread.
+	 * Caller must lock the mutex.
+	 */
+	void InternalCloseOutput(bool drain) noexcept;
+
+	/**
+	 * Runs inside the OutputThread.
+	 * Caller must lock the mutex.
 	 */
 	void InternalClose(bool drain) noexcept;
+
+	/**
+	 * Runs inside the OutputThread.
+	 * Caller must lock the mutex.
+	 */
+	void InternalCheckClose(bool drain) noexcept;
 
 	/**
 	 * Wait until the output's delay reaches zero.
@@ -435,8 +461,14 @@ private:
 	 */
 	bool WaitForDelay() noexcept;
 
+	/**
+	 * Caller must lock the mutex.
+	 */
 	bool FillSourceOrClose();
 
+	/**
+	 * Caller must lock the mutex.
+	 */
 	bool PlayChunk() noexcept;
 
 	/**
@@ -444,7 +476,9 @@ private:
 	 * been reached (and no more chunks are queued), or until a
 	 * command is received.
 	 *
-	 * Runs inside the OutputThread.  Handles exceptions.
+	 * Runs inside the OutputThread.
+	 * Caller must lock the mutex.
+	 * Handles exceptions.
 	 *
 	 * @return true if at least one chunk has been available,
 	 * false if the tail of the pipe was already reached
@@ -452,7 +486,9 @@ private:
 	bool InternalPlay() noexcept;
 
 	/**
-	 * Runs inside the OutputThread.  Handles exceptions.
+	 * Runs inside the OutputThread.
+	 * Caller must lock the mutex.
+	 * Handles exceptions.
 	 */
 	void InternalPause() noexcept;
 

@@ -17,33 +17,48 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-#ifndef MPD_OUTPUT_INTERNAL_HXX
-#define MPD_OUTPUT_INTERNAL_HXX
+#ifndef MPD_FILTERED_AUDIO_OUTPUT_HXX
+#define MPD_FILTERED_AUDIO_OUTPUT_HXX
 
 #include "AudioFormat.hxx"
 #include "filter/Observer.hxx"
-#include "thread/Mutex.hxx"
+
+#include <memory>
+#include <string>
+#include <chrono>
 
 class PreparedFilter;
 class MusicPipe;
 class EventLoop;
 class Mixer;
 class MixerListener;
+struct MixerPlugin;
 struct MusicChunk;
 struct ConfigBlock;
-struct AudioOutputPlugin;
+class AudioOutput;
 struct ReplayGainConfig;
+struct Tag;
 
-struct AudioOutput {
+struct FilteredAudioOutput {
+	const char *const plugin_name;
+
 	/**
 	 * The device's configured display name.
 	 */
 	const char *name;
 
+private:
+	/**
+	 * A string describing this devicee in log messages.  It is
+	 * usually in the form "NAME (PLUGIN)".
+	 */
+	std::string log_name;
+
+public:
 	/**
 	 * The plugin which implements this output device.
 	 */
-	const AudioOutputPlugin &plugin;
+	std::unique_ptr<AudioOutput> output;
 
 	/**
 	 * The #mixer object associated with this audio output device.
@@ -107,17 +122,13 @@ struct AudioOutput {
 	FilterObserver convert_filter;
 
 	/**
-	 * This mutex protects #open, #fail_timer, #pipe.
-	 */
-	mutable Mutex mutex;
-
-	/**
 	 * Throws #std::runtime_error on error.
 	 */
-	AudioOutput(const AudioOutputPlugin &_plugin,
-		    const ConfigBlock &block);
+	FilteredAudioOutput(const char *_plugin_name,
+			    std::unique_ptr<AudioOutput> &&_output,
+			    const ConfigBlock &block);
 
-	~AudioOutput();
+	~FilteredAudioOutput();
 
 private:
 	void Configure(const ConfigBlock &block);
@@ -125,6 +136,7 @@ private:
 public:
 	void Setup(EventLoop &event_loop,
 		   const ReplayGainConfig &replay_gain_config,
+		   const MixerPlugin *mixer_plugin,
 		   MixerListener &mixer_listener,
 		   const ConfigBlock &block);
 
@@ -135,6 +147,22 @@ public:
 		return name;
 	}
 
+	const char *GetLogName() const noexcept {
+		return log_name.c_str();
+	}
+
+	/**
+	 * Does the plugin support enabling/disabling a device?
+	 */
+	gcc_pure
+	bool SupportsEnableDisable() const noexcept;
+
+	/**
+	 * Does the plugin support pausing a device?
+	 */
+	gcc_pure
+	bool SupportsPause() const noexcept;
+
 	/**
 	 * Throws #std::runtime_error on error.
 	 */
@@ -142,7 +170,14 @@ public:
 
 	void Disable() noexcept;
 
+	/**
+	 * Invoke OutputPlugin::close().
+	 *
+	 * Caller must not lock the mutex.
+	 */
 	void Close(bool drain) noexcept;
+
+	void ConfigureConvertFilter();
 
 	/**
 	 * Invoke OutputPlugin::open() and configure the
@@ -164,7 +199,22 @@ public:
 	/**
 	 * Mutex must not be locked.
 	 */
-	void CloseFilter() noexcept;
+	void OpenSoftwareMixer() noexcept;
+
+	/**
+	 * Mutex must not be locked.
+	 */
+	void CloseSoftwareMixer() noexcept;
+
+	gcc_pure
+	std::chrono::steady_clock::duration Delay() noexcept;
+
+	void SendTag(const Tag &tag);
+
+	size_t Play(const void *data, size_t size);
+
+	void Drain();
+	void Cancel() noexcept;
 
 	void BeginPause() noexcept;
 	bool IteratePause() noexcept;
@@ -182,13 +232,10 @@ extern struct notify audio_output_client_notify;
 /**
  * Throws #std::runtime_error on error.
  */
-AudioOutput *
+FilteredAudioOutput *
 audio_output_new(EventLoop &event_loop,
 		 const ReplayGainConfig &replay_gain_config,
 		 const ConfigBlock &block,
 		 MixerListener &mixer_listener);
-
-void
-audio_output_free(AudioOutput *ao) noexcept;
 
 #endif

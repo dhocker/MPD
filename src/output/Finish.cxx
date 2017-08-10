@@ -18,14 +18,12 @@
  */
 
 #include "config.h"
-#include "Internal.hxx"
-#include "OutputPlugin.hxx"
+#include "Filtered.hxx"
+#include "Interface.hxx"
 #include "mixer/MixerControl.hxx"
 #include "filter/FilterInternal.hxx"
 
-#include <assert.h>
-
-AudioOutput::~AudioOutput()
+FilteredAudioOutput::~FilteredAudioOutput()
 {
 	if (mixer != nullptr)
 		mixer_free(mixer);
@@ -36,7 +34,14 @@ AudioOutput::~AudioOutput()
 }
 
 void
-audio_output_free(AudioOutput *ao) noexcept
+FilteredAudioOutput::BeginDestroy() noexcept
 {
-	ao_plugin_finish(ao);
+	if (mixer != nullptr)
+		mixer_auto_close(mixer);
+}
+
+void
+FilteredAudioOutput::FinishDestroy() noexcept
+{
+	output.reset();
 }

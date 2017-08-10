@@ -19,8 +19,7 @@
 
 #include "config.h"
 #include "Control.hxx"
-#include "Internal.hxx"
-#include "OutputPlugin.hxx"
+#include "Filtered.hxx"
 #include "Domain.hxx"
 #include "mixer/MixerControl.hxx"
 #include "notify.hxx"
@@ -38,11 +37,10 @@ static constexpr PeriodClock::Duration REOPEN_AFTER = std::chrono::seconds(10);
 
 struct notify audio_output_client_notify;
 
-AudioOutputControl::AudioOutputControl(AudioOutput *_output,
+AudioOutputControl::AudioOutputControl(FilteredAudioOutput *_output,
 				       AudioOutputClient &_client)
 	:output(_output), client(_client),
-	 thread(BIND_THIS_METHOD(Task)),
-	 mutex(output->mutex)
+	 thread(BIND_THIS_METHOD(Task))
 {
 }
 
@@ -58,6 +56,12 @@ const char *
 AudioOutputControl::GetName() const noexcept
 {
 	return output->GetName();
+}
+
+const char *
+AudioOutputControl::GetLogName() const noexcept
+{
+	return output->GetLogName();
 }
 
 Mixer *
@@ -122,7 +126,7 @@ void
 AudioOutputControl::EnableAsync()
 {
 	if (!thread.IsDefined()) {
-		if (output->plugin.enable == nullptr) {
+		if (!output->SupportsEnableDisable()) {
 			/* don't bother to start the thread now if the
 			   device doesn't even have a enable() method;
 			   just assign the variable and we're done */
@@ -140,7 +144,7 @@ void
 AudioOutputControl::DisableAsync() noexcept
 {
 	if (!thread.IsDefined()) {
-		if (output->plugin.disable == nullptr)
+		if (!output->SupportsEnableDisable())
 			really_enabled = false;
 		else
 			/* if there's no thread yet, the device cannot
@@ -270,7 +274,7 @@ AudioOutputControl::LockPlay() noexcept
 void
 AudioOutputControl::LockPauseAsync() noexcept
 {
-	if (output->mixer != nullptr && output->plugin.pause == nullptr)
+	if (output->mixer != nullptr && !output->SupportsPause())
 		/* the device has no pause mode: close the mixer,
 		   unless its "global" flag is set (checked by
 		   mixer_auto_close()) */
@@ -343,13 +347,6 @@ AudioOutputControl::StopThread() noexcept
 }
 
 void
-AudioOutput::BeginDestroy() noexcept
-{
-	if (mixer != nullptr)
-		mixer_auto_close(mixer);
-}
-
-void
 AudioOutputControl::BeginDestroy() noexcept
 {
 	output->BeginDestroy();
@@ -358,12 +355,6 @@ AudioOutputControl::BeginDestroy() noexcept
 		const std::lock_guard<Mutex> protect(mutex);
 		CommandAsync(Command::KILL);
 	}
-}
-
-void
-AudioOutput::FinishDestroy() noexcept
-{
-	audio_output_free(this);
 }
 
 void

@@ -55,13 +55,6 @@ int
 fd_set_cloexec(int fd, bool enable);
 
 /**
- * Wrapper for open(), which sets the CLOEXEC flag (atomically if
- * supported by the OS).
- */
-int
-open_cloexec(const char *path_fs, int flags, int mode);
-
-/**
  * Wrapper for pipe(), which sets the CLOEXEC flag (atomically if
  * supported by the OS).
  *
@@ -70,32 +63,6 @@ open_cloexec(const char *path_fs, int flags, int mode);
  */
 int
 pipe_cloexec_nonblock(int fd[2]);
-
-#ifdef ENABLE_LIBMPDCLIENT
-/* Avoid symbol conflict with statically linked libmpdclient */
-#define socket_cloexec_nonblock socket_cloexec_nonblock_noconflict
-#endif
-
-/**
- * Wrapper for socket(), which sets the CLOEXEC and the NONBLOCK flag
- * (atomically if supported by the OS).
- */
-int
-socket_cloexec_nonblock(int domain, int type, int protocol);
-
-/**
- * Wrapper for accept(), which sets the CLOEXEC and the NONBLOCK flags
- * (atomically if supported by the OS).
- */
-int
-accept_cloexec_nonblock(int fd, struct sockaddr *address,
-			size_t *address_length_r);
-
-/**
- * Portable wrapper for close(); use closesocket() on WIN32/WinSock.
- */
-int
-close_socket(int fd);
 
 #ifdef __cplusplus
 } /* extern "C" */

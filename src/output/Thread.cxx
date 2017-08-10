@@ -19,30 +19,18 @@
 
 #include "config.h"
 #include "Control.hxx"
-#include "Internal.hxx"
+#include "Filtered.hxx"
 #include "Client.hxx"
-#include "OutputAPI.hxx"
 #include "Domain.hxx"
-#include "pcm/PcmMix.hxx"
 #include "notify.hxx"
-#include "filter/FilterInternal.hxx"
-#include "filter/plugins/ConvertFilterPlugin.hxx"
-#include "filter/plugins/ReplayGainFilterPlugin.hxx"
 #include "mixer/MixerInternal.hxx"
-#include "mixer/plugins/SoftwareMixerPlugin.hxx"
-#include "MusicPipe.hxx"
-#include "MusicChunk.hxx"
 #include "thread/Util.hxx"
 #include "thread/Slack.hxx"
 #include "thread/Name.hxx"
-#include "util/ConstBuffer.hxx"
 #include "util/StringBuffer.hxx"
 #include "util/ScopeExit.hxx"
 #include "util/RuntimeError.hxx"
 #include "Log.hxx"
-#include "Compiler.h"
-
-#include <stdexcept>
 
 #include <assert.h>
 #include <string.h>
@@ -58,58 +46,23 @@ AudioOutputControl::CommandFinished() noexcept
 }
 
 inline void
-AudioOutput::Enable()
-{
-	try {
-		const ScopeUnlock unlock(mutex);
-		ao_plugin_enable(*this);
-	} catch (const std::runtime_error &e) {
-		std::throw_with_nested(FormatRuntimeError("Failed to enable output \"%s\" [%s]",
-							  name, plugin.name));
-	}
-}
-
-inline void
-AudioOutput::Disable() noexcept
-{
-	const ScopeUnlock unlock(mutex);
-	ao_plugin_disable(*this);
-}
-
-void
-AudioOutput::CloseFilter() noexcept
-{
-	if (mixer != nullptr && mixer->IsPlugin(software_mixer_plugin))
-		software_mixer_set_filter(*mixer, nullptr);
-}
-
-inline void
 AudioOutputControl::InternalOpen2(const AudioFormat in_audio_format)
 {
 	assert(in_audio_format.IsValid());
 
-	if (output->mixer != nullptr &&
-	    output->mixer->IsPlugin(software_mixer_plugin))
-		software_mixer_set_filter(*output->mixer,
-					  output->volume_filter.Get());
-
 	const auto cf = in_audio_format.WithMask(output->config_audio_format);
 
-	if (open && cf != output->filter_audio_format) {
+	if (open && cf != output->filter_audio_format)
 		/* if the filter's output format changes, the output
 		   must be reopened as well */
-		output->CloseOutput(true);
-		open = false;
-	}
+		InternalCloseOutput(true);
 
 	output->filter_audio_format = cf;
 
 	if (!open) {
-		try {
+		{
+			const ScopeUnlock unlock(mutex);
 			output->OpenOutputAndConvert(output->filter_audio_format);
-		} catch (...) {
-			output->CloseFilter();
-			throw;
 		}
 
 		open = true;
@@ -118,56 +71,22 @@ AudioOutputControl::InternalOpen2(const AudioFormat in_audio_format)
 		   input AudioFormat */
 
 		try {
-			convert_filter_set(output->convert_filter.Get(),
-					   output->out_audio_format);
+			output->ConfigureConvertFilter();
 		} catch (const std::runtime_error &e) {
 			open = false;
-			output->Close(false);
-			std::throw_with_nested(FormatRuntimeError("Failed to convert for \"%s\" [%s]",
-								  GetName(), output->plugin.name));
+
+			{
+				const ScopeUnlock unlock(mutex);
+				output->CloseOutput(false);
+			}
+
+			throw;
 		}
 	}
-}
 
-void
-AudioOutput::OpenOutputAndConvert(AudioFormat desired_audio_format)
-{
-	out_audio_format = desired_audio_format;
-
-	try {
-		ao_plugin_open(*this, out_audio_format);
-	} catch (const std::runtime_error &e) {
-		std::throw_with_nested(FormatRuntimeError("Failed to open \"%s\" [%s]",
-							  name, plugin.name));
-	}
-
-	FormatDebug(output_domain,
-		    "opened plugin=%s name=\"%s\" audio_format=%s",
-		    plugin.name, name,
-		    ToString(out_audio_format).c_str());
-
-	try {
-		convert_filter_set(convert_filter.Get(), out_audio_format);
-	} catch (const std::runtime_error &e) {
-		ao_plugin_close(*this);
-
-		if (out_audio_format.format == SampleFormat::DSD) {
-			/* if the audio output supports DSD, but not
-			   the given sample rate, it asks MPD to
-			   resample; resampling DSD however is not
-			   implemented; our last resort is to give up
-			   DSD and fall back to PCM */
-
-			LogError(e);
-			FormatError(output_domain, "Retrying without DSD");
-
-			desired_audio_format.format = SampleFormat::FLOAT;
-			OpenOutputAndConvert(desired_audio_format);
-			return;
-		}
-
-		std::throw_with_nested(FormatRuntimeError("Failed to convert for \"%s\" [%s]",
-							  name, plugin.name));
+	{
+		const ScopeUnlock unlock(mutex);
+		output->OpenSoftwareMixer();
 	}
 }
 
@@ -181,7 +100,11 @@ AudioOutputControl::InternalEnable() noexcept
 	last_error = nullptr;
 
 	try {
-		output->Enable();
+		{
+			const ScopeUnlock unlock(mutex);
+			output->Enable();
+		}
+
 		really_enabled = true;
 		return true;
 	} catch (const std::runtime_error &e) {
@@ -198,9 +121,11 @@ AudioOutputControl::InternalDisable() noexcept
 	if (!really_enabled)
 		return;
 
-	InternalClose(false);
+	InternalCheckClose(false);
 
 	really_enabled = false;
+
+	const ScopeUnlock unlock(mutex);
 	output->Disable();
 }
 
@@ -225,8 +150,8 @@ AudioOutputControl::InternalOpen(const AudioFormat in_audio_format,
 					output->prepared_other_replay_gain_filter,
 					output->prepared_filter);
 		} catch (const std::runtime_error &e) {
-			std::throw_with_nested(FormatRuntimeError("Failed to open filter for \"%s\" [%s]",
-								  GetName(), output->plugin.name));
+			std::throw_with_nested(FormatRuntimeError("Failed to open filter for %s",
+								  GetLogName()));
 		}
 
 		try {
@@ -249,37 +174,36 @@ AudioOutputControl::InternalOpen(const AudioFormat in_audio_format,
 }
 
 inline void
-AudioOutputControl::InternalClose(bool drain) noexcept
+AudioOutputControl::InternalCloseOutput(bool drain) noexcept
 {
-	if (!IsOpen())
-		return;
+	assert(IsOpen());
 
 	open = false;
-	output->Close(drain);
-	source.Close();
-}
 
-void
-AudioOutput::Close(bool drain) noexcept
-{
 	const ScopeUnlock unlock(mutex);
-
-	CloseOutput(drain);
-	CloseFilter();
-
-	FormatDebug(output_domain, "closed plugin=%s name=\"%s\"",
-		    plugin.name, name);
+	output->CloseOutput(drain);
 }
 
 inline void
-AudioOutput::CloseOutput(bool drain) noexcept
+AudioOutputControl::InternalClose(bool drain) noexcept
 {
-	if (drain)
-		ao_plugin_drain(*this);
-	else
-		ao_plugin_cancel(*this);
+	assert(IsOpen());
 
-	ao_plugin_close(*this);
+	open = false;
+
+	{
+		const ScopeUnlock unlock(mutex);
+		output->Close(drain);
+	}
+
+	source.Close();
+}
+
+inline void
+AudioOutputControl::InternalCheckClose(bool drain) noexcept
+{
+	if (IsOpen())
+		InternalClose(drain);
 }
 
 /**
@@ -292,7 +216,7 @@ inline bool
 AudioOutputControl::WaitForDelay() noexcept
 {
 	while (true) {
-		const auto delay = ao_plugin_delay(*output);
+		const auto delay = output->Delay();
 		if (delay <= std::chrono::steady_clock::duration::zero())
 			return true;
 
@@ -308,8 +232,7 @@ AudioOutputControl::FillSourceOrClose()
 try {
 	return source.Fill(mutex);
 } catch (const std::runtime_error &e) {
-	FormatError(e, "Failed to filter for output \"%s\" [%s]",
-		    GetName(), output->plugin.name);
+	FormatError(e, "Failed to filter for %s", GetLogName());
 
 	InternalClose(false);
 
@@ -327,10 +250,10 @@ AudioOutputControl::PlayChunk() noexcept
 		if (tag != nullptr) {
 			const ScopeUnlock unlock(mutex);
 			try {
-				ao_plugin_send_tag(*output, *tag);
+				output->SendTag(*tag);
 			} catch (const std::runtime_error &e) {
-				FormatError(e, "Failed to send tag to \"%s\" [%s]",
-					    GetName(), output->plugin.name);
+				FormatError(e, "Failed to send tag to %s",
+					    GetLogName());
 			}
 		}
 	}
@@ -349,12 +272,10 @@ AudioOutputControl::PlayChunk() noexcept
 
 		try {
 			const ScopeUnlock unlock(mutex);
-			nbytes = ao_plugin_play(*output, data.data, data.size);
+			nbytes = output->Play(data.data, data.size);
 			assert(nbytes <= data.size);
 		} catch (const std::runtime_error &e) {
-			FormatError(e, "\"%s\" [%s] failed to play",
-				    GetName(), output->plugin.name);
-
+			FormatError(e, "Failed to play on %s", GetLogName());
 			nbytes = 0;
 		}
 
@@ -418,33 +339,13 @@ AudioOutputControl::InternalPlay() noexcept
 }
 
 inline void
-AudioOutput::BeginPause() noexcept
-{
-	const ScopeUnlock unlock(mutex);
-	ao_plugin_cancel(*this);
-}
-
-inline bool
-AudioOutput::IteratePause() noexcept
-{
-	bool success;
-
-	try {
-		const ScopeUnlock unlock(mutex);
-		success = ao_plugin_pause(*this);
-	} catch (const std::runtime_error &e) {
-		FormatError(e, "\"%s\" [%s] failed to pause",
-			    name, plugin.name);
-		success = false;
-	}
-
-	return success;
-}
-
-inline void
 AudioOutputControl::InternalPause() noexcept
 {
-	output->BeginPause();
+	{
+		const ScopeUnlock unlock(mutex);
+		output->BeginPause();
+	}
+
 	pause = true;
 
 	CommandFinished();
@@ -453,16 +354,24 @@ AudioOutputControl::InternalPause() noexcept
 		if (!WaitForDelay())
 			break;
 
-		if (!output->IteratePause()) {
-			open = false;
-			output->Close(false);
-			source.Close();
+		bool success;
+		{
+			const ScopeUnlock unlock(mutex);
+			success = output->IteratePause();
+		}
+
+		if (!success) {
+			InternalClose(false);
 			break;
 		}
 	} while (command == Command::NONE);
 
 	pause = false;
-	output->EndPause();
+
+	{
+		const ScopeUnlock unlock(mutex);
+		output->EndPause();
+	}
 
 	skip_delay = true;
 }
@@ -504,7 +413,7 @@ AudioOutputControl::Task()
 			break;
 
 		case Command::CLOSE:
-			InternalClose(false);
+			InternalCheckClose(false);
 			CommandFinished();
 			break;
 
@@ -528,7 +437,7 @@ AudioOutputControl::Task()
 		case Command::DRAIN:
 			if (open) {
 				const ScopeUnlock unlock(mutex);
-				ao_plugin_drain(*output);
+				output->Drain();
 			}
 
 			CommandFinished();
@@ -539,7 +448,7 @@ AudioOutputControl::Task()
 
 			if (open) {
 				const ScopeUnlock unlock(mutex);
-				ao_plugin_cancel(*output);
+				output->Cancel();
 			}
 
 			CommandFinished();
@@ -559,7 +468,7 @@ AudioOutputControl::Task()
 
 		if (command == Command::NONE) {
 			woken_for_play = false;
-			cond.wait(output->mutex);
+			cond.wait(mutex);
 		}
 	}
 }

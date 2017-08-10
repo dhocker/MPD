@@ -17,19 +17,14 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-#ifndef MPD_VOLUME_FILTER_PLUGIN_HXX
-#define MPD_VOLUME_FILTER_PLUGIN_HXX
+#ifndef MPD_NORMALIZE_FILTER_PLUGIN_HXX
+#define MPD_NORMALIZE_FILTER_PLUGIN_HXX
 
 class PreparedFilter;
 class Filter;
+struct AudioFormat;
 
 PreparedFilter *
-volume_filter_prepare() noexcept;
-
-unsigned
-volume_filter_get(const Filter *filter) noexcept;
-
-void
-volume_filter_set(Filter *filter, unsigned volume) noexcept;
+normalize_filter_prepare() noexcept;
 
 #endif

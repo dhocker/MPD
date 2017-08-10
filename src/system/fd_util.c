@@ -78,6 +78,8 @@ fd_set_cloexec(int fd, bool enable)
 #endif
 }
 
+#ifndef WIN32
+
 /**
  * Enables non-blocking mode for the specified file descriptor.  On
  * WIN32, this function only works for sockets.
@@ -101,25 +103,7 @@ fd_set_nonblock(int fd)
 #endif
 }
 
-int
-open_cloexec(const char *path_fs, int flags, int mode)
-{
-	int fd;
-
-#ifdef O_CLOEXEC
-	flags |= O_CLOEXEC;
 #endif
-
-#ifdef O_NOCTTY
-	flags |= O_NOCTTY;
-#endif
-
-	fd = open(path_fs, flags, mode);
-	if (fd >= 0)
-		fd_set_cloexec(fd, true);
-
-	return fd;
-}
 
 int
 pipe_cloexec_nonblock(int fd[2])
@@ -145,63 +129,5 @@ pipe_cloexec_nonblock(int fd[2])
 	}
 
 	return ret;
-#endif
-}
-
-int
-socket_cloexec_nonblock(int domain, int type, int protocol)
-{
-	int fd;
-
-#if defined(SOCK_CLOEXEC) && defined(SOCK_NONBLOCK)
-	fd = socket(domain, type | SOCK_CLOEXEC | SOCK_NONBLOCK, protocol);
-	if (fd >= 0 || errno != EINVAL)
-		return fd;
-#endif
-
-	fd = socket(domain, type, protocol);
-	if (fd >= 0) {
-		fd_set_cloexec(fd, true);
-		fd_set_nonblock(fd);
-	}
-
-	return fd;
-}
-
-int
-accept_cloexec_nonblock(int fd, struct sockaddr *address,
-			size_t *address_length_r)
-{
-	int ret;
-	socklen_t address_length = *address_length_r;
-
-#ifdef HAVE_ACCEPT4
-	ret = accept4(fd, address, &address_length,
-		      SOCK_CLOEXEC|SOCK_NONBLOCK);
-	if (ret >= 0 || errno != ENOSYS) {
-		if (ret >= 0)
-			*address_length_r = address_length;
-
-		return ret;
-	}
-#endif
-
-	ret = accept(fd, address, &address_length);
-	if (ret >= 0) {
-		fd_set_cloexec(ret, true);
-		fd_set_nonblock(ret);
-		*address_length_r = address_length;
-	}
-
-	return ret;
-}
-
-int
-close_socket(int fd)
-{
-#ifdef WIN32
-	return closesocket(fd);
-#else
-	return close(fd);
 #endif
 }

@@ -120,6 +120,7 @@ build_command_map()
 	insert_command("add", PERMISSION_ADD, 1, 1, handle_add);
 	insert_command("addid", PERMISSION_ADD, 1, 2, handle_addid);
 	insert_command("addtagid", PERMISSION_ADD, 3, 3, handle_addtagid);
+	insert_command("albumart", PERMISSION_READ, 2, 2, handle_album_art);
 	insert_command("channels", PERMISSION_READ, 0, 0, handle_channels);
 	insert_command("clear", PERMISSION_CONTROL, 0, 0, handle_clear);
 	insert_command("clearerror", PERMISSION_CONTROL, 0, 0, handle_clearerror);

@@ -22,7 +22,6 @@
 #include "ClientList.hxx"
 #include "Partition.hxx"
 #include "Instance.hxx"
-#include "system/fd_util.h"
 #include "net/UniqueSocketDescriptor.hxx"
 #include "net/SocketAddress.hxx"
 #include "net/ToString.hxx"
@@ -40,7 +39,7 @@
 #include <tcpd.h>
 #endif
 
-static const char GREETING[] = "OK MPD " PROTOCOL_VERSION "\n";
+static constexpr char GREETING[] = "OK MPD " PROTOCOL_VERSION "\n";
 
 Client::Client(EventLoop &_loop, Partition &_partition,
 	       UniqueSocketDescriptor &&_fd, int _uid, int _num)
@@ -50,9 +49,7 @@ Client::Client(EventLoop &_loop, Partition &_partition,
 	 partition(&_partition),
 	 permission(getDefaultPermissions()),
 	 uid(_uid),
-	 num(_num),
-	 idle_waiting(false), idle_flags(0),
-	 num_subscriptions(0)
+	 num(_num)
 {
 	TimeoutMonitor::Schedule(client_timeout);
 }

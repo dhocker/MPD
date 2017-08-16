@@ -90,26 +90,17 @@ struct JackOutput final : AudioOutput {
 	/**
 	 * Disconnect the JACK client.
 	 */
-	void Disconnect();
+	void Disconnect() noexcept;
 
-	void Shutdown() {
+	void Shutdown() noexcept {
 		shutdown = true;
-	}
-
-	void Enable() override;
-	void Disable() noexcept override;
-
-	void Open(AudioFormat &new_audio_format) override;
-
-	void Close() noexcept override {
-		Stop();
 	}
 
 	/**
 	 * Throws #std::runtime_error on error.
 	 */
 	void Start();
-	void Stop();
+	void Stop() noexcept;
 
 	/**
 	 * Determine the number of frames guaranteed to be available
@@ -124,6 +115,17 @@ struct JackOutput final : AudioOutput {
 	 * @return the number of frames that were written
 	 */
 	size_t WriteSamples(const float *src, size_t n_frames);
+
+	/* virtual methods from class AudioOutput */
+
+	void Enable() override;
+	void Disable() noexcept override;
+
+	void Open(AudioFormat &new_audio_format) override;
+
+	void Close() noexcept override {
+		Stop();
+	}
 
 	std::chrono::steady_clock::duration Delay() const noexcept override {
 		return pause && !shutdown
@@ -375,7 +377,7 @@ mpd_jack_info(const char *msg)
 #endif
 
 void
-JackOutput::Disconnect()
+JackOutput::Disconnect() noexcept
 {
 	assert(client != nullptr);
 
@@ -456,7 +458,7 @@ mpd_jack_init(EventLoop &, const ConfigBlock &block)
  * Stops the playback on the JACK connection.
  */
 void
-JackOutput::Stop()
+JackOutput::Stop() noexcept
 {
 	if (client == nullptr)
 		return;

@@ -482,6 +482,7 @@ libnet_a_SOURCES = \
 	src/net/Resolver.cxx src/net/Resolver.hxx \
 	src/net/StaticSocketAddress.cxx src/net/StaticSocketAddress.hxx \
 	src/net/AllocatedSocketAddress.cxx src/net/AllocatedSocketAddress.hxx \
+	src/net/IPv4Address.cxx src/net/IPv4Address.hxx \
 	src/net/SocketAddress.cxx src/net/SocketAddress.hxx \
 	src/net/SocketUtil.cxx src/net/SocketUtil.hxx \
 	src/net/SocketDescriptor.cxx src/net/SocketDescriptor.hxx \
@@ -496,7 +497,6 @@ libsystem_a_SOURCES = \
 	src/system/FatalError.cxx src/system/FatalError.hxx \
 	src/system/FileDescriptor.cxx src/system/FileDescriptor.hxx \
 	src/system/UniqueFileDescriptor.hxx \
-	src/system/fd_util.c src/system/fd_util.h \
 	src/system/EventPipe.cxx src/system/EventPipe.hxx \
 	src/system/EventFD.cxx src/system/EventFD.hxx \
 	src/system/SignalFD.cxx src/system/SignalFD.hxx \

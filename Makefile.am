@@ -236,6 +236,7 @@ endif
 
 CURL_SOURCES = \
 	src/lib/curl/Version.cxx src/lib/curl/Version.hxx \
+	src/lib/curl/Init.cxx src/lib/curl/Init.hxx \
 	src/lib/curl/Global.cxx src/lib/curl/Global.hxx \
 	src/lib/curl/Request.cxx src/lib/curl/Request.hxx \
 	src/lib/curl/Handler.hxx \
@@ -1506,6 +1507,8 @@ liboutput_plugins_a_SOURCES += \
 	src/output/plugins/OSXOutputPlugin.cxx \
 	src/output/plugins/OSXOutputPlugin.hxx
 endif
+libmixer_plugins_a_SOURCES += \
+	src/mixer/plugins/OSXMixerPlugin.cxx
 
 if ENABLE_PULSE
 liboutput_plugins_a_SOURCES += \
@@ -1765,6 +1768,7 @@ test_DumpDatabase_LDADD = \
 	$(TAG_LIBS) \
 	libconf.a \
 	libevent.a \
+	libthread.a \
 	$(FS_LIBS) \
 	libsystem.a \
 	$(ICU_LDADD) \

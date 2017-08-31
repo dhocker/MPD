@@ -254,7 +254,6 @@ UPNP_SOURCES = \
 	src/lib/upnp/Callback.hxx \
 	src/lib/upnp/Util.cxx src/lib/upnp/Util.hxx \
 	src/lib/upnp/UniqueIxml.hxx \
-	src/lib/upnp/WorkQueue.hxx \
 	src/lib/upnp/Action.hxx
 
 ALSA_SOURCES = \
@@ -515,7 +514,7 @@ libevent_a_SOURCES = \
 	src/event/PollGroupWinSelect.hxx src/event/PollGroupWinSelect.cxx \
 	src/event/PollResultGeneric.hxx \
 	src/event/SignalMonitor.hxx src/event/SignalMonitor.cxx \
-	src/event/TimeoutMonitor.hxx src/event/TimeoutMonitor.cxx \
+	src/event/TimerEvent.hxx src/event/TimerEvent.cxx \
 	src/event/IdleMonitor.hxx src/event/IdleMonitor.cxx \
 	src/event/DeferredMonitor.hxx src/event/DeferredMonitor.cxx \
 	src/event/DeferredCall.hxx \
@@ -1784,9 +1783,14 @@ test_DumpDatabase_SOURCES = test/DumpDatabase.cxx \
 	src/DetachedSong.cxx \
 	src/TagSave.cxx \
 	src/SongFilter.cxx
+test_DumpDatabase_CPPFLAGS = $(AM_CPPFLAGS)
 
 if ENABLE_UPNP
-test_DumpDatabase_SOURCES += src/lib/expat/ExpatParser.cxx
+test_DumpDatabase_SOURCES += \
+	$(CURL_SOURCES) \
+	src/lib/expat/ExpatParser.cxx
+test_DumpDatabase_CPPFLAGS += $(CURL_CFLAGS)
+test_DumpDatabase_LDADD += $(CURL_LIBS)
 endif
 
 test_run_storage_LDADD = \

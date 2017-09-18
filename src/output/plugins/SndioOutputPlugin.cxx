@@ -19,7 +19,7 @@
 
 #include "config.h"
 #include "SndioOutputPlugin.hxx"
-#include "../OutputAPI.hxx"
+#include "mixer/MixerList.hxx"
 #include "util/Domain.hxx"
 #include "Log.hxx"
 
@@ -44,31 +44,23 @@ static constexpr unsigned MPD_SNDIO_BUFFER_TIME_MS = 250;
 
 static constexpr Domain sndio_output_domain("sndio_output");
 
-class SndioOutput final : AudioOutput {
-	const char *const device;
-	const unsigned buffer_time; /* in ms */
-	struct sio_hdl *sio_hdl;
-
-public:
-	SndioOutput(const ConfigBlock &block);
-
-	static AudioOutput *Create(EventLoop &,
-				   const ConfigBlock &block) {
-		return new SndioOutput(block);
-	}
-
-private:
-	void Open(AudioFormat &audio_format) override;
-	void Close() noexcept override;
-	size_t Play(const void *chunk, size_t size) override;
-};
-
 SndioOutput::SndioOutput(const ConfigBlock &block)
 	:AudioOutput(0),
 	 device(block.GetBlockValue("device", SIO_DEVANY)),
 	 buffer_time(block.GetBlockValue("buffer_time",
-					 MPD_SNDIO_BUFFER_TIME_MS))
+					 MPD_SNDIO_BUFFER_TIME_MS)),
+	 raw_volume(SIO_MAXVOL)
 {
+}
+
+static void
+VolumeCallback(void *arg, unsigned int volume) {
+	((SndioOutput *)arg)->VolumeChanged(volume);
+}
+
+AudioOutput *
+SndioOutput::Create(EventLoop &, const ConfigBlock &block) {
+	return new SndioOutput(block);
 }
 
 static bool
@@ -140,6 +132,15 @@ SndioOutput::Open(AudioFormat &audio_format)
 		throw std::runtime_error("Requested audio params cannot be satisfied");
 	}
 
+	// Set volume after opening fresh audio stream which does
+	// know nothing about previous audio streams.
+	sio_setvol(sio_hdl, raw_volume);
+	// sio_onvol returns 0 if no volume knob is available.
+	// This is the case on raw audio devices rather than
+	// the sndiod audio server.
+	if (sio_onvol(sio_hdl, VolumeCallback, this) == 0)
+		raw_volume = -1;
+
 	if (!sio_start(sio_hdl)) {
 		sio_close(sio_hdl);
 		throw std::runtime_error("Failed to start audio device");
@@ -163,9 +164,39 @@ SndioOutput::Play(const void *chunk, size_t size)
 	return n;
 }
 
+void
+SndioOutput::SetVolume(unsigned int volume) {
+	sio_setvol(sio_hdl, volume * SIO_MAXVOL / 100);
+}
+
+static inline unsigned int
+RawToPercent(int raw_volume) {
+	return raw_volume < 0 ? 100 : raw_volume * 100 / SIO_MAXVOL;
+}
+
+void
+SndioOutput::VolumeChanged(int _raw_volume) {
+	if (raw_volume >= 0 && listener != nullptr && mixer != nullptr) {
+		raw_volume = _raw_volume;
+		listener->OnMixerVolumeChanged(*mixer,
+		    RawToPercent(raw_volume));
+	}
+}
+
+unsigned int
+SndioOutput::GetVolume() {
+	return RawToPercent(raw_volume);
+}
+
+void
+SndioOutput::RegisterMixerListener(Mixer *_mixer, MixerListener *_listener) {
+	mixer = _mixer;
+	listener = _listener;
+}
+
 const struct AudioOutputPlugin sndio_output_plugin = {
 	"sndio",
 	sndio_test_default_device,
-	&SndioOutput::Create,
-	nullptr,
+	SndioOutput::Create,
+	&sndio_mixer_plugin,
 };

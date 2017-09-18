@@ -419,11 +419,14 @@ libutil_a_SOURCES = \
 	src/util/ASCII.hxx \
 	src/util/UTF8.cxx src/util/UTF8.hxx \
 	src/util/CharUtil.hxx \
+	src/util/WCharUtil.hxx \
 	src/util/NumberParser.hxx \
 	src/util/MimeType.cxx src/util/MimeType.hxx \
 	src/util/StringBuffer.hxx \
 	src/util/StringPointer.hxx \
 	src/util/StringView.cxx src/util/StringView.hxx \
+	src/util/WStringView.hxx \
+	src/util/TStringView.hxx \
 	src/util/ConcatString.hxx \
 	src/util/AllocatedString.cxx src/util/AllocatedString.hxx \
 	src/util/TruncateString.cxx src/util/TruncateString.hxx \
@@ -1466,6 +1469,7 @@ if ENABLE_SNDIO
 liboutput_plugins_a_SOURCES += \
 	src/output/plugins/SndioOutputPlugin.cxx \
 	src/output/plugins/SndioOutputPlugin.hxx
+libmixer_plugins_a_SOURCES += src/mixer/plugins/SndioMixerPlugin.cxx
 endif
 
 if ENABLE_HAIKU

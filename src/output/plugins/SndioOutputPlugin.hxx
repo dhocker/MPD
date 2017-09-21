@@ -17,11 +17,13 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-#include "../OutputAPI.hxx"
-#include "mixer/Listener.hxx"
-
 #ifndef MPD_SNDIO_OUTPUT_PLUGIN_HXX
 #define MPD_SNDIO_OUTPUT_PLUGIN_HXX
+
+#include "../OutputAPI.hxx"
+
+class Mixer;
+class MixerListener;
 
 extern const struct AudioOutputPlugin sndio_output_plugin;
 
@@ -30,7 +32,7 @@ class SndioOutput final : AudioOutput {
 	MixerListener *listener = nullptr;
 	const char *const device;
 	const unsigned buffer_time; /* in ms */
-	struct sio_hdl *sio_hdl;
+	struct sio_hdl *hdl;
 	int raw_volume;
 
 public:

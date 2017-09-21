@@ -42,6 +42,8 @@
  * Allocate a huge amount of memory.  This will be done in a way that
  * allows giving the memory back to the kernel as soon as we don't
  * need it anymore.  On the downside, this call is expensive.
+ *
+ * Throws std::bad_alloc on error
  */
 gcc_malloc
 void *
@@ -121,13 +123,11 @@ class HugeAllocation {
 public:
 	HugeAllocation() = default;
 
-	HugeAllocation(size_t _size)
+	explicit HugeAllocation(size_t _size)
 		:data(HugeAllocate(_size)), size(_size) {}
 
 	HugeAllocation(HugeAllocation &&src) noexcept
-		:data(src.data), size(src.size) {
-		src.data = nullptr;
-	}
+		:data(std::exchange(src.data, nullptr)), size(src.size) {}
 
 	~HugeAllocation() {
 		if (data != nullptr)

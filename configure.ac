@@ -241,6 +241,7 @@ AC_CHECK_FUNCS(getpwnam_r getpwuid_r)
 AC_CHECK_FUNCS(initgroups)
 AC_CHECK_FUNCS(fnmatch)
 AC_CHECK_FUNCS(strndup)
+AC_CHECK_FUNCS(strcasestr)
 
 if test x$host_is_linux = xyes; then
 	MPD_OPTIONAL_FUNC(eventfd, eventfd, USE_EVENTFD)
@@ -1131,10 +1132,26 @@ MPD_DEFINE_CONDITIONAL(enable_fifo, HAVE_FIFO,
 	[support for writing audio to a FIFO])
 
 dnl ----------------------------------- SNDIO ----------------------------------
-MPD_ENABLE_AUTO_HEADER([sndio], [SNDIO], [sndio.h],
-	[-lsndio], [],
-	[sndio output plugin],
-	[libsndio not found])
+MPD_ARG_ENABLE([sndio], [SNDIO], [sndio output plugin], [], [
+	AC_SUBST([SNDIO_LIBS], [])
+	AC_SUBST([SNDIO_CFLAGS], [])
+
+	found_sndio=no
+	MPD_AUTO([sndio], [SNDIO], [sndio output plugin],
+		[AC_CHECK_HEADER([sndio.h],
+			[AC_PREPROC_IFELSE(
+				[AC_LANG_PROGRAM([
+					#include <sndio.h>
+					#ifdef ROAR_VERSION
+					#error libroarsndio not supported
+					#endif
+				])],
+				[found_sndio=yes SNDIO_LIBS='-lsndio' SNDIO_CFLAGS=''],
+				[AC_MSG_WARN([Found libroarsndio, which is known to be broken; ignoring it.])],
+			)]
+		)]
+	)
+])
 
 dnl ----------------------------------- Haiku ---------------------------------
 MPD_ENABLE_AUTO_HEADER([haiku], [HAIKU], [media/MediaDefs.h],

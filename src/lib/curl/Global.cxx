@@ -65,7 +65,7 @@ public:
 				  curl_socket_t s, int action,
 				  void *userp, void *socketp) noexcept;
 
-	virtual bool OnSocketReady(unsigned flags) override;
+	bool OnSocketReady(unsigned flags) noexcept override;
 
 private:
 	static constexpr int FlagsToCurlCSelect(unsigned flags) {
@@ -96,7 +96,7 @@ private:
 };
 
 CurlGlobal::CurlGlobal(EventLoop &_loop)
-	:DeferredMonitor(_loop),
+	:defer_read_info(_loop, BIND_THIS_METHOD(ReadInfo)),
 	 timeout_event(_loop, BIND_THIS_METHOD(OnTimeout))
 {
 	multi.SetOption(CURLMOPT_SOCKETFUNCTION, CurlSocket::SocketFunction);
@@ -145,11 +145,11 @@ CurlSocket::SocketFunction(gcc_unused CURL *easy,
 }
 
 bool
-CurlSocket::OnSocketReady(unsigned flags)
+CurlSocket::OnSocketReady(unsigned flags) noexcept
 {
 	assert(GetEventLoop().IsInside());
 
-	global.SocketAction(Get().Get(), FlagsToCurlCSelect(flags));
+	global.SocketAction(GetSocket().Get(), FlagsToCurlCSelect(flags));
 	return true;
 }
 
@@ -264,11 +264,5 @@ CurlGlobal::SocketAction(curl_socket_t fd, int ev_bitmask)
 			    "curl_multi_socket_action() failed: %s",
 			    curl_multi_strerror(mcode));
 
-	DeferredMonitor::Schedule();
-}
-
-void
-CurlGlobal::RunDeferred()
-{
-	ReadInfo();
+	defer_read_info.Schedule();
 }

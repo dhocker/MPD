@@ -31,14 +31,6 @@
 
 #include <assert.h>
 
-#ifdef WIN32
-/* ERROR is a WIN32 macro that poisons our namespace; this is a kludge
-   to allow us to use it anyway */
-#ifdef ERROR
-#undef ERROR
-#endif
-#endif
-
 #ifndef WIN32
 struct pollfd;
 #endif
@@ -66,8 +58,8 @@ class MultiSocketMonitor : IdleMonitor
 			Schedule(events);
 		}
 
-		SocketDescriptor GetFD() const {
-			return SocketMonitor::Get();
+		SocketDescriptor GetSocket() const {
+			return SocketMonitor::GetSocket();
 		}
 
 		unsigned GetEvents() const {
@@ -88,7 +80,7 @@ class MultiSocketMonitor : IdleMonitor
 		}
 
 	protected:
-		virtual bool OnSocketReady(unsigned flags) override {
+		bool OnSocketReady(unsigned flags) noexcept override {
 			revents = flags;
 			multi.SetReady();
 			return true;
@@ -182,7 +174,7 @@ public:
 		     i != end; i = std::next(prev)) {
 			assert(i->GetEvents() != 0);
 
-			unsigned events = e(i->GetFD());
+			unsigned events = e(i->GetSocket());
 			if (events != 0) {
 				i->SetEvents(events);
 				prev = i;

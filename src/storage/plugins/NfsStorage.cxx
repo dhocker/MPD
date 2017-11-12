@@ -33,7 +33,7 @@
 #include "thread/Cond.hxx"
 #include "event/Loop.hxx"
 #include "event/Call.hxx"
-#include "event/DeferredMonitor.hxx"
+#include "event/DeferEvent.hxx"
 #include "event/TimerEvent.hxx"
 #include "util/StringCompare.hxx"
 
@@ -49,7 +49,7 @@ extern "C" {
 #include <fcntl.h>
 
 class NfsStorage final
-	: public Storage, NfsLease, DeferredMonitor {
+	: public Storage, NfsLease {
 
 	enum class State {
 		INITIAL, CONNECTING, READY, DELAY,
@@ -61,22 +61,22 @@ class NfsStorage final
 
 	NfsConnection *connection;
 
+	DeferEvent defer_connect;
 	TimerEvent reconnect_timer;
 
 	Mutex mutex;
 	Cond cond;
-	State state;
+	State state = State::INITIAL;
 	std::exception_ptr last_exception;
 
 public:
 	NfsStorage(EventLoop &_loop, const char *_base,
 		   std::string &&_server, std::string &&_export_name)
-		:DeferredMonitor(_loop),
-		 base(_base),
+		:base(_base),
 		 server(std::move(_server)),
 		 export_name(std::move(_export_name)),
-		 reconnect_timer(_loop, BIND_THIS_METHOD(OnReconnectTimer)),
-		 state(State::INITIAL) {
+		 defer_connect(_loop, BIND_THIS_METHOD(OnDeferredConnect)),
+		 reconnect_timer(_loop, BIND_THIS_METHOD(OnReconnectTimer)) {
 		nfs_init(_loop);
 	}
 
@@ -115,8 +115,8 @@ public:
 		reconnect_timer.Schedule(std::chrono::seconds(5));
 	}
 
-	/* virtual methods from DeferredMonitor */
-	void RunDeferred() final {
+	/* DeferEvent callback */
+	void OnDeferredConnect() noexcept {
 		if (state == State::INITIAL)
 			Connect();
 	}
@@ -130,7 +130,7 @@ public:
 
 private:
 	EventLoop &GetEventLoop() {
-		return DeferredMonitor::GetEventLoop();
+		return defer_connect.GetEventLoop();
 	}
 
 	void SetState(State _state) {
@@ -174,7 +174,7 @@ private:
 			case State::INITIAL:
 				/* schedule connect */
 				mutex.unlock();
-				DeferredMonitor::Schedule();
+				defer_connect.Schedule();
 				mutex.lock();
 				if (state == State::INITIAL)
 					cond.wait(mutex);
@@ -196,7 +196,7 @@ private:
 
 		switch (state) {
 		case State::INITIAL:
-			DeferredMonitor::Cancel();
+			defer_connect.Cancel();
 			break;
 
 		case State::CONNECTING:

@@ -17,34 +17,29 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-#ifndef MPD_EVENT_DEFERRED_CALL_HXX
-#define MPD_EVENT_DEFERRED_CALL_HXX
+#ifndef MPD_ALSA_ALLOWED_FORMAT_HXX
+#define MPD_ALSA_ALLOWED_FORMAT_HXX
 
 #include "check.h"
-#include "DeferredMonitor.hxx"
-#include "util/BindMethod.hxx"
+#include "AudioFormat.hxx"
 
-/**
- * Invoke a method call in the #EventLoop.
- *
- * This class is thread-safe.
- */
-class DeferredCall final : DeferredMonitor {
-	typedef BoundMethod<void()> Callback;
-	const Callback callback;
+#include <forward_list>
 
-public:
-	DeferredCall(EventLoop &_loop, Callback _callback)
-		:DeferredMonitor(_loop), callback(_callback) {}
+struct StringView;
 
-	using DeferredMonitor::GetEventLoop;
-	using DeferredMonitor::Schedule;
-	using DeferredMonitor::Cancel;
+namespace Alsa {
 
-protected:
-	void RunDeferred() override {
-		callback();
-	}
+struct AllowedFormat {
+	AudioFormat format;
+#ifdef ENABLE_DSD
+	bool dop;
+#endif
+
+	explicit AllowedFormat(StringView s);
+
+	static std::forward_list<AllowedFormat> ParseList(StringView s);
 };
+
+} // namespace Alsa
 
 #endif

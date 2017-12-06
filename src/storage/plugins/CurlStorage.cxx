@@ -140,11 +140,15 @@ private:
 	void OnDeferredStart() noexcept {
 		assert(!done);
 
-		request.Start();
+		try {
+			request.Start();
+		} catch (...) {
+			OnError(std::current_exception());
+		}
 	}
 
 	/* virtual methods from CurlResponseHandler */
-	void OnError(std::exception_ptr e) final {
+	void OnError(std::exception_ptr e) noexcept final {
 		const std::lock_guard<Mutex> lock(mutex);
 		postponed_error = std::move(e);
 		SetDone();

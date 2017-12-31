@@ -53,12 +53,12 @@ public:
 	}
 
 	/* virtual methods from class StorageDirectoryReader */
-	const char *Read() override;
+	const char *Read() noexcept override;
 	StorageFileInfo GetInfo(bool follow) override;
 };
 
 const char *
-CompositeDirectoryReader::Read()
+CompositeDirectoryReader::Read() noexcept
 {
 	if (other != nullptr) {
 		const char *name = other->Read();
@@ -299,7 +299,7 @@ CompositeStorage::OpenDirectory(const char *uri)
 
 	try {
 		other = f.directory->storage->OpenDirectory(f.uri);
-	} catch (const std::runtime_error &) {
+	} catch (...) {
 	}
 
 	return new CompositeDirectoryReader(other, directory->children);

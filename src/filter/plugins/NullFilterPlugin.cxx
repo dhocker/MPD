@@ -43,15 +43,15 @@ public:
 
 class PreparedNullFilter final : public PreparedFilter {
 public:
-	virtual Filter *Open(AudioFormat &af) override {
-		return new NullFilter(af);
+	virtual std::unique_ptr<Filter> Open(AudioFormat &af) override {
+		return std::make_unique<NullFilter>(af);
 	}
 };
 
-static PreparedFilter *
+static std::unique_ptr<PreparedFilter>
 null_filter_init(gcc_unused const ConfigBlock &block)
 {
-	return new PreparedNullFilter();
+	return std::make_unique<PreparedNullFilter>();
 }
 
 const FilterPlugin null_filter_plugin = {

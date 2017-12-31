@@ -25,6 +25,7 @@
 
 #include <memory>
 #include <string>
+#include <map>
 #include <chrono>
 
 class PreparedFilter;
@@ -92,7 +93,7 @@ public:
 	 * The filter object of this audio output.  This is an
 	 * instance of chain_filter_plugin.
 	 */
-	PreparedFilter *prepared_filter = nullptr;
+	std::unique_ptr<PreparedFilter> prepared_filter;
 
 	/**
 	 * The #VolumeFilter instance of this audio output.  It is
@@ -104,14 +105,14 @@ public:
 	 * The replay_gain_filter_plugin instance of this audio
 	 * output.
 	 */
-	PreparedFilter *prepared_replay_gain_filter = nullptr;
+	std::unique_ptr<PreparedFilter> prepared_replay_gain_filter;
 
 	/**
 	 * The replay_gain_filter_plugin instance of this audio
 	 * output, to be applied to the second chunk during
 	 * cross-fading.
 	 */
-	PreparedFilter *prepared_other_replay_gain_filter = nullptr;
+	std::unique_ptr<PreparedFilter> prepared_other_replay_gain_filter;
 
 	/**
 	 * The convert_filter_plugin instance of this audio output.
@@ -147,6 +148,10 @@ public:
 		return name;
 	}
 
+	const char *GetPluginName() const noexcept {
+		return plugin_name;
+	}
+
 	const char *GetLogName() const noexcept {
 		return log_name.c_str();
 	}
@@ -162,6 +167,9 @@ public:
 	 */
 	gcc_pure
 	bool SupportsPause() const noexcept;
+
+	const std::map<std::string, std::string> GetAttributes() const noexcept;
+	void SetAttribute(std::string &&name, std::string &&value);
 
 	/**
 	 * Throws #std::runtime_error on error.

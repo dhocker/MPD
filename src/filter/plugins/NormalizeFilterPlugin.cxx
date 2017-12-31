@@ -50,21 +50,21 @@ public:
 class PreparedNormalizeFilter final : public PreparedFilter {
 public:
 	/* virtual methods from class PreparedFilter */
-	Filter *Open(AudioFormat &af) override;
+	std::unique_ptr<Filter> Open(AudioFormat &af) override;
 };
 
-static PreparedFilter *
+static std::unique_ptr<PreparedFilter>
 normalize_filter_init(gcc_unused const ConfigBlock &block)
 {
-	return new PreparedNormalizeFilter();
+	return std::make_unique<PreparedNormalizeFilter>();
 }
 
-Filter *
+std::unique_ptr<Filter>
 PreparedNormalizeFilter::Open(AudioFormat &audio_format)
 {
 	audio_format.format = SampleFormat::S16;
 
-	return new NormalizeFilter(audio_format);
+	return std::make_unique<NormalizeFilter>(audio_format);
 }
 
 ConstBuffer<void>
@@ -82,8 +82,8 @@ const FilterPlugin normalize_filter_plugin = {
 	normalize_filter_init,
 };
 
-PreparedFilter *
+std::unique_ptr<PreparedFilter>
 normalize_filter_prepare() noexcept
 {
-	return new PreparedNormalizeFilter();
+	return std::make_unique<PreparedNormalizeFilter>();
 }

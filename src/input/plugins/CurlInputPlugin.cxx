@@ -27,10 +27,12 @@
 #include "lib/curl/Slist.hxx"
 #include "../AsyncInputStream.hxx"
 #include "../IcyInputStream.hxx"
+#include "IcyMetaDataParser.hxx"
 #include "../InputPlugin.hxx"
 #include "config/ConfigGlobal.hxx"
 #include "config/Block.hxx"
 #include "tag/Builder.hxx"
+#include "tag/Tag.hxx"
 #include "event/Call.hxx"
 #include "event/Loop.hxx"
 #include "thread/Cond.hxx"
@@ -71,14 +73,14 @@ struct CurlInputStream final : public AsyncInputStream, CurlResponseHandler {
 	CurlRequest *request = nullptr;
 
 	/** parser for icy-metadata */
-	IcyInputStream *icy;
+	std::shared_ptr<IcyMetaDataParser> icy;
 
 	CurlInputStream(EventLoop &event_loop, const char *_url,
 			Mutex &_mutex, Cond &_cond)
 		:AsyncInputStream(event_loop, _url, _mutex, _cond,
 				  CURL_MAX_BUFFERED,
 				  CURL_RESUME_AT),
-		 icy(new IcyInputStream(this)) {
+		 icy(new IcyMetaDataParser()) {
 	}
 
 	~CurlInputStream();
@@ -86,7 +88,7 @@ struct CurlInputStream final : public AsyncInputStream, CurlResponseHandler {
 	CurlInputStream(const CurlInputStream &) = delete;
 	CurlInputStream &operator=(const CurlInputStream &) = delete;
 
-	static InputStream *Open(const char *url, Mutex &mutex, Cond &cond);
+	static InputStreamPtr Open(const char *url, Mutex &mutex, Cond &cond);
 
 	/**
 	 * Create and initialize a new #CurlRequest instance.  After
@@ -198,7 +200,7 @@ CurlInputStream::OnHeaders(unsigned status,
 		return;
 	}
 
-	if (!icy->IsEnabled() &&
+	if (!icy->IsDefined() &&
 	    headers.find("accept-ranges") != headers.end())
 		/* a stream with icy-metadata is not seekable */
 		seekable = true;
@@ -225,18 +227,18 @@ CurlInputStream::OnHeaders(unsigned status,
 		SetTag(tag_builder.CommitNew());
 	}
 
-	if (!icy->IsEnabled()) {
+	if (!icy->IsDefined()) {
 		i = headers.find("icy-metaint");
 
 		if (i != headers.end()) {
 			size_t icy_metaint = ParseUint64(i->second.c_str());
-#ifndef WIN32
+#ifndef _WIN32
 			/* Windows doesn't know "%z" */
 			FormatDebug(curl_domain, "icy-metaint=%zu", icy_metaint);
 #endif
 
 			if (icy_metaint > 0) {
-				icy->Enable(icy_metaint);
+				icy->Start(icy_metaint);
 
 				/* a stream with icy-metadata is not
 				   seekable */
@@ -269,6 +271,7 @@ CurlInputStream::OnData(ConstBuffer<void> data)
 void
 CurlInputStream::OnEnd()
 {
+	const std::lock_guard<Mutex> protect(mutex);
 	cond.broadcast();
 
 	AsyncInputStream::SetClosed();
@@ -277,6 +280,7 @@ CurlInputStream::OnEnd()
 void
 CurlInputStream::OnError(std::exception_ptr e) noexcept
 {
+	const std::lock_guard<Mutex> protect(mutex);
 	postponed_exception = std::move(e);
 
 	if (IsSeekPending())
@@ -407,7 +411,7 @@ CurlInputStream::SeekInternal(offset_type new_offset)
 
 	if (offset > 0) {
 		char range[32];
-#ifdef WIN32
+#ifdef _WIN32
 		// TODO: what can we use on Windows to format 64 bit?
 		sprintf(range, "%lu-", (long)offset);
 #else
@@ -431,26 +435,22 @@ CurlInputStream::DoSeek(offset_type new_offset)
 		});
 }
 
-inline InputStream *
+inline InputStreamPtr
 CurlInputStream::Open(const char *url, Mutex &mutex, Cond &cond)
 {
-	CurlInputStream *c = new CurlInputStream((*curl_init)->GetEventLoop(),
-						 url, mutex, cond);
+	auto c = std::make_unique<CurlInputStream>((*curl_init)->GetEventLoop(),
+						   url, mutex, cond);
 
-	try {
-		BlockingCall(c->GetEventLoop(), [c](){
-				c->InitEasy();
-				c->StartRequest();
-			});
-	} catch (...) {
-		delete c;
-		throw;
-	}
+	BlockingCall(c->GetEventLoop(), [&c](){
+			c->InitEasy();
+			c->StartRequest();
+		});
 
-	return c->icy;
+	auto icy = c->icy;
+	return std::make_unique<IcyInputStream>(std::move(c), std::move(icy));
 }
 
-static InputStream *
+static InputStreamPtr
 input_curl_open(const char *url, Mutex &mutex, Cond &cond)
 {
 	if (strncmp(url, "http://", 7) != 0 &&

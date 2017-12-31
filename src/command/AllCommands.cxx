@@ -174,6 +174,8 @@ build_command_map()
 	insert_command("next", PERMISSION_CONTROL, 0, 0, handle_next);
 	insert_command("notcommands", PERMISSION_NONE, 0, 0, handle_not_commands);
 	insert_command("outputs", PERMISSION_READ, 0, 0, handle_devices);
+	insert_command("outputset", PERMISSION_ADMIN, 3, 3, handle_outputset);
+	insert_command("partition", PERMISSION_READ, 1, 1, handle_partition);
 	insert_command("password", PERMISSION_NONE, 1, 1, handle_password);
 	insert_command("pause", PERMISSION_CONTROL, 0, 1, handle_pause);
 	insert_command("ping", PERMISSION_NONE, 0, 0, handle_ping);

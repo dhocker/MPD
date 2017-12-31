@@ -252,7 +252,6 @@ AC_SEARCH_LIBS([exp], [m],,
 	[AC_MSG_ERROR([exp() not found])])
 
 AC_CHECK_HEADERS(locale.h)
-AC_CHECK_HEADERS(valgrind/memcheck.h)
 
 AC_CHECK_HEADERS([sys/prctl.h], AC_CHECK_FUNCS([prctl]))
 
@@ -492,7 +491,7 @@ if test x$enable_ipv6 = xyes; then
 	AC_EGREP_CPP([AP_maGiC_VALUE],
 	[
 #include <sys/types.h>
-#ifdef WIN32
+#ifdef _WIN32
 #include <winsock2.h>
 #else
 #include <sys/socket.h>

@@ -21,6 +21,7 @@
 #define MPD_PROXY_INPUT_STREAM_HXX
 
 #include "InputStream.hxx"
+#include "Ptr.hxx"
 
 struct Tag;
 
@@ -31,23 +32,23 @@ struct Tag;
  */
 class ProxyInputStream : public InputStream {
 protected:
-	InputStream &input;
+	InputStreamPtr input;
 
 public:
 	gcc_nonnull_all
-	ProxyInputStream(InputStream *_input);
+	explicit ProxyInputStream(InputStreamPtr _input) noexcept;
 
-	virtual ~ProxyInputStream();
+	virtual ~ProxyInputStream() noexcept;
 
 	ProxyInputStream(const ProxyInputStream &) = delete;
 	ProxyInputStream &operator=(const ProxyInputStream &) = delete;
 
 	/* virtual methods from InputStream */
 	void Check() override;
-	void Update() override;
+	void Update() noexcept override;
 	void Seek(offset_type new_offset) override;
 	bool IsEOF() noexcept override;
-	Tag *ReadTag() override;
+	std::unique_ptr<Tag> ReadTag() override;
 	bool IsAvailable() noexcept override;
 	size_t Read(void *ptr, size_t read_size) override;
 

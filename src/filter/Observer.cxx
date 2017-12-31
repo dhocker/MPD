@@ -27,21 +27,20 @@
 class FilterObserver::PreparedProxy final : public PreparedFilter {
 	FilterObserver &observer;
 
-	PreparedFilter *const prepared_filter;
+	std::unique_ptr<PreparedFilter> prepared_filter;
 	Proxy *child = nullptr;
 
 public:
 	PreparedProxy(FilterObserver &_observer,
-		      PreparedFilter *_prepared_filter)
+		      std::unique_ptr<PreparedFilter> _prepared_filter)
 		:observer(_observer),
-		 prepared_filter(_prepared_filter) {}
+		 prepared_filter(std::move(_prepared_filter)) {}
 
 	~PreparedProxy() {
 		assert(child == nullptr);
 		assert(observer.proxy == this);
 
 		observer.proxy = nullptr;
-		delete prepared_filter;
 	}
 
 	void Clear(gcc_unused Proxy *_child) {
@@ -51,26 +50,25 @@ public:
 
 	Filter *Get();
 
-	Filter *Open(AudioFormat &af) override;
+	std::unique_ptr<Filter> Open(AudioFormat &af) override;
 };
 
 class FilterObserver::Proxy final : public Filter {
 	PreparedProxy &parent;
 
-	Filter *const filter;
+	std::unique_ptr<Filter> filter;
 
 public:
-	Proxy(PreparedProxy &_parent, Filter *_filter)
+	Proxy(PreparedProxy &_parent, std::unique_ptr<Filter> _filter)
 		:Filter(_filter->GetOutAudioFormat()),
-		 parent(_parent), filter(_filter) {}
+		 parent(_parent), filter(std::move(_filter)) {}
 
 	~Proxy() {
 		parent.Clear(this);
-		delete filter;
 	}
 
 	Filter *Get() {
-		return filter;
+		return filter.get();
 	}
 
 	ConstBuffer<void> FilterPCM(ConstBuffer<void> src) override {
@@ -86,21 +84,24 @@ FilterObserver::PreparedProxy::Get()
 		: nullptr;
 }
 
-Filter *
+std::unique_ptr<Filter>
 FilterObserver::PreparedProxy::Open(AudioFormat &af)
 {
 	assert(child == nullptr);
 
-	Filter *f = prepared_filter->Open(af);
-	return child = new Proxy(*this, f);
+	auto c = std::make_unique<Proxy>(*this, prepared_filter->Open(af));
+	child = c.get();
+	return c;
 }
 
-PreparedFilter *
-FilterObserver::Set(PreparedFilter *pf)
+std::unique_ptr<PreparedFilter>
+FilterObserver::Set(std::unique_ptr<PreparedFilter> pf)
 {
 	assert(proxy == nullptr);
 
-	return proxy = new PreparedProxy(*this, pf);
+	auto p = std::make_unique<PreparedProxy>(*this, std::move(pf));
+	proxy = p.get();
+	return p;
 }
 
 Filter *

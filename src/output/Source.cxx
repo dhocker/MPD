@@ -29,11 +29,14 @@
 
 #include <string.h>
 
+AudioOutputSource::AudioOutputSource() noexcept {}
+AudioOutputSource::~AudioOutputSource() noexcept = default;
+
 AudioFormat
 AudioOutputSource::Open(const AudioFormat audio_format, const MusicPipe &_pipe,
 			PreparedFilter *prepared_replay_gain_filter,
 			PreparedFilter *prepared_other_replay_gain_filter,
-			PreparedFilter *prepared_filter)
+			PreparedFilter &prepared_filter)
 {
 	assert(audio_format.IsValid());
 
@@ -90,7 +93,7 @@ void
 AudioOutputSource::OpenFilter(AudioFormat audio_format,
 			      PreparedFilter *prepared_replay_gain_filter,
 			      PreparedFilter *prepared_other_replay_gain_filter,
-			      PreparedFilter *prepared_filter)
+			      PreparedFilter &prepared_filter)
 try {
 	assert(audio_format.IsValid());
 
@@ -107,7 +110,7 @@ try {
 			prepared_other_replay_gain_filter->Open(audio_format);
 	}
 
-	filter_instance = prepared_filter->Open(audio_format);
+	filter_instance = prepared_filter.Open(audio_format);
 } catch (...) {
 	CloseFilter();
 	throw;
@@ -116,14 +119,9 @@ try {
 void
 AudioOutputSource::CloseFilter() noexcept
 {
-	delete replay_gain_filter_instance;
-	replay_gain_filter_instance = nullptr;
-
-	delete other_replay_gain_filter_instance;
-	other_replay_gain_filter_instance = nullptr;
-
-	delete filter_instance;
-	filter_instance = nullptr;
+	replay_gain_filter_instance.reset();
+	other_replay_gain_filter_instance.reset();
+	filter_instance.reset();
 }
 
 ConstBuffer<void>
@@ -160,7 +158,7 @@ AudioOutputSource::GetChunkData(const MusicChunk &chunk,
 ConstBuffer<void>
 AudioOutputSource::FilterChunk(const MusicChunk &chunk)
 {
-	auto data = GetChunkData(chunk, replay_gain_filter_instance,
+	auto data = GetChunkData(chunk, replay_gain_filter_instance.get(),
 				 &replay_gain_serial);
 	if (data.empty())
 		return data;
@@ -169,7 +167,7 @@ AudioOutputSource::FilterChunk(const MusicChunk &chunk)
 
 	if (chunk.other != nullptr) {
 		auto other_data = GetChunkData(*chunk.other,
-					       other_replay_gain_filter_instance,
+					       other_replay_gain_filter_instance.get(),
 					       &other_replay_gain_serial);
 		if (other_data.empty())
 			return data;
@@ -222,7 +220,7 @@ AudioOutputSource::Fill(Mutex &mutex)
 	if (current_chunk == nullptr)
 		return false;
 
-	pending_tag = current_chunk->tag;
+	pending_tag = current_chunk->tag.get();
 
 	try {
 		/* release the mutex while the filter runs, because

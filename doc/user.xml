@@ -87,7 +87,7 @@ cd mpd-version</programlisting>
         <listitem>
           <para>
             a C++14 compiler (e.g. <ulink
-            url="http://gcc.gnu.org/">gcc 4.9</ulink> or <ulink
+            url="http://gcc.gnu.org/">gcc 5.0</ulink> or <ulink
             url="http://clang.llvm.org/">clang 3.9</ulink>)
           </para>
         </listitem>
@@ -3534,6 +3534,52 @@ run</programlisting>
                   there is more than one control with the same name.
                   Defaults to <parameter>0</parameter> (the first
                   one).
+                </entry>
+              </row>
+            </tbody>
+          </tgroup>
+        </informaltable>
+
+        <para>
+          The following attributes can be configured at runtime using
+          the <command>outputset</command> command:
+        </para>
+
+        <informaltable>
+          <tgroup cols="2">
+            <thead>
+              <row>
+                <entry>Setting</entry>
+                <entry>Description</entry>
+              </row>
+            </thead>
+            <tbody>
+              <row>
+                <entry>
+                  <varname>dop</varname>
+                  <parameter>1|0</parameter>
+                </entry>
+                <entry>
+                  <para>
+                    Allows changing the <varname>dop</varname>
+                    configuration setting at runtime.  This takes
+                    effect the next time the output is opened.
+                  </para>
+                </entry>
+              </row>
+
+              <row>
+                <entry>
+                  <varname>allowed_formats</varname>
+                  <parameter>F1 F2 ...</parameter>
+                </entry>
+                <entry>
+                  <para>
+                    Allows changing the
+                    <varname>allowed_formats</varname> configuration
+                    setting at runtime.  This takes effect the next
+                    time the output is opened.
+                  </para>
                 </entry>
               </row>
             </tbody>

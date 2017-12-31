@@ -2,6 +2,8 @@ ver 0.21 (not yet released)
 * protocol
   - "tagtypes" can be used to hide tags
   - "find" and "search" can sort
+  - "outputs" prints the plugin name
+  - "outputset" sets runtime attributes
   - close connection when client sends HTTP request
 * tags
   - new tag "OriginalDate"
@@ -10,17 +12,35 @@ ver 0.21 (not yet released)
   - pcm: support audio/L24 (RFC 3190)
 * output
   - alsa: non-blocking mode
+  - alsa: change "dop" and "allowed_formats" settings at runtime
   - shout: support the Shine encoder plugin
   - sndio: remove support for the broken RoarAudio sndio emulation
 * mixer
   - sndio: new mixer plugin
+* require GCC 5.0
 
-ver 0.20.13 (not yet released)
+ver 0.20.14 (not yet released)
+* database
+  - simple: fix file corruption in the presence of mount points
+* archive
+  - bz2: fix deadlock
+  - reduce lock contention, fixing lots of xrun problems
+* fix Solaris build failure
+
+ver 0.20.13 (2017/12/18)
+* output
+  - osx: set up ring buffer to hold at least 100ms
+* mixer
+  - alsa: fix rounding errors
 * database
   - simple: don't purge mount points on update/rescan
   - simple: fix "mount" bug caused by bad compiler optimization
+  - simple: fix "lsinfo" into mount points
   - upnp: work around libupnp 1.6.24 API breakage
 * queue: fix spuriously misplaced prioritized songs
+* save and restore mountpoints within the state file
+* include Windows cross-build script in source tarball
+* fix Windows build failures
 
 ver 0.20.12 (2017/11/25)
 * database

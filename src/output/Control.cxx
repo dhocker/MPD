@@ -59,6 +59,12 @@ AudioOutputControl::GetName() const noexcept
 }
 
 const char *
+AudioOutputControl::GetPluginName() const noexcept
+{
+	return output->GetPluginName();
+}
+
+const char *
 AudioOutputControl::GetLogName() const noexcept
 {
 	return output->GetLogName();
@@ -68,6 +74,18 @@ Mixer *
 AudioOutputControl::GetMixer() const noexcept
 {
 	return output->mixer;
+}
+
+const std::map<std::string, std::string>
+AudioOutputControl::GetAttributes() const noexcept
+{
+	return output->GetAttributes();
+}
+
+void
+AudioOutputControl::SetAttribute(std::string &&name, std::string &&value)
+{
+	output->SetAttribute(std::move(name), std::move(value));
 }
 
 bool
@@ -205,8 +223,9 @@ AudioOutputControl::Open(const AudioFormat audio_format,
 	if (open2 && output->mixer != nullptr) {
 		try {
 			mixer_open(output->mixer);
-		} catch (const std::runtime_error &e) {
-			FormatError(e, "Failed to open mixer for '%s'",
+		} catch (...) {
+			FormatError(std::current_exception(),
+				    "Failed to open mixer for '%s'",
 				    GetName());
 		}
 	}

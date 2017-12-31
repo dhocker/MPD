@@ -112,7 +112,7 @@ decoder_stream_decode(const DecoderPlugin &plugin,
 	/* rewind the stream, so each plugin gets a fresh start */
 	try {
 		input_stream.Rewind();
-	} catch (const std::runtime_error &) {
+	} catch (...) {
 	}
 
 	{
@@ -447,7 +447,7 @@ decoder_run_song(DecoderControl &dc,
 				file - tags on "stream" songs are just
 				remembered from the last time we
 				played it*/
-			     song.IsFile() ? new Tag(song.GetTag()) : nullptr);
+			     song.IsFile() ? std::make_unique<Tag>(song.GetTag()) : nullptr);
 
 	dc.state = DecoderState::START;
 	dc.CommandFinishedLocked();

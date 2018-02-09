@@ -141,9 +141,6 @@ public:
 		   MixerListener &mixer_listener,
 		   const ConfigBlock &block);
 
-	void BeginDestroy() noexcept;
-	void FinishDestroy() noexcept;
-
 	const char *GetName() const {
 		return name;
 	}
@@ -240,7 +237,7 @@ extern struct notify audio_output_client_notify;
 /**
  * Throws #std::runtime_error on error.
  */
-FilteredAudioOutput *
+std::unique_ptr<FilteredAudioOutput>
 audio_output_new(EventLoop &event_loop,
 		 const ReplayGainConfig &replay_gain_config,
 		 const ConfigBlock &block,

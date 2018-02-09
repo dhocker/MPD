@@ -40,27 +40,4 @@ struct FilterPlugin {
 	std::unique_ptr<PreparedFilter> (*init)(const ConfigBlock &block);
 };
 
-/**
- * Creates a new instance of the specified filter plugin.
- *
- * Throws std::runtime_error on error.
- *
- * @param plugin the filter plugin
- * @param block configuration section
- */
-std::unique_ptr<PreparedFilter>
-filter_new(const FilterPlugin *plugin,
-	   const ConfigBlock &block);
-
-/**
- * Creates a new filter, loads configuration and the plugin name from
- * the specified configuration section.
- *
- * Throws std::runtime_error on error.
- *
- * @param block the configuration section
- */
-std::unique_ptr<PreparedFilter>
-filter_configured_new(const ConfigBlock &block);
-
 #endif

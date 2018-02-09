@@ -23,6 +23,7 @@
 #include "check.h"
 #include "Compiler.h"
 
+#include <memory>
 #include <string>
 
 struct StorageFileInfo;
@@ -56,7 +57,7 @@ public:
 	/**
 	 * Throws #std::runtime_error on error.
 	 */
-	virtual StorageDirectoryReader *OpenDirectory(const char *uri_utf8) = 0;
+	virtual std::unique_ptr<StorageDirectoryReader> OpenDirectory(const char *uri_utf8) = 0;
 
 	/**
 	 * Map the given relative URI to an absolute URI.
@@ -66,7 +67,7 @@ public:
 
 	/**
 	 * Map the given relative URI to a local file path.  Returns
-	 * AllocatedPath::Null() on error or if this storage does not
+	 * nullptr on error or if this storage does not
 	 * support local files.
 	 */
 	gcc_pure

@@ -21,7 +21,8 @@
 #include "AutoConvertFilterPlugin.hxx"
 #include "ConvertFilterPlugin.hxx"
 #include "filter/FilterPlugin.hxx"
-#include "filter/FilterInternal.hxx"
+#include "filter/Filter.hxx"
+#include "filter/Prepared.hxx"
 #include "filter/FilterRegistry.hxx"
 #include "AudioFormat.hxx"
 #include "util/ConstBuffer.hxx"
@@ -48,7 +49,7 @@ public:
 		:Filter(_filter->GetOutAudioFormat()),
 		 filter(std::move(_filter)), convert(std::move(_convert)) {}
 
-	void Reset() override {
+	void Reset() noexcept override {
 		filter->Reset();
 
 		if (convert)

@@ -23,8 +23,9 @@
 #include "fs/Path.hxx"
 #include "AudioParser.hxx"
 #include "AudioFormat.hxx"
-#include "filter/FilterPlugin.hxx"
-#include "filter/FilterInternal.hxx"
+#include "filter/LoadOne.hxx"
+#include "filter/Filter.hxx"
+#include "filter/Prepared.hxx"
 #include "pcm/Volume.hxx"
 #include "mixer/MixerControl.hxx"
 #include "util/ConstBuffer.hxx"
@@ -90,7 +91,7 @@ try {
 
 	/* open the filter */
 
-	std::unique_ptr<Filter> filter(prepared_filter->Open(audio_format));
+	auto filter = prepared_filter->Open(audio_format);
 
 	const AudioFormat out_audio_format = filter->GetOutAudioFormat();
 

@@ -59,7 +59,7 @@ public:
 	/* virtual methods from class Storage */
 	StorageFileInfo GetInfo(const char *uri_utf8, bool follow) override;
 
-	StorageDirectoryReader *OpenDirectory(const char *uri_utf8) override;
+	std::unique_ptr<StorageDirectoryReader> OpenDirectory(const char *uri_utf8) override;
 
 	std::string MapUTF8(const char *uri_utf8) const noexcept override;
 
@@ -124,7 +124,7 @@ LocalStorage::MapFS(const char *uri_utf8) const noexcept
 	try {
 		return MapFSOrThrow(uri_utf8);
 	} catch (...) {
-		return AllocatedPath::Null();
+		return nullptr;
 	}
 }
 
@@ -140,10 +140,10 @@ LocalStorage::GetInfo(const char *uri_utf8, bool follow)
 	return Stat(MapFSOrThrow(uri_utf8), follow);
 }
 
-StorageDirectoryReader *
+std::unique_ptr<StorageDirectoryReader>
 LocalStorage::OpenDirectory(const char *uri_utf8)
 {
-	return new LocalDirectoryReader(MapFSOrThrow(uri_utf8));
+	return std::make_unique<LocalDirectoryReader>(MapFSOrThrow(uri_utf8));
 }
 
 gcc_pure
@@ -179,10 +179,10 @@ LocalDirectoryReader::GetInfo(bool follow)
 	return Stat(AllocatedPath::Build(base_fs, reader.GetEntry()), follow);
 }
 
-Storage *
+std::unique_ptr<Storage>
 CreateLocalStorage(Path base_fs)
 {
-	return new LocalStorage(base_fs);
+	return std::make_unique<LocalStorage>(base_fs);
 }
 
 const StoragePlugin local_storage_plugin = {

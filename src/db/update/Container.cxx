@@ -30,11 +30,10 @@
 #include "fs/AllocatedPath.hxx"
 #include "storage/FileInfo.hxx"
 #include "Log.hxx"
-#include "util/AllocatedString.hxx"
 
 Directory *
 UpdateWalk::MakeDirectoryIfModified(Directory &parent, const char *name,
-				    const StorageFileInfo &info)
+				    const StorageFileInfo &info) noexcept
 {
 	Directory *directory = parent.FindChild(name);
 
@@ -58,7 +57,8 @@ UpdateWalk::MakeDirectoryIfModified(Directory &parent, const char *name,
 }
 
 static bool
-SupportsContainerSuffix(const DecoderPlugin &plugin, const char *suffix)
+SupportsContainerSuffix(const DecoderPlugin &plugin,
+			const char *suffix) noexcept
 {
 	return plugin.container_scan != nullptr &&
 		plugin.SupportsSuffix(suffix);
@@ -67,7 +67,7 @@ SupportsContainerSuffix(const DecoderPlugin &plugin, const char *suffix)
 bool
 UpdateWalk::UpdateContainerFile(Directory &directory,
 				const char *name, const char *suffix,
-				const StorageFileInfo &info)
+				const StorageFileInfo &info) noexcept
 {
 	const DecoderPlugin *_plugin = decoder_plugins_find([suffix](const DecoderPlugin &plugin){
 			return SupportsContainerSuffix(plugin, suffix);

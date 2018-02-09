@@ -19,7 +19,8 @@
 
 #include "config.h"
 #include "Observer.hxx"
-#include "FilterInternal.hxx"
+#include "Filter.hxx"
+#include "Prepared.hxx"
 #include "util/ConstBuffer.hxx"
 
 #include <assert.h>
@@ -71,8 +72,16 @@ public:
 		return filter.get();
 	}
 
+	void Reset() noexcept override {
+		filter->Reset();
+	}
+
 	ConstBuffer<void> FilterPCM(ConstBuffer<void> src) override {
 		return filter->FilterPCM(src);
+	}
+
+	ConstBuffer<void> Flush() override {
+		return filter->Flush();
 	}
 };
 

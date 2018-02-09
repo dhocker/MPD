@@ -19,7 +19,8 @@
 
 #include "config.h"
 #include "ChainFilterPlugin.hxx"
-#include "filter/FilterInternal.hxx"
+#include "filter/Filter.hxx"
+#include "filter/Prepared.hxx"
 #include "AudioFormat.hxx"
 #include "util/ConstBuffer.hxx"
 #include "util/StringBuffer.hxx"
@@ -35,27 +36,43 @@ class ChainFilter final : public Filter {
 		const char *name;
 		std::unique_ptr<Filter> filter;
 
-		Child(const char *_name, std::unique_ptr<Filter> _filter)
+		Child(const char *_name,
+		      std::unique_ptr<Filter> _filter) noexcept
 			:name(_name), filter(std::move(_filter)) {}
 	};
 
 	std::list<Child> children;
 
+	/**
+	 * The child which will be flushed in the next Flush() call.
+	 */
+	std::list<Child>::iterator flushing = children.end();
+
 public:
 	explicit ChainFilter(AudioFormat _audio_format)
 		:Filter(_audio_format) {}
 
-	void Append(const char *name, std::unique_ptr<Filter> filter) {
+	void Append(const char *name,
+		    std::unique_ptr<Filter> filter) noexcept {
 		assert(out_audio_format.IsValid());
 		out_audio_format = filter->GetOutAudioFormat();
 		assert(out_audio_format.IsValid());
 
 		children.emplace_back(name, std::move(filter));
+
+		RewindFlush();
 	}
 
 	/* virtual methods from class Filter */
-	void Reset() override;
+	void Reset() noexcept override;
 	ConstBuffer<void> FilterPCM(ConstBuffer<void> src) override;
+	ConstBuffer<void> Flush() override;
+
+private:
+	void RewindFlush() {
+		flushing = children.begin();
+	}
+
 };
 
 class PreparedChainFilter final : public PreparedFilter {
@@ -113,23 +130,46 @@ PreparedChainFilter::Open(AudioFormat &in_audio_format)
 }
 
 void
-ChainFilter::Reset()
+ChainFilter::Reset() noexcept
 {
+	RewindFlush();
+
 	for (auto &child : children)
 		child.filter->Reset();
+}
+
+template<typename I>
+static ConstBuffer<void>
+ApplyFilterChain(I begin, I end, ConstBuffer<void> src)
+{
+	for (auto i = begin; i != end; ++i)
+		/* feed the output of the previous filter as input
+		   into the current one */
+		src = i->filter->FilterPCM(src);
+
+	return src;
 }
 
 ConstBuffer<void>
 ChainFilter::FilterPCM(ConstBuffer<void> src)
 {
-	for (auto &child : children) {
-		/* feed the output of the previous filter as input
-		   into the current one */
-		src = child.filter->FilterPCM(src);
-	}
+	RewindFlush();
 
 	/* return the output of the last filter */
-	return src;
+	return ApplyFilterChain(children.begin(), children.end(), src);
+}
+
+ConstBuffer<void>
+ChainFilter::Flush()
+{
+	for (auto end = children.end(); flushing != end; ++flushing) {
+		auto data = flushing->filter->Flush();
+		if (!data.IsNull())
+			return ApplyFilterChain(std::next(flushing), end,
+						data);
+	}
+
+	return nullptr;
 }
 
 std::unique_ptr<PreparedFilter>

@@ -17,27 +17,28 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-/** \file
- *
- * Utility functions for filter configuration
- */
+#ifndef MPD_PREPARED_FILTER_HXX
+#define MPD_PREPARED_FILTER_HXX
 
-#ifndef MPD_FILTER_CONFIG_HXX
-#define MPD_FILTER_CONFIG_HXX
+#include <memory>
 
-class PreparedFilter;
+struct AudioFormat;
+class Filter;
 
-/**
- * Builds a filter chain from a configuration string on the form
- * "name1, name2, name3, ..." by looking up each name among the
- * configured filter sections.
- *
- * Throws std::runtime_error on error.
- *
- * @param chain the chain to append filters on
- * @param spec the filter chain specification
- */
-void
-filter_chain_parse(PreparedFilter &chain, const char *spec);
+class PreparedFilter {
+public:
+	virtual ~PreparedFilter() {}
+
+	/**
+	 * Opens the filter, preparing it for FilterPCM().
+	 *
+	 * Throws std::runtime_error on error.
+	 *
+	 * @param af the audio format of incoming data; the
+	 * plugin may modify the object to enforce another input
+	 * format
+	 */
+	virtual std::unique_ptr<Filter> Open(AudioFormat &af) = 0;
+};
 
 #endif

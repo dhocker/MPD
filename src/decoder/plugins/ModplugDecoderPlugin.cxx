@@ -66,12 +66,12 @@ mod_loadfile(DecoderClient *client, InputStream &is)
 
 		if (size == 0) {
 			LogWarning(modplug_domain, "file is empty");
-			return { nullptr, 0 };
+			return nullptr;
 		}
 
 		if (size > MODPLUG_FILE_LIMIT) {
 			LogWarning(modplug_domain, "file too large");
-			return { nullptr, 0 };
+			return nullptr;
 		}
 
 		buffer.size = size;
@@ -176,7 +176,7 @@ mod_decode(DecoderClient &client, InputStream &is)
 
 static bool
 modplug_scan_stream(InputStream &is,
-		    const TagHandler &handler, void *handler_ctx)
+		    const TagHandler &handler, void *handler_ctx) noexcept
 {
 	ModPlugFile *f = LoadModPlugFile(nullptr, is);
 	if (f == nullptr)

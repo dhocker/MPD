@@ -37,11 +37,17 @@ static constexpr PeriodClock::Duration REOPEN_AFTER = std::chrono::seconds(10);
 
 struct notify audio_output_client_notify;
 
-AudioOutputControl::AudioOutputControl(FilteredAudioOutput *_output,
-				       AudioOutputClient &_client)
-	:output(_output), client(_client),
+AudioOutputControl::AudioOutputControl(std::unique_ptr<FilteredAudioOutput> _output,
+				       AudioOutputClient &_client) noexcept
+	:output(std::move(_output)), client(_client),
 	 thread(BIND_THIS_METHOD(Task))
 {
+}
+
+AudioOutputControl::~AudioOutputControl() noexcept
+{
+	if (thread.IsDefined())
+		thread.Join();
 }
 
 void
@@ -111,9 +117,8 @@ void
 AudioOutputControl::WaitForCommand() noexcept
 {
 	while (!IsCommandFinished()) {
-		mutex.unlock();
+		const ScopeUnlock unlock(mutex);
 		audio_output_client_notify.Wait();
-		mutex.lock();
 	}
 }
 
@@ -221,6 +226,7 @@ AudioOutputControl::Open(const AudioFormat audio_format,
 	const bool open2 = open;
 
 	if (open2 && output->mixer != nullptr) {
+		const ScopeUnlock unlock(mutex);
 		try {
 			mixer_open(output->mixer);
 		} catch (...) {
@@ -362,32 +368,10 @@ AudioOutputControl::LockCloseWait() noexcept
 }
 
 void
-AudioOutputControl::StopThread() noexcept
-{
-	assert(thread.IsDefined());
-	assert(allow_play);
-
-	LockCommandWait(Command::KILL);
-	thread.Join();
-}
-
-void
 AudioOutputControl::BeginDestroy() noexcept
 {
-	output->BeginDestroy();
-
 	if (thread.IsDefined()) {
 		const std::lock_guard<Mutex> protect(mutex);
 		CommandAsync(Command::KILL);
 	}
-}
-
-void
-AudioOutputControl::FinishDestroy() noexcept
-{
-	if (thread.IsDefined())
-		thread.Join();
-
-	output->FinishDestroy();
-	output = nullptr;
 }

@@ -17,35 +17,22 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-#include "config.h"
-#include "FilterPlugin.hxx"
-#include "FilterRegistry.hxx"
-#include "FilterInternal.hxx"
-#include "config/Block.hxx"
-#include "config/ConfigError.hxx"
-#include "util/RuntimeError.hxx"
+#ifndef MPD_FILTER_LOAD_CHAIN_HXX
+#define MPD_FILTER_LOAD_CHAIN_HXX
 
-#include <assert.h>
+class PreparedFilter;
 
-std::unique_ptr<PreparedFilter>
-filter_new(const FilterPlugin *plugin, const ConfigBlock &block)
-{
-	assert(plugin != nullptr);
+/**
+ * Builds a filter chain from a configuration string on the form
+ * "name1, name2, name3, ..." by looking up each name among the
+ * configured filter sections.
+ *
+ * Throws std::runtime_error on error.
+ *
+ * @param chain the chain to append filters on
+ * @param spec the filter chain specification
+ */
+void
+filter_chain_parse(PreparedFilter &chain, const char *spec);
 
-	return plugin->init(block);
-}
-
-std::unique_ptr<PreparedFilter>
-filter_configured_new(const ConfigBlock &block)
-{
-	const char *plugin_name = block.GetBlockValue("plugin");
-	if (plugin_name == nullptr)
-		throw std::runtime_error("No filter plugin specified");
-
-	const auto *plugin = filter_plugin_by_name(plugin_name);
-	if (plugin == nullptr)
-		throw FormatRuntimeError("No such filter plugin: %s",
-					 plugin_name);
-
-	return filter_new(plugin, block);
-}
+#endif

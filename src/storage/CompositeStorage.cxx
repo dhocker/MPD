@@ -33,23 +33,18 @@
  * instance and the virtual directory entries.
  */
 class CompositeDirectoryReader final : public StorageDirectoryReader {
-	StorageDirectoryReader *other;
+	std::unique_ptr<StorageDirectoryReader> other;
 
 	std::set<std::string> names;
 	std::set<std::string>::const_iterator current, next;
 
 public:
-	template<typename M>
-	CompositeDirectoryReader(StorageDirectoryReader *_other,
-				 const M &map)
-		:other(_other) {
+	template<typename O, typename M>
+	CompositeDirectoryReader(O &&_other, const M &map)
+		:other(std::forward<O>(_other)) {
 		for (const auto &i : map)
 			names.insert(i.first);
 		next = names.begin();
-	}
-
-	virtual ~CompositeDirectoryReader() {
-		delete other;
 	}
 
 	/* virtual methods from class StorageDirectoryReader */
@@ -67,8 +62,7 @@ CompositeDirectoryReader::Read() noexcept
 			return name;
 		}
 
-		delete other;
-		other = nullptr;
+		other.reset();
 	}
 
 	if (next == names.end())
@@ -101,11 +95,6 @@ NextSegment(const char *&uri_r)
 		uri_r = slash + 1;
 		return std::string(uri, slash);
 	}
-}
-
-CompositeStorage::Directory::~Directory()
-{
-	delete storage;
 }
 
 const CompositeStorage::Directory *
@@ -144,8 +133,7 @@ CompositeStorage::Directory::Unmount() noexcept
 	if (storage == nullptr)
 		return false;
 
-	delete storage;
-	storage = nullptr;
+	storage.reset();
 	return true;
 }
 
@@ -210,18 +198,16 @@ CompositeStorage::GetMount(const char *uri) noexcept
 		/* not a mount point */
 		return nullptr;
 
-	return result.directory->storage;
+	return result.directory->storage.get();
 }
 
 void
-CompositeStorage::Mount(const char *uri, Storage *storage)
+CompositeStorage::Mount(const char *uri, std::unique_ptr<Storage> storage)
 {
 	const std::lock_guard<Mutex> protect(mutex);
 
 	Directory &directory = root.Make(uri);
-	if (directory.storage != nullptr)
-		delete directory.storage;
-	directory.storage = storage;
+	directory.storage = std::move(storage);
 }
 
 bool
@@ -279,7 +265,7 @@ CompositeStorage::GetInfo(const char *uri, bool follow)
 		throw std::runtime_error("No such file or directory");
 }
 
-StorageDirectoryReader *
+std::unique_ptr<StorageDirectoryReader>
 CompositeStorage::OpenDirectory(const char *uri)
 {
 	const std::lock_guard<Mutex> protect(mutex);
@@ -295,14 +281,15 @@ CompositeStorage::OpenDirectory(const char *uri)
 		return f.directory->storage->OpenDirectory(f.uri);
 	}
 
-	StorageDirectoryReader *other = nullptr;
+	std::unique_ptr<StorageDirectoryReader> other;
 
 	try {
 		other = f.directory->storage->OpenDirectory(f.uri);
 	} catch (...) {
 	}
 
-	return new CompositeDirectoryReader(other, directory->children);
+	return std::make_unique<CompositeDirectoryReader>(std::move(other),
+							  directory->children);
 }
 
 std::string
@@ -324,7 +311,7 @@ CompositeStorage::MapFS(const char *uri) const noexcept
 
 	auto f = FindStorage(uri);
 	if (f.directory->storage == nullptr)
-		return AllocatedPath::Null();
+		return nullptr;
 
 	return f.directory->storage->MapFS(f.uri);
 }

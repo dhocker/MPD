@@ -26,13 +26,11 @@
 #include "MusicPipe.hxx"
 #include "MusicBuffer.hxx"
 #include "MusicChunk.hxx"
-#include "pcm/Silence.hxx"
 #include "DetachedSong.hxx"
 #include "CrossFade.hxx"
 #include "Control.hxx"
 #include "tag/Tag.hxx"
 #include "Idle.hxx"
-#include "system/PeriodClock.hxx"
 #include "util/Domain.hxx"
 #include "thread/Name.hxx"
 #include "Log.hxx"
@@ -157,8 +155,6 @@ class Player {
 	 */
 	SongTime pending_seek;
 
-	PeriodClock throttle_silence_log;
-
 public:
 	Player(PlayerControl &_pc, DecoderControl &_dc,
 	       MusicBuffer &_buffer) noexcept
@@ -260,8 +256,12 @@ private:
 	bool SeekDecoder() noexcept;
 
 	void CancelPendingSeek() noexcept {
+		if (!pc.seeking)
+			return;
+
 		pending_seek = SongTime::zero();
 		pc.seeking = false;
+		pc.ClientSignal();
 	}
 
 	/**
@@ -305,17 +305,6 @@ private:
 	 */
 	bool PlayNextChunk() noexcept;
 
-	/**
-	 * Sends a chunk of silence to the audio outputs.  This is
-	 * called when there is not enough decoded data in the pipe
-	 * yet, to prevent underruns in the hardware buffers.
-	 *
-	 * The player lock is not held.
-	 *
-	 * @return false on error
-	 */
-	bool SendSilence() noexcept;
-
 	unsigned UnlockCheckOutputs() noexcept {
 		const ScopeUnlock unlock(pc.mutex);
 		return pc.outputs.CheckPipe();
@@ -333,7 +322,7 @@ private:
 	 * has consumed all chunks of the current song, and we should start
 	 * sending chunks from the next one.
 	 *
-	 * The player lock is not held.
+	 * Caller must lock the mutex.
 	 */
 	void SongBorder() noexcept;
 
@@ -548,48 +537,6 @@ Player::CheckDecoderStartup() noexcept
 
 		return true;
 	}
-}
-
-bool
-Player::SendSilence() noexcept
-{
-	assert(output_open);
-	assert(play_audio_format.IsDefined());
-
-	MusicChunk *chunk = buffer.Allocate();
-	if (chunk == nullptr) {
-		/* this is non-fatal, because this means that the
-		   decoder has filled to buffer completely meanwhile;
-		   by ignoring the error, we work around this race
-		   condition */
-		LogDebug(player_domain, "Failed to allocate silence buffer");
-		return true;
-	}
-
-#ifndef NDEBUG
-	chunk->audio_format = play_audio_format;
-#endif
-
-	const size_t frame_size = play_audio_format.GetFrameSize();
-	/* this formula ensures that we don't send
-	   partial frames */
-	unsigned num_frames = sizeof(chunk->data) / frame_size;
-
-	chunk->bit_rate = 0;
-	chunk->time = SignedSongTime::Negative(); /* undefined time stamp */
-	chunk->length = num_frames * frame_size;
-	chunk->replay_gain_serial = MusicChunk::IGNORE_REPLAY_GAIN;
-	PcmSilence({chunk->data, chunk->length}, play_audio_format.format);
-
-	try {
-		pc.outputs.Play(chunk);
-	} catch (...) {
-		LogError(std::current_exception());
-		buffer.Return(chunk);
-		return false;
-	}
-
-	return true;
 }
 
 bool
@@ -811,7 +758,7 @@ static void
 play_chunk(PlayerControl &pc,
 	   DetachedSong &song, MusicChunk *chunk,
 	   MusicBuffer &buffer,
-	   const AudioFormat format) noexcept
+	   const AudioFormat format)
 {
 	assert(chunk->CheckFormat(format));
 
@@ -968,20 +915,19 @@ Player::PlayNextChunk() noexcept
 inline void
 Player::SongBorder() noexcept
 {
-	FormatDefault(player_domain, "played \"%s\"", song->GetURI());
-
-	throttle_silence_log.Reset();
-
-	ReplacePipe(dc.pipe);
-
-	pc.outputs.SongBorder();
-
 	{
-		const std::lock_guard<Mutex> lock(pc.mutex);
-		ActivateDecoder();
+		const ScopeUnlock unlock(pc.mutex);
+
+		FormatDefault(player_domain, "played \"%s\"", song->GetURI());
+
+		ReplacePipe(dc.pipe);
+
+		pc.outputs.SongBorder();
 	}
 
-	const bool border_pause = pc.LockApplyBorderPause();
+	ActivateDecoder();
+
+	const bool border_pause = pc.ApplyBorderPause();
 	if (border_pause) {
 		paused = true;
 		idle_add(IDLE_PLAYER);
@@ -1015,15 +961,6 @@ Player::Run() noexcept
 			    !dc.IsIdle()) {
 				/* not enough decoded buffer space yet */
 
-				{
-					const ScopeUnlock unlock(pc.mutex);
-					if (!paused && output_open &&
-					    pc.outputs.CheckPipe() < 4 &&
-					    !SendSilence())
-						break;
-				}
-
-				/* XXX race condition: check decoder again */
 				dc.WaitForDecoder();
 				continue;
 			} else {
@@ -1080,7 +1017,6 @@ Player::Run() noexcept
 		if (paused) {
 			if (pc.command == PlayerCommand::NONE)
 				pc.Wait();
-			continue;
 		} else if (!pipe->IsEmpty()) {
 			/* at least one music chunk is ready - send it
 			   to the audio output */
@@ -1095,13 +1031,13 @@ Player::Run() noexcept
 			/* wake up the decoder (just in case it's
 			   waiting for space in the MusicBuffer) and
 			   wait for it */
+			// TODO: eliminate this kludge
 			dc.Signal();
+
 			dc.WaitForDecoder();
-			continue;
 		} else if (IsDecoderAtNextSong()) {
 			/* at the beginning of a new song */
 
-			const ScopeUnlock unlock(pc.mutex);
 			SongBorder();
 		} else if (dc.IsIdle()) {
 			/* check the size of the pipe again, because
@@ -1116,15 +1052,16 @@ Player::Run() noexcept
 			}
 		} else if (output_open) {
 			/* the decoder is too busy and hasn't provided
-			   new PCM data in time: send silence (if the
-			   output pipe is empty) */
-			const ScopeUnlock unlock(pc.mutex);
+			   new PCM data in time: wait for the
+			   decoder */
 
-			if (throttle_silence_log.CheckUpdate(std::chrono::seconds(5)))
-				FormatWarning(player_domain, "Decoder is too slow; playing silence to avoid xrun");
+			/* wake up the decoder (just in case it's
+			   waiting for space in the MusicBuffer) and
+			   wait for it */
+			// TODO: eliminate this kludge
+			dc.Signal();
 
-			if (!SendSilence())
-				break;
+			dc.WaitForDecoder();
 		}
 	}
 

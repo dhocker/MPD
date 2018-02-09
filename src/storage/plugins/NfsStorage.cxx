@@ -88,7 +88,7 @@ public:
 	/* virtual methods from class Storage */
 	StorageFileInfo GetInfo(const char *uri_utf8, bool follow) override;
 
-	StorageDirectoryReader *OpenDirectory(const char *uri_utf8) override;
+	std::unique_ptr<StorageDirectoryReader> OpenDirectory(const char *uri_utf8) override;
 
 	std::string MapUTF8(const char *uri_utf8) const noexcept override;
 
@@ -334,8 +334,8 @@ public:
 				  const char *_path)
 		:BlockingNfsOperation(_connection), path(_path) {}
 
-	StorageDirectoryReader *ToReader() {
-		return new MemoryStorageDirectoryReader(std::move(entries));
+	std::unique_ptr<StorageDirectoryReader> ToReader() {
+		return std::make_unique<MemoryStorageDirectoryReader>(std::move(entries));
 	}
 
 protected:
@@ -377,7 +377,7 @@ NfsListDirectoryOperation::CollectEntries(struct nfsdir *dir)
 	}
 }
 
-StorageDirectoryReader *
+std::unique_ptr<StorageDirectoryReader>
 NfsStorage::OpenDirectory(const char *uri_utf8)
 {
 	const std::string path = UriToNfsPath(uri_utf8);
@@ -390,7 +390,7 @@ NfsStorage::OpenDirectory(const char *uri_utf8)
 	return operation.ToReader();
 }
 
-static Storage *
+static std::unique_ptr<Storage>
 CreateNfsStorageURI(EventLoop &event_loop, const char *base)
 {
 	if (strncmp(base, "nfs://", 6) != 0)
@@ -406,7 +406,8 @@ CreateNfsStorageURI(EventLoop &event_loop, const char *base)
 
 	nfs_set_base(server.c_str(), mount);
 
-	return new NfsStorage(event_loop, base, server.c_str(), mount);
+	return std::make_unique<NfsStorage>(event_loop, base,
+					    server.c_str(), mount);
 }
 
 const StoragePlugin nfs_storage_plugin = {

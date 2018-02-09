@@ -74,7 +74,7 @@ fluidsynth_mpd_log_function(int level, char *message, gcc_unused void *data)
 static bool
 fluidsynth_init(const ConfigBlock &block)
 {
-	sample_rate = block.GetBlockValue("sample_rate", 48000u);
+	sample_rate = block.GetPositiveValue("sample_rate", 48000u);
 	CheckSampleRate(sample_rate);
 
 	soundfont_path = block.GetBlockValue("soundfont",
@@ -194,7 +194,7 @@ fluidsynth_file_decode(DecoderClient &client, Path path_fs)
 static bool
 fluidsynth_scan_file(Path path_fs,
 		     gcc_unused const TagHandler &handler,
-		     gcc_unused void *handler_ctx)
+		     gcc_unused void *handler_ctx) noexcept
 {
 	return fluid_is_midifile(path_fs.c_str());
 }

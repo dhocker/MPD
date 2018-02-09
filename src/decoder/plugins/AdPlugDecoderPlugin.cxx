@@ -42,7 +42,7 @@ adplug_init(const ConfigBlock &block)
 	FormatDebug(adplug_domain, "adplug %s",
 		    CAdPlug::get_version().c_str());
 
-	sample_rate = block.GetBlockValue("sample_rate", 48000u);
+	sample_rate = block.GetPositiveValue("sample_rate", 48000u);
 	CheckSampleRate(sample_rate);
 
 	return true;
@@ -83,7 +83,7 @@ adplug_file_decode(DecoderClient &client, Path path_fs)
 
 static void
 adplug_scan_tag(TagType type, const std::string &value,
-		const TagHandler &handler, void *handler_ctx)
+		const TagHandler &handler, void *handler_ctx) noexcept
 {
 	if (!value.empty())
 		tag_handler_invoke_tag(handler, handler_ctx,
@@ -92,7 +92,7 @@ adplug_scan_tag(TagType type, const std::string &value,
 
 static bool
 adplug_scan_file(Path path_fs,
-		 const TagHandler &handler, void *handler_ctx)
+		 const TagHandler &handler, void *handler_ctx) noexcept
 {
 	CEmuopl opl(sample_rate, true, true);
 	opl.init();

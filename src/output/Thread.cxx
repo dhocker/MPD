@@ -109,8 +109,7 @@ AudioOutputControl::InternalEnable() noexcept
 		return true;
 	} catch (...) {
 		LogError(std::current_exception());
-		fail_timer.Update();
-		last_error = std::current_exception();
+		Failure(std::current_exception());
 		return false;
 	}
 }
@@ -162,8 +161,7 @@ AudioOutputControl::InternalOpen(const AudioFormat in_audio_format,
 		}
 	} catch (...) {
 		LogError(std::current_exception());
-		fail_timer.Update();
-		last_error = std::current_exception();
+		Failure(std::current_exception());
 	}
 
 	if (f != in_audio_format || f != output->out_audio_format)
@@ -228,18 +226,13 @@ AudioOutputControl::WaitForDelay() noexcept
 }
 
 bool
-AudioOutputControl::FillSourceOrClose()
+AudioOutputControl::FillSourceOrClose() noexcept
 try {
 	return source.Fill(mutex);
 } catch (...) {
 	FormatError(std::current_exception(),
 		    "Failed to filter for %s", GetLogName());
-
-	InternalClose(false);
-
-	/* don't automatically reopen this device for 10
-	   seconds */
-	fail_timer.Update();
+	InternalCloseError(std::current_exception());
 	return false;
 }
 
@@ -274,21 +267,12 @@ AudioOutputControl::PlayChunk() noexcept
 		try {
 			const ScopeUnlock unlock(mutex);
 			nbytes = output->Play(data.data, data.size);
+			assert(nbytes > 0);
 			assert(nbytes <= data.size);
 		} catch (...) {
 			FormatError(std::current_exception(),
 				    "Failed to play on %s", GetLogName());
-			nbytes = 0;
-		}
-
-		if (nbytes == 0) {
-			InternalClose(false);
-
-			/* don't automatically reopen this device for
-			   10 seconds */
-			assert(!fail_timer.IsDefined());
-			fail_timer.Update();
-
+			InternalCloseError(std::current_exception());
 			return false;
 		}
 
@@ -378,8 +362,47 @@ AudioOutputControl::InternalPause() noexcept
 	skip_delay = true;
 }
 
+static void
+PlayFull(FilteredAudioOutput &output, ConstBuffer<void> _buffer)
+{
+	auto buffer = ConstBuffer<uint8_t>::FromVoid(_buffer);
+
+	while (!buffer.empty()) {
+		size_t nbytes = output.Play(buffer.data, buffer.size);
+		assert(nbytes > 0);
+
+		buffer.skip_front(nbytes);
+	}
+
+}
+
+inline void
+AudioOutputControl::InternalDrain() noexcept
+{
+	try {
+		/* flush the filter and play its remaining output */
+
+		const ScopeUnlock unlock(mutex);
+
+		while (true) {
+			auto buffer = source.Flush();
+			if (buffer.IsNull())
+				break;
+
+			PlayFull(*output, buffer);
+		}
+
+		output->Drain();
+	} catch (...) {
+		FormatError(std::current_exception(),
+			    "Failed to flush filter on %s", GetLogName());
+		InternalCloseError(std::current_exception());
+		return;
+	}
+}
+
 void
-AudioOutputControl::Task()
+AudioOutputControl::Task() noexcept
 {
 	FormatThreadName("output:%s", GetName());
 
@@ -437,10 +460,8 @@ AudioOutputControl::Task()
 			continue;
 
 		case Command::DRAIN:
-			if (open) {
-				const ScopeUnlock unlock(mutex);
-				output->Drain();
-			}
+			if (open)
+				InternalDrain();
 
 			CommandFinished();
 			continue;
@@ -480,5 +501,6 @@ AudioOutputControl::StartThread()
 {
 	assert(command == Command::NONE);
 
+	const ScopeUnlock unlock(mutex);
 	thread.Start();
 }

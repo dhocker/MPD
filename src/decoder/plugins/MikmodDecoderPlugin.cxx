@@ -114,7 +114,7 @@ mikmod_decoder_init(const ConfigBlock &block)
 	static char params[] = "";
 
 	mikmod_loop = block.GetBlockValue("loop", false);
-	mikmod_sample_rate = block.GetBlockValue("sample_rate", 44100u);
+	mikmod_sample_rate = block.GetPositiveValue("sample_rate", 44100u);
 	if (!audio_valid_sample_rate(mikmod_sample_rate))
 		throw FormatRuntimeError("Invalid sample rate in line %d: %u",
 					 block.line, mikmod_sample_rate);
@@ -141,7 +141,7 @@ mikmod_decoder_init(const ConfigBlock &block)
 }
 
 static void
-mikmod_decoder_finish(void)
+mikmod_decoder_finish() noexcept
 {
 	MikMod_Exit();
 }
@@ -186,7 +186,7 @@ mikmod_decoder_file_decode(DecoderClient &client, Path path_fs)
 
 static bool
 mikmod_decoder_scan_file(Path path_fs,
-			 const TagHandler &handler, void *handler_ctx)
+			 const TagHandler &handler, void *handler_ctx) noexcept
 {
 	/* deconstify the path because libmikmod wants a non-const
 	   string pointer */

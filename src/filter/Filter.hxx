@@ -17,46 +17,38 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-/** \file
- *
- * Internal stuff for the filter core and filter plugins.
- */
-
-#ifndef MPD_FILTER_INTERNAL_HXX
-#define MPD_FILTER_INTERNAL_HXX
+#ifndef MPD_FILTER_HXX
+#define MPD_FILTER_HXX
 
 #include "AudioFormat.hxx"
 
-#include <memory>
-
 #include <assert.h>
 
-struct AudioFormat;
 template<typename T> struct ConstBuffer;
 
 class Filter {
 protected:
 	AudioFormat out_audio_format;
 
-	explicit Filter(AudioFormat _out_audio_format)
+	explicit Filter(AudioFormat _out_audio_format) noexcept
 		:out_audio_format(_out_audio_format) {
 		assert(out_audio_format.IsValid());
 	}
 
 public:
-	virtual ~Filter() {}
+	virtual ~Filter() noexcept {}
 
 	/**
 	 * Returns the #AudioFormat produced by FilterPCM().
 	 */
-	const AudioFormat &GetOutAudioFormat() const {
+	const AudioFormat &GetOutAudioFormat() const noexcept {
 		return out_audio_format;
 	}
 
 	/**
 	 * Reset the filter's state, e.g. drop/flush buffers.
 	 */
-	virtual void Reset() {
+	virtual void Reset() noexcept {
 	}
 
 	/**
@@ -70,22 +62,12 @@ public:
 	 * or Reset() call)
 	 */
 	virtual ConstBuffer<void> FilterPCM(ConstBuffer<void> src) = 0;
-};
-
-class PreparedFilter {
-public:
-	virtual ~PreparedFilter() {}
 
 	/**
-	 * Opens the filter, preparing it for FilterPCM().
-	 *
-	 * Throws std::runtime_error on error.
-	 *
-	 * @param af the audio format of incoming data; the
-	 * plugin may modify the object to enforce another input
-	 * format
+	 * Flush pending data and return it.  This should be called
+	 * repepatedly until it returns nullptr.
 	 */
-	virtual std::unique_ptr<Filter> Open(AudioFormat &af) = 0;
+	virtual ConstBuffer<void> Flush();
 };
 
 #endif

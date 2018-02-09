@@ -1,5 +1,5 @@
 /*
- * Copyright 2003-2017 The Music Player Daemon Project
+ * Copyright 2003-2018 The Music Player Daemon Project
  * http://www.musicpd.org
  *
  * This program is free software; you can redistribute it and/or modify
@@ -17,11 +17,22 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-#ifndef MPD_INPUT_DOMAIN_HXX
-#define MPD_INPUT_DOMAIN_HXX
+#include "config.h"
+#include "ParseInputStream.hxx"
+#include "Handle.hxx"
+#include "input/InputStream.hxx"
 
-class Domain;
+void
+Yajl::ParseInputStream(Handle &handle, InputStream &is)
+{
+	while (true) {
+		unsigned char buffer[4096];
+		const size_t nbytes = is.LockRead(buffer, sizeof(buffer));
+		if (nbytes == 0)
+			break;
 
-extern const Domain input_domain;
+		handle.Parse(buffer, nbytes);
+	}
 
-#endif
+	handle.CompleteParse();
+}

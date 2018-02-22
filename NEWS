@@ -12,6 +12,7 @@ ver 0.21 (not yet released)
   - new tags "OriginalDate", "MUSICBRAINZ_WORKID"
 * decoder
   - gme: try loading m3u sidecar files
+  - hybrid_dsd: new decoder plugin
   - pcm: support audio/L24 (RFC 3190)
 * resampler
   - soxr: flush resampler at end of song
@@ -24,6 +25,20 @@ ver 0.21 (not yet released)
 * mixer
   - sndio: new mixer plugin
 * require GCC 5.0
+
+ver 0.20.18 (not yet released)
+* decoder
+  - flac: improve seeking precision
+* fix gapless CUE song transitions
+
+ver 0.20.17 (2018/02/11)
+* output
+  - alsa: fix crash bug with 8 channels
+* mixer
+  - alsa: fix rounding error at volume 0
+* fix real-time and idle scheduling with Musl
+* Android
+  - fix compatibility with Android 4.0
 
 ver 0.20.16 (2018/02/03)
 * output

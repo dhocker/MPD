@@ -1074,6 +1074,8 @@ DECODER_LIBS = \
 
 if ENABLE_DSD
 libdecoder_a_SOURCES += \
+	src/decoder/plugins/HybridDsdDecoderPlugin.cxx \
+	src/decoder/plugins/HybridDsdDecoderPlugin.hxx \
 	src/decoder/plugins/DsdiffDecoderPlugin.cxx \
 	src/decoder/plugins/DsdiffDecoderPlugin.hxx \
 	src/decoder/plugins/DsfDecoderPlugin.cxx \
@@ -2028,7 +2030,6 @@ test_dump_playlist_LDADD = \
 	libutil.a \
 	libpcm.a
 test_dump_playlist_SOURCES = test/dump_playlist.cxx \
-	test/FakeDecoderAPI.cxx test/FakeDecoderAPI.hxx \
 	src/Log.cxx src/LogBackend.cxx \
 	src/TagSave.cxx \
 	src/TagFile.cxx \
@@ -2055,7 +2056,7 @@ test_run_decoder_LDADD = \
 	libsystem.a \
 	libutil.a
 test_run_decoder_SOURCES = test/run_decoder.cxx \
-	test/FakeDecoderAPI.cxx test/FakeDecoderAPI.hxx \
+	test/DumpDecoderClient.cxx test/DumpDecoderClient.hxx \
 	src/DetachedSong.cxx \
 	src/Log.cxx src/LogBackend.cxx \
 	src/ReplayGainInfo.cxx
@@ -2075,7 +2076,6 @@ test_read_tags_LDADD = \
 	libsystem.a \
 	libutil.a
 test_read_tags_SOURCES = test/read_tags.cxx \
-	test/FakeDecoderAPI.cxx test/FakeDecoderAPI.hxx \
 	src/DetachedSong.cxx \
 	src/Log.cxx src/LogBackend.cxx \
 	src/ReplayGainInfo.cxx

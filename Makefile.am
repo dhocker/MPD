@@ -527,6 +527,7 @@ libthread_a_SOURCES = \
 
 libnet_a_SOURCES = \
 	src/net/Features.hxx \
+	src/net/Init.hxx \
 	src/net/ToString.cxx src/net/ToString.hxx \
 	src/net/Resolver.cxx src/net/Resolver.hxx \
 	src/net/StaticSocketAddress.cxx src/net/StaticSocketAddress.hxx \
@@ -946,6 +947,7 @@ endif
 libbasic_a_SOURCES = \
 	src/ReplayGainConfig.hxx \
 	src/ReplayGainMode.cxx src/ReplayGainMode.hxx \
+	src/SingleMode.cxx src/SingleMode.hxx \
 	src/ReplayGainInfo.cxx src/ReplayGainInfo.hxx
 
 # configuration library

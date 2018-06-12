@@ -223,6 +223,12 @@ static void version(void)
 #ifdef HAVE_AVAHI
 	       " avahi"
 #endif
+#ifdef ENABLE_DBUS
+	       " dbus"
+#endif
+#ifdef ENABLE_UDISKS
+	       " udisks"
+#endif
 #ifdef USE_EPOLL
 	       " epoll"
 #endif

@@ -1,5 +1,5 @@
 /*
- * Copyright 2003-2017 The Music Player Daemon Project
+ * Copyright 2003-2018 The Music Player Daemon Project
  * http://www.musicpd.org
  *
  * This program is free software; you can redistribute it and/or modify
@@ -18,33 +18,43 @@
  */
 
 #include "config.h"
-#include "Registry.hxx"
-#include "NeighborPlugin.hxx"
-#include "plugins/SmbclientNeighborPlugin.hxx"
-#include "plugins/UpnpNeighborPlugin.hxx"
-#include "plugins/UdisksNeighborPlugin.hxx"
+#include "Glue.hxx"
+#include "event/Call.hxx"
 
-#include <string.h>
+namespace ODBus {
 
-const NeighborPlugin *const neighbor_plugins[] = {
-#ifdef ENABLE_SMBCLIENT
-	&smbclient_neighbor_plugin,
-#endif
-#ifdef ENABLE_UPNP
-	&upnp_neighbor_plugin,
-#endif
-#ifdef ENABLE_UDISKS
-	&udisks_neighbor_plugin,
-#endif
-	nullptr
-};
-
-const NeighborPlugin *
-GetNeighborPluginByName(const char *name) noexcept
+void
+Glue::ConnectIndirect()
 {
-	for (auto i = neighbor_plugins; *i != nullptr; ++i)
-		if (strcmp((*i)->name, name) == 0)
-			return *i;
+	BlockingCall(GetEventLoop(), [this](){ Connect(); });
+}
 
-	return nullptr;
+void
+Glue::DisconnectIndirect()
+{
+	BlockingCall(GetEventLoop(), [this](){ Disconnect(); });
+}
+
+void
+Glue::Connect()
+{
+	watch.SetConnection(Connection::GetSystemPrivate());
+
+	dbus_connection_set_exit_on_disconnect(GetConnection(), false);
+}
+
+void
+Glue::Disconnect()
+{
+	GetConnection().Close();
+
+	watch.SetConnection(Connection());
+}
+
+void
+Glue::OnDBusClosed() noexcept
+{
+	// TODO: reconnect
+}
+
 }

@@ -24,6 +24,7 @@
 #include "neighbor/Glue.hxx"
 #include "fs/Path.hxx"
 #include "event/Loop.hxx"
+#include "ShutdownHandler.hxx"
 #include "Log.hxx"
 
 #include <stdio.h>
@@ -66,8 +67,9 @@ try {
 
 	/* initialize the core */
 
-	GlobalInit init;
+	const GlobalInit init;
 	EventLoop loop;
+	const ShutdownHandler shutdown_handler(loop);
 
 	/* read configuration file (mpd.conf) */
 
@@ -79,6 +81,12 @@ try {
 	NeighborGlue neighbor;
 	neighbor.Init(loop, listener);
 	neighbor.Open();
+
+	/* dump initial list */
+
+	for (const auto &info : neighbor.GetList())
+		printf("have '%s' (%s)\n",
+		       info.display_name.c_str(), info.uri.c_str());
 
 	/* run */
 

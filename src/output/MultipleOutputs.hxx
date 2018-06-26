@@ -27,6 +27,7 @@
 #define OUTPUT_ALL_H
 
 #include "Control.hxx"
+#include "MusicChunkPtr.hxx"
 #include "player/Outputs.hxx"
 #include "AudioFormat.hxx"
 #include "ReplayGainMode.hxx"
@@ -37,12 +38,10 @@
 
 #include <assert.h>
 
-class MusicBuffer;
 class MusicPipe;
 class EventLoop;
 class MixerListener;
 class AudioOutputClient;
-struct MusicChunk;
 struct ReplayGainConfig;
 
 class MultipleOutputs final : public PlayerOutputs {
@@ -53,15 +52,10 @@ class MultipleOutputs final : public PlayerOutputs {
 	AudioFormat input_audio_format = AudioFormat::Undefined();
 
 	/**
-	 * The #MusicBuffer object where consumed chunks are returned.
-	 */
-	MusicBuffer *buffer = nullptr;
-
-	/**
 	 * The #MusicPipe object which feeds all audio outputs.  It is
-	 * filled by audio_output_all_play().
+	 * filled by Play().
 	 */
-	MusicPipe *pipe = nullptr;
+	std::unique_ptr<MusicPipe> pipe;
 
 	/**
 	 * The "elapsed_time" stamp of the most recently finished
@@ -151,12 +145,9 @@ public:
 
 private:
 	/**
-	 * Determine if all (active) outputs have finished the current
+	 * Wait until all (active) outputs have finished the current
 	 * command.
 	 */
-	gcc_pure
-	bool AllFinished() const noexcept;
-
 	void WaitAll() noexcept;
 
 	/**
@@ -186,11 +177,10 @@ private:
 
 	/* virtual methods from class PlayerOutputs */
 	void EnableDisable() override;
-	void Open(const AudioFormat audio_format,
-		  MusicBuffer &_buffer) override;
+	void Open(const AudioFormat audio_format) override;
 	void Close() noexcept override;
 	void Release() noexcept override;
-	void Play(MusicChunk *chunk) override;
+	void Play(MusicChunkPtr chunk) override;
 	unsigned CheckPipe() noexcept override;
 	void Pause() noexcept override;
 	void Drain() noexcept override;

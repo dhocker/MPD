@@ -79,7 +79,6 @@ libmpd_a_SOURCES = \
 	src/check.h \
 	src/Compiler.h \
 	src/open.h \
-	src/notify.cxx src/notify.hxx \
 	src/protocol/Ack.cxx src/protocol/Ack.hxx \
 	src/protocol/ArgParser.cxx src/protocol/ArgParser.hxx \
 	src/protocol/Result.cxx src/protocol/Result.hxx \
@@ -136,6 +135,7 @@ libmpd_a_SOURCES = \
 	src/MusicBuffer.cxx src/MusicBuffer.hxx \
 	src/MusicPipe.cxx src/MusicPipe.hxx \
 	src/MusicChunk.cxx src/MusicChunk.hxx \
+	src/MusicChunkPtr.cxx src/MusicChunkPtr.hxx \
 	src/Mapper.cxx src/Mapper.hxx \
 	src/Partition.cxx src/Partition.hxx \
 	src/Permission.cxx src/Permission.hxx \
@@ -526,6 +526,7 @@ libutil_a_SOURCES = \
 	src/util/SliceBuffer.hxx \
 	src/util/HugeAllocator.cxx src/util/HugeAllocator.hxx \
 	src/util/PeakBuffer.cxx src/util/PeakBuffer.hxx \
+	src/util/SparseBuffer.cxx src/util/SparseBuffer.hxx \
 	src/util/OptionParser.cxx src/util/OptionParser.hxx \
 	src/util/OptionDef.hxx \
 	src/util/ByteReverse.cxx src/util/ByteReverse.hxx \
@@ -1382,6 +1383,7 @@ libinput_a_SOURCES = \
 	src/input/InputStream.cxx src/input/InputStream.hxx \
 	src/input/Ptr.hxx \
 	src/input/InputPlugin.hxx \
+	src/input/Handler.hxx \
 	src/input/RemoteTagScanner.hxx \
 	src/input/ScanTags.cxx src/input/ScanTags.hxx \
 	src/input/Reader.cxx src/input/Reader.hxx \
@@ -1389,7 +1391,9 @@ libinput_a_SOURCES = \
 	src/input/ThreadInputStream.cxx src/input/ThreadInputStream.hxx \
 	src/input/AsyncInputStream.cxx src/input/AsyncInputStream.hxx \
 	src/input/ProxyInputStream.cxx src/input/ProxyInputStream.hxx \
-	src/input/plugins/RewindInputPlugin.cxx src/input/plugins/RewindInputPlugin.hxx \
+	src/input/RewindInputStream.cxx src/input/RewindInputStream.hxx \
+	src/input/BufferedInputStream.cxx src/input/BufferedInputStream.hxx \
+	src/input/MaybeBufferedInputStream.cxx src/input/MaybeBufferedInputStream.hxx \
 	src/input/plugins/FileInputPlugin.cxx src/input/plugins/FileInputPlugin.hxx
 
 libinput_a_CPPFLAGS = $(AM_CPPFLAGS) \

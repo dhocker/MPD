@@ -1,5 +1,5 @@
 /*
- * Copyright 2003-2017 The Music Player Daemon Project
+ * Copyright 2003-2018 The Music Player Daemon Project
  * http://www.musicpd.org
  *
  * This program is free software; you can redistribute it and/or modify
@@ -17,29 +17,22 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-#ifndef MPD_PLAYLIST_STREAM_HXX
-#define MPD_PLAYLIST_STREAM_HXX
+#include "config.h"
+#include "MaybeBufferedInputStream.hxx"
+#include "BufferedInputStream.hxx"
 
-#include "Compiler.h"
+MaybeBufferedInputStream::MaybeBufferedInputStream(InputStreamPtr _input) noexcept
+	:ProxyInputStream(std::move(_input)) {}
 
-#include <memory>
+void
+MaybeBufferedInputStream::Update() noexcept
+{
+	const bool was_ready = IsReady();
 
-class Mutex;
-class SongEnumerator;
-class Path;
+	ProxyInputStream::Update();
 
-/**
- * Opens a playlist from a local file.
- *
- * @param path the path of the playlist file
- * @return a playlist, or nullptr on error
- */
-gcc_nonnull_all
-std::unique_ptr<SongEnumerator>
-playlist_open_path(Path path, Mutex &mutex);
-
-gcc_nonnull_all
-std::unique_ptr<SongEnumerator>
-playlist_open_remote(const char *uri, Mutex &mutex);
-
-#endif
+	if (!was_ready && IsReady() && BufferedInputStream::IsEligible(*input))
+		/* our input has just become ready - check if we
+		   should buffer it */
+		SetInput(std::make_unique<BufferedInputStream>(std::move(input)));
+}

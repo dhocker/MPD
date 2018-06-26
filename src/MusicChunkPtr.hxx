@@ -1,5 +1,5 @@
 /*
- * Copyright 2003-2017 The Music Player Daemon Project
+ * Copyright 2003-2018 The Music Player Daemon Project
  * http://www.musicpd.org
  *
  * This program is free software; you can redistribute it and/or modify
@@ -17,29 +17,26 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-#include "config.h"
-#include "notify.hxx"
+#ifndef MPD_MUSIC_CHUNK_PTR_HXX
+#define MPD_MUSIC_CHUNK_PTR_HXX
 
-void
-notify::Wait()
-{
-	const std::lock_guard<Mutex> protect(mutex);
-	while (!pending)
-		cond.wait(mutex);
-	pending = false;
-}
+#include "check.h"
 
-void
-notify::Signal()
-{
-	const std::lock_guard<Mutex> protect(mutex);
-	pending = true;
-	cond.signal();
-}
+#include <memory>
 
-void
-notify::Clear()
-{
-	const std::lock_guard<Mutex> protect(mutex);
-	pending = false;
-}
+struct MusicChunk;
+class MusicBuffer;
+
+class MusicChunkDeleter {
+	MusicBuffer *buffer;
+
+public:
+	MusicChunkDeleter() = default;
+	explicit MusicChunkDeleter(MusicBuffer &_buffer):buffer(&_buffer) {}
+
+	void operator()(MusicChunk *chunk) noexcept;
+};
+
+using MusicChunkPtr = std::unique_ptr<MusicChunk, MusicChunkDeleter>;
+
+#endif

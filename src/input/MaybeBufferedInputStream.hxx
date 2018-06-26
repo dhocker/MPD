@@ -1,5 +1,5 @@
 /*
- * Copyright 2003-2017 The Music Player Daemon Project
+ * Copyright 2003-2018 The Music Player Daemon Project
  * http://www.musicpd.org
  *
  * This program is free software; you can redistribute it and/or modify
@@ -17,29 +17,23 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-#ifndef MPD_PLAYLIST_STREAM_HXX
-#define MPD_PLAYLIST_STREAM_HXX
+#ifndef MPD_MAYBE_BUFFERED_INPUT_STREAM_BUFFER_HXX
+#define MPD_MAYBE_BUFFERED_INPUT_STREAM_BUFFER_HXX
 
-#include "Compiler.h"
-
-#include <memory>
-
-class Mutex;
-class SongEnumerator;
-class Path;
+#include "check.h"
+#include "ProxyInputStream.hxx"
 
 /**
- * Opens a playlist from a local file.
- *
- * @param path the path of the playlist file
- * @return a playlist, or nullptr on error
+ * A proxy which automatically inserts #BufferedInputStream once the
+ * input becomes ready and is "eligible" (see
+ * BufferedInputStream::IsEligible()).
  */
-gcc_nonnull_all
-std::unique_ptr<SongEnumerator>
-playlist_open_path(Path path, Mutex &mutex);
+class MaybeBufferedInputStream final : public ProxyInputStream {
+public:
+	explicit MaybeBufferedInputStream(InputStreamPtr _input) noexcept;
 
-gcc_nonnull_all
-std::unique_ptr<SongEnumerator>
-playlist_open_remote(const char *uri, Mutex &mutex);
+	/* virtual methods from class InputStream */
+	void Update() noexcept override;
+};
 
 #endif

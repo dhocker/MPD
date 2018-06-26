@@ -1,5 +1,5 @@
 /*
- * Copyright 2003-2017 The Music Player Daemon Project
+ * Copyright 2003-2018 The Music Player Daemon Project
  * http://www.musicpd.org
  *
  * This program is free software; you can redistribute it and/or modify
@@ -17,32 +17,27 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-#ifndef MPD_NOTIFY_HXX
-#define MPD_NOTIFY_HXX
+#ifndef MPD_COND_INPUT_STREAM_HANDLER_HXX
+#define MPD_COND_INPUT_STREAM_HANDLER_HXX
 
-#include "thread/Mutex.hxx"
+#include "check.h"
+#include "Handler.hxx"
 #include "thread/Cond.hxx"
 
-struct notify {
-	Mutex mutex;
+/**
+ * An #InputStreamHandler implementation which signals a #Cond.
+ */
+struct CondInputStreamHandler final : InputStreamHandler {
 	Cond cond;
-	bool pending = false;
 
-	/**
-	 * Wait for a notification.  Return immediately if we have already
-	 * been notified since we last returned from notify_wait().
-	 */
-	void Wait();
+	/* virtual methods from class InputStreamHandler */
+	void OnInputStreamReady() noexcept override {
+		cond.signal();
+	}
 
-	/**
-	 * Notify the thread.  This function never blocks.
-	 */
-	void Signal();
-
-	/**
-	 * Clears a pending notification.
-	 */
-	void Clear();
+	void OnInputStreamAvailable() noexcept override {
+		cond.signal();
+	}
 };
 
 #endif

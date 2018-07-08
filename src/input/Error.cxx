@@ -1,5 +1,5 @@
 /*
- * Copyright 2003-2017 The Music Player Daemon Project
+ * Copyright 2003-2018 The Music Player Daemon Project
  * http://www.musicpd.org
  *
  * This program is free software; you can redistribute it and/or modify
@@ -18,44 +18,36 @@
  */
 
 #include "config.h"
-#include "Generic.hxx"
-#include "Id3Scan.hxx"
-#include "ApeTag.hxx"
-#include "fs/Path.hxx"
-#include "thread/Mutex.hxx"
-#include "input/InputStream.hxx"
-#include "input/LocalOpen.hxx"
-#include "Log.hxx"
+#include "Error.hxx"
+#include "system/Error.hxx"
 
-#include <exception>
+#ifdef ENABLE_CURL
+#include "lib/curl/Error.hxx"
+#endif
+
+#ifdef ENABLE_NFS
+#include "lib/nfs/Error.hxx"
+#include <nfsc/libnfs-raw-nfs.h>
+#endif
 
 bool
-ScanGenericTags(InputStream &is, TagHandler &handler) noexcept
+IsFileNotFound(std::exception_ptr ep)
 {
-	if (tag_ape_scan2(is, handler))
-		return true;
-
-#ifdef ENABLE_ID3TAG
 	try {
-		is.LockRewind();
+		std::rethrow_exception(ep);
+	} catch (const std::system_error &e) {
+		return IsFileNotFound(e);
+#ifdef ENABLE_CURL
+	} catch (const HttpStatusError &e) {
+		return e.GetStatus() == 404;
+#endif
+#ifdef ENABLE_NFS
+	} catch (const NfsClientError &e) {
+		return e.GetCode() == NFS3ERR_NOENT;
+#endif
 	} catch (...) {
-		return false;
 	}
 
-	return tag_id3_scan(is, handler);
-#else
-	return false;
-#endif
-}
-
-bool
-ScanGenericTags(Path path, TagHandler &handler) noexcept
-try {
-	Mutex mutex;
-
-	auto is = OpenLocalInputStream(path, mutex);
-	return ScanGenericTags(*is, handler);
-} catch (...) {
-	LogError(std::current_exception());
 	return false;
 }
+

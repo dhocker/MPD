@@ -1,5 +1,5 @@
 /*
- * Copyright 2003-2017 The Music Player Daemon Project
+ * Copyright 2003-2018 The Music Player Daemon Project
  * http://www.musicpd.org
  *
  * This program is free software; you can redistribute it and/or modify
@@ -17,19 +17,30 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-#ifndef MPD_OPUS_TAGS_HXX
-#define MPD_OPUS_TAGS_HXX
+#ifndef MPD_FLAC_AUDIO_FORMAT_HXX
+#define MPD_FLAC_AUDIO_FORMAT_HXX
 
-#include "check.h"
+#include "pcm/SampleFormat.hxx"
 
-#include <stddef.h>
+constexpr inline SampleFormat
+FlacSampleFormat(unsigned bits_per_sample) noexcept
+{
+	switch (bits_per_sample) {
+	case 8:
+		return SampleFormat::S8;
 
-struct ReplayGainInfo;
-class TagHandler;
+	case 16:
+		return SampleFormat::S16;
 
-bool
-ScanOpusTags(const void *data, size_t size,
-	     ReplayGainInfo *rgi,
-	     TagHandler &handler) noexcept;
+	case 24:
+		return SampleFormat::S24_P32;
+
+	case 32:
+		return SampleFormat::S32;
+
+	default:
+		return SampleFormat::UNDEFINED;
+	}
+}
 
 #endif

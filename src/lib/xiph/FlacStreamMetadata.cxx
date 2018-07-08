@@ -1,5 +1,5 @@
 /*
- * Copyright 2003-2017 The Music Player Daemon Project
+ * Copyright 2003-2018 The Music Player Daemon Project
  * http://www.musicpd.org
  *
  * This program is free software; you can redistribute it and/or modify
@@ -18,8 +18,10 @@
  */
 
 #include "config.h"
-#include "FlacMetadata.hxx"
-#include "lib/xiph/XiphTags.hxx"
+#include "FlacStreamMetadata.hxx"
+#include "FlacAudioFormat.hxx"
+#include "XiphTags.hxx"
+#include "CheckAudioFormat.hxx"
 #include "MixRampInfo.hxx"
 #include "tag/Handler.hxx"
 #include "tag/Table.hxx"
@@ -79,11 +81,11 @@ flac_comment_value(const FLAC__StreamMetadata_VorbisComment_Entry *entry,
 static bool
 flac_copy_comment(const FLAC__StreamMetadata_VorbisComment_Entry *entry,
 		  const char *name, TagType tag_type,
-		  const TagHandler &handler, void *handler_ctx)
+		  TagHandler &handler) noexcept
 {
 	const char *value = flac_comment_value(entry, name);
 	if (value != nullptr) {
-		tag_handler_invoke_tag(handler, handler_ctx, tag_type, value);
+		handler.OnTag(tag_type, value);
 		return true;
 	}
 
@@ -92,36 +94,33 @@ flac_copy_comment(const FLAC__StreamMetadata_VorbisComment_Entry *entry,
 
 static void
 flac_scan_comment(const FLAC__StreamMetadata_VorbisComment_Entry *entry,
-		  const TagHandler &handler, void *handler_ctx)
+		  TagHandler &handler) noexcept
 {
-	if (handler.pair != nullptr) {
+	if (handler.WantPair()) {
 		const char *comment = (const char *)entry->entry;
 		const DivideString split(comment, '=');
 		if (split.IsDefined() && !split.empty())
-			tag_handler_invoke_pair(handler, handler_ctx,
-						split.GetFirst(),
-						split.GetSecond());
+			handler.OnPair(split.GetFirst(), split.GetSecond());
 	}
 
 	for (const struct tag_table *i = xiph_tags; i->name != nullptr; ++i)
-		if (flac_copy_comment(entry, i->name, i->type,
-				      handler, handler_ctx))
+		if (flac_copy_comment(entry, i->name, i->type, handler))
 			return;
 
 	for (unsigned i = 0; i < TAG_NUM_OF_ITEM_TYPES; ++i)
 		if (flac_copy_comment(entry,
 				      tag_item_names[i], (TagType)i,
-				      handler, handler_ctx))
+				      handler))
 			return;
 }
 
 static void
 flac_scan_comments(const FLAC__StreamMetadata_VorbisComment *comment,
-		   const TagHandler &handler, void *handler_ctx)
+		   TagHandler &handler) noexcept
 {
 	for (unsigned i = 0; i < comment->num_comments; ++i)
 		flac_scan_comment(&comment->comments[i],
-				  handler, handler_ctx);
+				  handler);
 }
 
 gcc_pure
@@ -134,20 +133,33 @@ flac_duration(const FLAC__StreamMetadata_StreamInfo *stream_info) noexcept
 					     stream_info->sample_rate);
 }
 
+static void
+Scan(const FLAC__StreamMetadata_StreamInfo &stream_info,
+     TagHandler &handler) noexcept
+{
+	if (stream_info.sample_rate > 0)
+		handler.OnDuration(flac_duration(&stream_info));
+
+	try {
+		handler.OnAudioFormat(CheckAudioFormat(stream_info.sample_rate,
+						       FlacSampleFormat(stream_info.bits_per_sample),
+						       stream_info.channels));
+	} catch (...) {
+	}
+}
+
 void
 flac_scan_metadata(const FLAC__StreamMetadata *block,
-		   const TagHandler &handler, void *handler_ctx)
+		   TagHandler &handler) noexcept
 {
 	switch (block->type) {
 	case FLAC__METADATA_TYPE_VORBIS_COMMENT:
 		flac_scan_comments(&block->data.vorbis_comment,
-				   handler, handler_ctx);
+				   handler);
 		break;
 
 	case FLAC__METADATA_TYPE_STREAMINFO:
-		if (block->data.stream_info.sample_rate > 0)
-			tag_handler_invoke_duration(handler, handler_ctx,
-						    flac_duration(&block->data.stream_info));
+		Scan(block->data.stream_info, handler);
 		break;
 
 	default:
@@ -159,20 +171,7 @@ Tag
 flac_vorbis_comments_to_tag(const FLAC__StreamMetadata_VorbisComment *comment)
 {
 	TagBuilder tag_builder;
-	flac_scan_comments(comment, add_tag_handler, &tag_builder);
+	AddTagHandler h(tag_builder);
+	flac_scan_comments(comment, h);
 	return tag_builder.Commit();
-}
-
-void
-FlacMetadataChain::Scan(const TagHandler &handler, void *handler_ctx)
-{
-	FLACMetadataIterator iterator(*this);
-
-	do {
-		FLAC__StreamMetadata *block = iterator.GetBlock();
-		if (block == nullptr)
-			break;
-
-		flac_scan_metadata(block, handler, handler_ctx);
-	} while (iterator.Next());
 }

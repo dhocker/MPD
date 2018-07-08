@@ -831,16 +831,6 @@ MadDecoder::~MadDecoder()
 	delete[] times;
 }
 
-/* this is primarily used for getting total time for tags */
-static std::pair<bool, SignedSongTime>
-mad_decoder_total_file_time(InputStream &is)
-{
-	MadDecoder data(nullptr, is);
-	return data.DecodeFirstFrame(nullptr)
-		? std::make_pair(true, data.total_time)
-		: std::make_pair(false, SignedSongTime::Negative());
-}
-
 long
 MadDecoder::TimeToFrame(SongTime t) const noexcept
 {
@@ -1062,16 +1052,22 @@ mp3_decode(DecoderClient &client, InputStream &input_stream)
 }
 
 static bool
-mad_decoder_scan_stream(InputStream &is,
-			const TagHandler &handler, void *handler_ctx) noexcept
+mad_decoder_scan_stream(InputStream &is, TagHandler &handler) noexcept
 {
-	const auto result = mad_decoder_total_file_time(is);
-	if (!result.first)
+	MadDecoder data(nullptr, is);
+	if (!data.DecodeFirstFrame(nullptr))
 		return false;
 
-	if (!result.second.IsNegative())
-		tag_handler_invoke_duration(handler, handler_ctx,
-					    SongTime(result.second));
+	if (!data.total_time.IsNegative())
+		handler.OnDuration(SongTime(data.total_time));
+
+	try {
+		handler.OnAudioFormat(CheckAudioFormat(data.frame.header.samplerate,
+						       SampleFormat::S24_P32,
+						       MAD_NCHANNELS(&data.frame.header)));
+	} catch (...) {
+	}
+
 	return true;
 }
 

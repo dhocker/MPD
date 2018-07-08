@@ -242,6 +242,7 @@ libmpd_a_SOURCES += \
 endif
 
 CURL_SOURCES = \
+	src/lib/curl/Error.hxx \
 	src/lib/curl/Delegate.cxx src/lib/curl/Delegate.hxx \
 	src/lib/curl/Parser.hxx \
 	src/lib/curl/Version.cxx src/lib/curl/Version.hxx \
@@ -771,6 +772,7 @@ NFS_SOURCES = \
 	src/lib/nfs/Cancellable.hxx \
 	src/lib/nfs/Lease.hxx \
 	src/lib/nfs/Connection.cxx src/lib/nfs/Connection.hxx \
+	src/lib/nfs/Error.cxx src/lib/nfs/Error.hxx \
 	src/lib/nfs/Manager.cxx src/lib/nfs/Manager.hxx \
 	src/lib/nfs/Glue.cxx src/lib/nfs/Glue.hxx \
 	src/lib/nfs/Base.cxx src/lib/nfs/Base.hxx \
@@ -1196,9 +1198,12 @@ endif
 
 if ENABLE_FLAC
 libdecoder_a_SOURCES += \
+	src/lib/xiph/FlacAudioFormat.hxx \
+	src/lib/xiph/FlacMetadataIterator.hxx \
+	src/lib/xiph/FlacIOHandle.cxx src/lib/xiph/FlacIOHandle.hxx \
+	src/lib/xiph/FlacMetadataChain.cxx src/lib/xiph/FlacMetadataChain.hxx \
+	src/lib/xiph/FlacStreamMetadata.cxx src/lib/xiph/FlacStreamMetadata.hxx \
 	src/decoder/plugins/FlacInput.cxx src/decoder/plugins/FlacInput.hxx \
-	src/decoder/plugins/FlacIOHandle.cxx src/decoder/plugins/FlacIOHandle.hxx \
-	src/decoder/plugins/FlacMetadata.cxx src/decoder/plugins/FlacMetadata.hxx \
 	src/decoder/plugins/FlacPcm.cxx src/decoder/plugins/FlacPcm.hxx \
 	src/decoder/plugins/FlacDomain.cxx src/decoder/plugins/FlacDomain.hxx \
 	src/decoder/plugins/FlacCommon.cxx src/decoder/plugins/FlacCommon.hxx \
@@ -1375,6 +1380,7 @@ endif
 #
 
 libinput_a_SOURCES = \
+	src/input/Error.cxx src/input/Error.hxx \
 	src/input/Init.cxx src/input/Init.hxx \
 	src/input/Registry.cxx src/input/Registry.hxx \
 	src/input/Open.cxx \
@@ -1929,6 +1935,9 @@ test_DumpDatabase_SOURCES = test/DumpDatabase.cxx \
 	src/db/Selection.cxx \
 	src/db/PlaylistVector.cxx \
 	src/db/DatabaseLock.cxx \
+	src/AudioFormat.cxx \
+	src/AudioParser.cxx \
+	src/pcm/SampleFormat.cxx \
 	src/SongSave.cxx \
 	src/DetachedSong.cxx \
 	src/TagSave.cxx \
@@ -2088,8 +2097,7 @@ test_dump_playlist_SOURCES = test/dump_playlist.cxx \
 
 if ENABLE_FLAC
 test_dump_playlist_SOURCES += \
-	src/ReplayGainInfo.cxx \
-	src/decoder/plugins/FlacMetadata.cxx
+	src/ReplayGainInfo.cxx
 endif
 
 test_run_decoder_LDADD = \

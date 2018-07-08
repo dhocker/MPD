@@ -1,5 +1,5 @@
 /*
- * Copyright 2003-2017 The Music Player Daemon Project
+ * Copyright 2003-2018 The Music Player Daemon Project
  * http://www.musicpd.org
  *
  * This program is free software; you can redistribute it and/or modify
@@ -17,45 +17,21 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-#include "config.h"
-#include "Generic.hxx"
-#include "Id3Scan.hxx"
-#include "ApeTag.hxx"
-#include "fs/Path.hxx"
-#include "thread/Mutex.hxx"
-#include "input/InputStream.hxx"
-#include "input/LocalOpen.hxx"
-#include "Log.hxx"
+#ifndef INPUT_ERROR_HXX
+#define INPUT_ERROR_HXX
+
+#include "check.h"
+#include "Compiler.h"
 
 #include <exception>
 
+/**
+ * Was this exception thrown because the requested file does not
+ * exist?  This function attempts to recognize exceptions thrown by
+ * various input plugins.
+ */
+gcc_pure
 bool
-ScanGenericTags(InputStream &is, TagHandler &handler) noexcept
-{
-	if (tag_ape_scan2(is, handler))
-		return true;
+IsFileNotFound(std::exception_ptr e);
 
-#ifdef ENABLE_ID3TAG
-	try {
-		is.LockRewind();
-	} catch (...) {
-		return false;
-	}
-
-	return tag_id3_scan(is, handler);
-#else
-	return false;
 #endif
-}
-
-bool
-ScanGenericTags(Path path, TagHandler &handler) noexcept
-try {
-	Mutex mutex;
-
-	auto is = OpenLocalInputStream(path, mutex);
-	return ScanGenericTags(*is, handler);
-} catch (...) {
-	LogError(std::current_exception());
-	return false;
-}

@@ -1,5 +1,5 @@
 /*
- * Copyright 2003-2017 The Music Player Daemon Project
+ * Copyright 2003-2018 The Music Player Daemon Project
  * http://www.musicpd.org
  *
  * This program is free software; you can redistribute it and/or modify
@@ -17,19 +17,26 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-#ifndef MPD_OPUS_TAGS_HXX
-#define MPD_OPUS_TAGS_HXX
+#ifndef CURL_ERROR_HXX
+#define CURL_ERROR_HXX
 
-#include "check.h"
+#include <stdexcept>
 
-#include <stddef.h>
+/**
+ * Thrown when an unsuccessful status was received from the HTTP
+ * server.
+ */
+class HttpStatusError : public std::runtime_error {
+	unsigned status;
 
-struct ReplayGainInfo;
-class TagHandler;
+public:
+	template<typename M>
+	explicit HttpStatusError(unsigned _status, M &&_msg) noexcept
+		:std::runtime_error(std::forward<M>(_msg)), status(_status) {}
 
-bool
-ScanOpusTags(const void *data, size_t size,
-	     ReplayGainInfo *rgi,
-	     TagHandler &handler) noexcept;
+	unsigned GetStatus() const noexcept {
+		return status;
+	}
+};
 
 #endif

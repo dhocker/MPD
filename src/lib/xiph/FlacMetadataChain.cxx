@@ -1,5 +1,5 @@
 /*
- * Copyright 2003-2017 The Music Player Daemon Project
+ * Copyright 2003-2018 The Music Player Daemon Project
  * http://www.musicpd.org
  *
  * This program is free software; you can redistribute it and/or modify
@@ -18,44 +18,33 @@
  */
 
 #include "config.h"
-#include "Generic.hxx"
-#include "Id3Scan.hxx"
-#include "ApeTag.hxx"
-#include "fs/Path.hxx"
-#include "thread/Mutex.hxx"
-#include "input/InputStream.hxx"
-#include "input/LocalOpen.hxx"
-#include "Log.hxx"
-
-#include <exception>
+#include "FlacMetadataChain.hxx"
+#include "FlacMetadataIterator.hxx"
+#include "FlacIOHandle.hxx"
+#include "FlacStreamMetadata.hxx"
 
 bool
-ScanGenericTags(InputStream &is, TagHandler &handler) noexcept
+FlacMetadataChain::Read(InputStream &is) noexcept
 {
-	if (tag_ape_scan2(is, handler))
-		return true;
-
-#ifdef ENABLE_ID3TAG
-	try {
-		is.LockRewind();
-	} catch (...) {
-		return false;
-	}
-
-	return tag_id3_scan(is, handler);
-#else
-	return false;
-#endif
+	return Read(::ToFlacIOHandle(is), ::GetFlacIOCallbacks(is));
 }
 
 bool
-ScanGenericTags(Path path, TagHandler &handler) noexcept
-try {
-	Mutex mutex;
+FlacMetadataChain::ReadOgg(InputStream &is) noexcept
+{
+	return ReadOgg(::ToFlacIOHandle(is), ::GetFlacIOCallbacks(is));
+}
 
-	auto is = OpenLocalInputStream(path, mutex);
-	return ScanGenericTags(*is, handler);
-} catch (...) {
-	LogError(std::current_exception());
-	return false;
+void
+FlacMetadataChain::Scan(TagHandler &handler) noexcept
+{
+	FlacMetadataIterator iterator(chain);
+
+	do {
+		FLAC__StreamMetadata *block = iterator.GetBlock();
+		if (block == nullptr)
+			break;
+
+		flac_scan_metadata(block, handler);
+	} while (iterator.Next());
 }

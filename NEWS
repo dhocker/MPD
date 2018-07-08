@@ -5,6 +5,8 @@ ver 0.21 (not yet released)
   - "outputs" prints the plugin name
   - "outputset" sets runtime attributes
   - close connection when client sends HTTP request
+* database
+  - simple: scan audio formats
 * player
   - "one-shot" single mode
 * input
@@ -30,12 +32,15 @@ ver 0.21 (not yet released)
   - sndio: new mixer plugin
 * encoder
   - opus: support for sending metadata using ogg stream chaining
-* require GCC 5.0
+* require GCC 6
 
 ver 0.20.21 (not yet released)
 * database
   - proxy: add "password" setting
   - proxy: support tags "ArtistSort", "AlbumArtistSort", "AlbumSort"
+  - simple: allow .mpdignore comments only at start of line
+* output
+  - httpd: remove broken DLNA support code
 
 ver 0.20.20 (2018/05/22)
 * protocol

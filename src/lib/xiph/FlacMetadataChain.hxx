@@ -1,5 +1,5 @@
 /*
- * Copyright 2003-2017 The Music Player Daemon Project
+ * Copyright 2003-2018 The Music Player Daemon Project
  * http://www.musicpd.org
  *
  * This program is free software; you can redistribute it and/or modify
@@ -17,16 +17,15 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-#ifndef MPD_FLAC_METADATA_H
-#define MPD_FLAC_METADATA_H
+#ifndef MPD_FLAC_METADATA_CHAIN_HXX
+#define MPD_FLAC_METADATA_CHAIN_HXX
 
 #include "Compiler.h"
-#include "FlacIOHandle.hxx"
 
 #include <FLAC/metadata.h>
 
-struct TagHandler;
-class MixRampInfo;
+class InputStream;
+class TagHandler;
 
 class FlacMetadataChain {
 	FLAC__Metadata_Chain *chain;
@@ -53,9 +52,7 @@ public:
 								  callbacks);
 	}
 
-	bool Read(InputStream &is) noexcept {
-		return Read(::ToFlacIOHandle(is), ::GetFlacIOCallbacks(is));
-	}
+	bool Read(InputStream &is) noexcept;
 
 	bool ReadOgg(const char *path) noexcept {
 		return ::FLAC__metadata_chain_read_ogg(chain, path);
@@ -68,9 +65,7 @@ public:
 								      callbacks);
 	}
 
-	bool ReadOgg(InputStream &is) {
-		return ReadOgg(::ToFlacIOHandle(is), ::GetFlacIOCallbacks(is));
-	}
+	bool ReadOgg(InputStream &is) noexcept;
 
 	gcc_pure
 	FLAC__Metadata_ChainStatus GetStatus() const noexcept {
@@ -82,50 +77,7 @@ public:
 		return FLAC__Metadata_ChainStatusString[GetStatus()];
 	}
 
-	void Scan(const TagHandler &handler, void *handler_ctx);
+	void Scan(TagHandler &handler) noexcept;
 };
-
-class FLACMetadataIterator {
-	FLAC__Metadata_Iterator *iterator;
-
-public:
-	FLACMetadataIterator():iterator(::FLAC__metadata_iterator_new()) {}
-
-	FLACMetadataIterator(FlacMetadataChain &chain)
-		:iterator(::FLAC__metadata_iterator_new()) {
-		::FLAC__metadata_iterator_init(iterator,
-					       (FLAC__Metadata_Chain *)chain);
-	}
-
-	~FLACMetadataIterator() {
-		::FLAC__metadata_iterator_delete(iterator);
-	}
-
-	bool Next() noexcept {
-		return ::FLAC__metadata_iterator_next(iterator);
-	}
-
-	gcc_pure
-	FLAC__StreamMetadata *GetBlock() noexcept {
-		return ::FLAC__metadata_iterator_get_block(iterator);
-	}
-};
-
-struct Tag;
-struct ReplayGainInfo;
-
-bool
-flac_parse_replay_gain(ReplayGainInfo &rgi,
-		       const FLAC__StreamMetadata_VorbisComment &vc);
-
-MixRampInfo
-flac_parse_mixramp(const FLAC__StreamMetadata_VorbisComment &vc);
-
-Tag
-flac_vorbis_comments_to_tag(const FLAC__StreamMetadata_VorbisComment *comment);
-
-void
-flac_scan_metadata(const FLAC__StreamMetadata *block,
-		   const TagHandler &handler, void *handler_ctx);
 
 #endif

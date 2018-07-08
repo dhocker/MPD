@@ -1,5 +1,5 @@
 /*
- * Copyright 2003-2017 The Music Player Daemon Project
+ * Copyright 2003-2018 The Music Player Daemon Project
  * http://www.musicpd.org
  *
  * This program is free software; you can redistribute it and/or modify
@@ -17,19 +17,29 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-#ifndef MPD_OPUS_TAGS_HXX
-#define MPD_OPUS_TAGS_HXX
+#ifndef MPD_FLAC_STREAM_METADATA_HXX
+#define MPD_FLAC_STREAM_METADATA_HXX
 
-#include "check.h"
+#include <FLAC/metadata.h>
 
-#include <stddef.h>
-
-struct ReplayGainInfo;
 class TagHandler;
+class MixRampInfo;
+
+struct Tag;
+struct ReplayGainInfo;
 
 bool
-ScanOpusTags(const void *data, size_t size,
-	     ReplayGainInfo *rgi,
-	     TagHandler &handler) noexcept;
+flac_parse_replay_gain(ReplayGainInfo &rgi,
+		       const FLAC__StreamMetadata_VorbisComment &vc);
+
+MixRampInfo
+flac_parse_mixramp(const FLAC__StreamMetadata_VorbisComment &vc);
+
+Tag
+flac_vorbis_comments_to_tag(const FLAC__StreamMetadata_VorbisComment *comment);
+
+void
+flac_scan_metadata(const FLAC__StreamMetadata *block,
+		   TagHandler &handler) noexcept;
 
 #endif

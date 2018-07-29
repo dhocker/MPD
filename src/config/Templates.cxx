@@ -17,8 +17,8 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-#include "ConfigTemplates.hxx"
-#include "ConfigOption.hxx"
+#include "Templates.hxx"
+#include "Option.hxx"
 #include "util/Macros.hxx"
 
 #include <string.h>
@@ -43,6 +43,7 @@ const ConfigTemplate config_param_templates[] = {
 	{ "zeroconf_name" },
 	{ "zeroconf_enabled" },
 	{ "password", true },
+	{ "local_permissions" },
 	{ "default_permissions" },
 	{ "audio_output_format" },
 	{ "mixer_type" },
@@ -67,7 +68,7 @@ const ConfigTemplate config_param_templates[] = {
 	{ "id3v1_encoding", false, true },
 	{ "metadata_to_use" },
 	{ "save_absolute_paths_in_playlists" },
-	{ "gapless_mp3_playback" },
+	{ "gapless_mp3_playback", false, true },
 	{ "auto_update" },
 	{ "auto_update_depth" },
 	{ "despotify_user", false, true },

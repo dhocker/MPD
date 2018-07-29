@@ -17,9 +17,22 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-#ifndef MPD_CONFIG_ERROR_HXX
-#define MPD_CONFIG_ERROR_HXX
+#ifndef MPD_FS_LIST_XX
+#define MPD_FS_LIST_XX
 
-extern const class Domain config_domain;
+#include "check.h"
+
+#include <forward_list>
+
+class Path;
+class AllocatedPath;
+
+/**
+ * Returns a sorted list of files matching the given pattern.
+ *
+ * Throws on error.
+ */
+std::forward_list<AllocatedPath>
+ListWildcard(Path pattern);
 
 #endif

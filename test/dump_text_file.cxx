@@ -22,8 +22,8 @@
 #include "input/Init.hxx"
 #include "input/InputStream.hxx"
 #include "input/TextInputStream.hxx"
-#include "config/ConfigGlobal.hxx"
-#include "Log.hxx"
+#include "config/Data.hxx"
+#include "util/PrintException.hxx"
 
 #ifdef ENABLE_ARCHIVE
 #include "archive/ArchiveList.hxx"
@@ -41,11 +41,11 @@ class GlobalInit {
 public:
 	GlobalInit() {
 		io_thread.Start();
-		config_global_init();
 #ifdef ENABLE_ARCHIVE
 		archive_plugin_init_all();
 #endif
-		input_stream_global_init(io_thread.GetEventLoop());
+		input_stream_global_init(ConfigData(),
+					 io_thread.GetEventLoop());
 	}
 
 	~GlobalInit() {
@@ -53,7 +53,6 @@ public:
 #ifdef ENABLE_ARCHIVE
 		archive_plugin_deinit_all();
 #endif
-		config_global_finish();
 	}
 };
 
@@ -96,7 +95,7 @@ try {
 
 	auto is = InputStream::OpenReady(argv[1], mutex);
 	return dump_input_stream(std::move(is));
-} catch (const std::exception &e) {
-	LogError(e);
+} catch (...) {
+	PrintException(std::current_exception());
 	return EXIT_FAILURE;
 }

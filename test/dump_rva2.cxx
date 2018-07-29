@@ -21,12 +21,12 @@
 #include "tag/Id3Load.hxx"
 #include "tag/Rva2.hxx"
 #include "ReplayGainInfo.hxx"
-#include "config/ConfigGlobal.hxx"
+#include "config/Global.hxx"
 #include "thread/Mutex.hxx"
 #include "fs/Path.hxx"
 #include "input/InputStream.hxx"
 #include "input/LocalOpen.hxx"
-#include "Log.hxx"
+#include "util/PrintException.hxx"
 
 #include <id3tag.h>
 
@@ -95,7 +95,7 @@ try {
 	DumpReplayGainInfo(replay_gain);
 
 	return EXIT_SUCCESS;
-} catch (const std::exception &e) {
-	LogError(e);
+} catch (...) {
+	PrintException(std::current_exception());
 	return EXIT_FAILURE;
 }

@@ -18,14 +18,14 @@
  */
 
 #include "config.h"
-#include "config/ConfigGlobal.hxx"
+#include "config/Global.hxx"
 #include "neighbor/Listener.hxx"
 #include "neighbor/Info.hxx"
 #include "neighbor/Glue.hxx"
 #include "fs/Path.hxx"
 #include "event/Loop.hxx"
 #include "ShutdownHandler.hxx"
-#include "Log.hxx"
+#include "util/PrintException.hxx"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -79,7 +79,7 @@ try {
 
 	MyNeighborListener listener;
 	NeighborGlue neighbor;
-	neighbor.Init(loop, listener);
+	neighbor.Init(GetGlobalConfig(), loop, listener);
 	neighbor.Open();
 
 	/* dump initial list */
@@ -93,7 +93,7 @@ try {
 	loop.Run();
 	neighbor.Close();
 	return EXIT_SUCCESS;
-} catch (const std::exception &e) {
-	LogError(e);
+} catch (...) {
+	PrintException(std::current_exception());
 	return EXIT_FAILURE;
 }

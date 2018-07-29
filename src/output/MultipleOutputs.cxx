@@ -24,8 +24,8 @@
 #include "MusicPipe.hxx"
 #include "MusicChunk.hxx"
 #include "config/Block.hxx"
-#include "config/ConfigGlobal.hxx"
-#include "config/ConfigOption.hxx"
+#include "config/Data.hxx"
+#include "config/Option.hxx"
 #include "util/RuntimeError.hxx"
 
 #include <stdexcept>
@@ -87,15 +87,16 @@ LoadOutputControl(EventLoop &event_loop,
 
 void
 MultipleOutputs::Configure(EventLoop &event_loop,
+			   const ConfigData &config,
 			   const ReplayGainConfig &replay_gain_config,
 			   AudioOutputClient &client)
 {
-	for (const auto *param = config_get_block(ConfigBlockOption::AUDIO_OUTPUT);
-	     param != nullptr; param = param->next) {
+	for (const auto &block : config.GetBlockList(ConfigBlockOption::AUDIO_OUTPUT)) {
+		block.SetUsed();
 		auto *output = LoadOutputControl(event_loop,
 						 replay_gain_config,
 						 mixer_listener,
-						 client, *param);
+						 client, block);
 		if (FindByName(output->GetName()) != nullptr)
 			throw FormatRuntimeError("output devices with identical "
 						 "names: %s", output->GetName());

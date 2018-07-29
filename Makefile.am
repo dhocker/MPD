@@ -175,6 +175,7 @@ libmpd_a_SOURCES = \
 	src/SongPrint.cxx src/SongPrint.hxx \
 	src/SongSave.cxx src/SongSave.hxx \
 	src/StateFile.cxx src/StateFile.hxx \
+	src/StateFileConfig.cxx src/StateFileConfig.hxx \
 	src/Stats.cxx src/Stats.hxx \
 	src/TagPrint.cxx src/TagPrint.hxx \
 	src/TagSave.cxx src/TagSave.hxx \
@@ -215,6 +216,7 @@ libmpd_a_SOURCES += \
 	src/db/LightSong.cxx src/db/LightSong.hxx \
 	src/db/LightDirectory.hxx \
 	src/db/update/UpdateDomain.cxx src/db/update/UpdateDomain.hxx \
+	src/db/update/Config.cxx src/db/update/Config.hxx \
 	src/db/update/Service.cxx src/db/update/Service.hxx \
 	src/db/update/Queue.cxx src/db/update/Queue.hxx \
 	src/db/update/UpdateIO.cxx src/db/update/UpdateIO.hxx \
@@ -491,6 +493,7 @@ libutil_a_SOURCES = \
 	src/util/CharUtil.hxx \
 	src/util/WCharUtil.hxx \
 	src/util/NumberParser.hxx \
+	src/util/HexFormat.cxx src/util/HexFormat.hxx \
 	src/util/MimeType.cxx src/util/MimeType.hxx \
 	src/util/StringBuffer.hxx \
 	src/util/StringFormat.hxx \
@@ -515,6 +518,8 @@ libutil_a_SOURCES = \
 	src/util/TextFile.hxx \
 	src/util/TemplateString.hxx \
 	src/util/TimeParser.cxx src/util/TimeParser.hxx \
+	src/util/TimeConvert.cxx src/util/TimeConvert.hxx \
+	src/util/TimeISO8601.cxx src/util/TimeISO8601.hxx \
 	src/util/UriUtil.cxx src/util/UriUtil.hxx \
 	src/util/Manual.hxx \
 	src/util/StaticFifoBuffer.hxx \
@@ -527,6 +532,7 @@ libutil_a_SOURCES = \
 	src/util/SliceBuffer.hxx \
 	src/util/HugeAllocator.cxx src/util/HugeAllocator.hxx \
 	src/util/PeakBuffer.cxx src/util/PeakBuffer.hxx \
+	src/util/PrintException.cxx src/util/PrintException.hxx \
 	src/util/SparseBuffer.cxx src/util/SparseBuffer.hxx \
 	src/util/OptionParser.cxx src/util/OptionParser.hxx \
 	src/util/OptionDef.hxx \
@@ -741,6 +747,7 @@ libfs_a_SOURCES = \
 	src/fs/FileSystem.cxx src/fs/FileSystem.hxx \
 	src/fs/FileInfo.hxx \
 	src/fs/Glob.hxx \
+	src/fs/List.cxx src/fs/List.hxx \
 	src/fs/StandardDirectory.cxx src/fs/StandardDirectory.hxx \
 	src/fs/CheckFile.cxx src/fs/CheckFile.hxx \
 	src/fs/DirectoryReader.cxx src/fs/DirectoryReader.hxx
@@ -1000,17 +1007,18 @@ libbasic_a_SOURCES = \
 # configuration library
 
 libconf_a_SOURCES = \
-	src/config/ConfigDefaults.hxx \
-	src/config/ConfigPath.cxx src/config/ConfigPath.hxx \
+	src/config/Defaults.hxx \
+	src/config/Path.cxx src/config/Path.hxx \
 	src/config/Data.cxx src/config/Data.hxx \
 	src/config/Block.cxx src/config/Block.hxx \
 	src/config/Param.cxx src/config/Param.hxx \
-	src/config/ConfigParser.cxx src/config/ConfigParser.hxx \
-	src/config/ConfigGlobal.cxx src/config/ConfigGlobal.hxx \
-	src/config/ConfigFile.cxx src/config/ConfigFile.hxx \
-	src/config/ConfigTemplates.cxx src/config/ConfigTemplates.hxx \
-	src/config/ConfigError.cxx src/config/ConfigError.hxx \
-	src/config/ConfigOption.hxx
+	src/config/Parser.cxx src/config/Parser.hxx \
+	src/config/Global.cxx src/config/Global.hxx \
+	src/config/File.cxx src/config/File.hxx \
+	src/config/Migrate.cxx src/config/Migrate.hxx \
+	src/config/Templates.cxx src/config/Templates.hxx \
+	src/config/Domain.cxx src/config/Domain.hxx \
+	src/config/Option.hxx
 
 # tag plugins
 
@@ -1453,6 +1461,8 @@ if ENABLE_QOBUZ
 libinput_a_SOURCES += \
 	$(YAJL_SOURCES) \
 	src/lib/gcrypt/MD5.cxx src/lib/gcrypt/MD5.hxx \
+	src/lib/gcrypt/Hash.hxx \
+	src/lib/gcrypt/Init.hxx \
 	src/input/plugins/QobuzSession.hxx \
 	src/input/plugins/QobuzClient.cxx src/input/plugins/QobuzClient.hxx \
 	src/input/plugins/QobuzErrorParser.cxx src/input/plugins/QobuzErrorParser.hxx \
@@ -1857,6 +1867,7 @@ TESTS = $(C_TESTS)
 
 noinst_PROGRAMS = \
 	$(C_TESTS) \
+	test/ParseSongFilter \
 	test/read_conf \
 	test/run_resolver \
 	test/run_input \
@@ -1898,6 +1909,14 @@ if ENABLE_ALSA
 # this debug program is still ALSA specific
 noinst_PROGRAMS += test/read_mixer
 endif
+
+test_ParseSongFilter_LDADD = \
+	$(TAG_LIBS) \
+	$(ICU_LDADD) \
+	libutil.a
+test_ParseSongFilter_SOURCES = \
+	src/SongFilter.cxx \
+	test/ParseSongFilter.cxx
 
 test_read_conf_LDADD = \
 	libconf.a \
@@ -2508,21 +2527,18 @@ endif
 man_MANS = doc/mpd.1 doc/mpd.conf.5
 doc_DATA = AUTHORS COPYING NEWS README.md doc/mpdconf.example
 
-DOCBOOK_FILES = doc/protocol.xml doc/user.xml doc/developer.xml
+DOCBOOK_FILES = doc/protocol.xml
 
 if ENABLE_DOCUMENTATION
 protocoldir = $(docdir)/protocol
 protocol_DATA = $(wildcard doc/protocol/*.html)
 
-userdir = $(docdir)/user
-user_DATA = $(wildcard doc/user/*.html)
-
-developerdir = $(docdir)/developer
-developer_DATA = $(wildcard doc/developer/*.html)
-
 DOCBOOK_HTML = $(patsubst %.xml,%/index.html,$(DOCBOOK_FILES))
 
 DOCBOOK_INCLUDES = $(wildcard $(srcdir)/doc/include/*.xml)
+
+doc/html/index.html: $(srcdir)/doc/conf.py $(srcdir)/doc/*.rst
+	$(SPHINX) -q -b html -d doc/doctrees $(srcdir)/doc doc/html
 
 $(DOCBOOK_HTML): %/index.html: %.xml $(DOCBOOK_INCLUDES)
 	$(XMLTO) -o $(@D) --stringparam chunker.output.encoding=utf-8 html --stringparam use.id.as.filename=1 $<
@@ -2531,13 +2547,17 @@ doc/api/html/index.html: doc/doxygen.conf
 	@$(MKDIR_P) $(@D)
 	$(DOXYGEN) $<
 
-all-local: $(DOCBOOK_HTML) doc/api/html/index.html
+all-local: doc/html/index.html $(DOCBOOK_HTML) doc/api/html/index.html
 
 clean-local:
 	rm -rf $(patsubst %.xml,%,$(DOCBOOK_FILES))
-	rm -rf doc/api
+	rm -rf doc/api doc/doctrees doc/html
 
 install-data-local: doc/api/html/index.html
+	$(mkinstalldirs) $(DESTDIR)$(docdir)/html $(DESTDIR)$(docdir)/html/_sources $(DESTDIR)$(docdir)/html/_static
+	$(INSTALL_DATA) -c doc/html/*.* $(DESTDIR)$(docdir)/html
+	$(INSTALL_DATA) -c doc/html/_sources/*.* $(DESTDIR)$(docdir)/html/_sources
+	$(INSTALL_DATA) -c doc/html/_static/*.* $(DESTDIR)$(docdir)/html/_static
 	$(mkinstalldirs) $(DESTDIR)$(docdir)/api/html
 	$(INSTALL_DATA) -c -m 644 doc/api/html/*.* \
 		$(DESTDIR)$(docdir)/api/html
@@ -2545,13 +2565,13 @@ install-data-local: doc/api/html/index.html
 uninstall-local:
 	rm -f $(DESTDIR)$(docdir)/api/html/*.*
 
-upload: $(DOCBOOK_HTML) doc/api/html/index.html
+upload: doc/html/index.html $(DOCBOOK_HTML) doc/api/html/index.html
 	rsync -vpruz --delete doc/ www.musicpd.org:/var/www/mpd/doc/ \
 		--chmod=Dug+rwx,Do+rx,Fug+rw,Fo+r \
 		--include=protocol --include=protocol/** \
 		--include=user --include=user/** \
-		--include=developer --include=developer/** \
 		--include=api --include=api/** \
+		--include=html --include=html/** \
 		--exclude=*
 
 endif

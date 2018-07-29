@@ -1,10 +1,13 @@
 ver 0.21 (not yet released)
+* configuration
+  - add "include" directive, allows including config files
 * protocol
   - "tagtypes" can be used to hide tags
   - "find" and "search" can sort
   - "outputs" prints the plugin name
   - "outputset" sets runtime attributes
   - close connection when client sends HTTP request
+  - new filter syntax for "find"/"search" etc. with negation
 * database
   - simple: scan audio formats
 * player
@@ -18,6 +21,7 @@ ver 0.21 (not yet released)
 * decoder
   - gme: try loading m3u sidecar files
   - hybrid_dsd: new decoder plugin
+  - mad: move "gapless_mp3_playback" setting to "decoder" block
   - pcm: support audio/L24 (RFC 3190)
 * resampler
   - soxr: flush resampler at end of song

@@ -18,13 +18,13 @@
  */
 
 #include "config.h"
-#include "ConfigPath.hxx"
+#include "Path.hxx"
+#include "Global.hxx"
 #include "fs/AllocatedPath.hxx"
 #include "fs/Traits.hxx"
 #include "fs/Domain.hxx"
 #include "fs/StandardDirectory.hxx"
 #include "util/RuntimeError.hxx"
-#include "ConfigGlobal.hxx"
 
 #include <assert.h>
 #include <string.h>
@@ -113,7 +113,7 @@ ParsePath(const char *path)
 		if (path2.IsNull())
 			return nullptr;
 
-		return AllocatedPath::Build(home, path2);
+		return home / path2;
 	} else if (!PathTraitsUTF8::IsAbsolute(path)) {
 		throw FormatRuntimeError("not an absolute path: %s", path);
 	} else {

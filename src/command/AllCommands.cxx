@@ -130,7 +130,7 @@ build_command_map()
 	insert_command("config", PERMISSION_ADMIN, 0, 0, handle_config);
 	insert_command("consume", PERMISSION_CONTROL, 1, 1, handle_consume);
 #ifdef ENABLE_DATABASE
-	insert_command("count", PERMISSION_READ, 2, -1, handle_count);
+	insert_command("count", PERMISSION_READ, 1, -1, handle_count);
 #endif
 	insert_command("crossfade", PERMISSION_CONTROL, 1, 1, handle_crossfade);
 	insert_command("currentsong", PERMISSION_READ, 0, 0, handle_currentsong);
@@ -140,8 +140,8 @@ build_command_map()
 	insert_command("disableoutput", PERMISSION_ADMIN, 1, 1, handle_disableoutput);
 	insert_command("enableoutput", PERMISSION_ADMIN, 1, 1, handle_enableoutput);
 #ifdef ENABLE_DATABASE
-	insert_command("find", PERMISSION_READ, 2, -1, handle_find);
-	insert_command("findadd", PERMISSION_ADD, 2, -1, handle_findadd);
+	insert_command("find", PERMISSION_READ, 1, -1, handle_find);
+	insert_command("findadd", PERMISSION_ADD, 1, -1, handle_findadd);
 #endif
 	insert_command("idle", PERMISSION_READ, 0, -1, handle_idle);
 	insert_command("kill", PERMISSION_ADMIN, -1, -1, handle_kill);
@@ -185,11 +185,11 @@ build_command_map()
 	insert_command("playlistadd", PERMISSION_CONTROL, 2, 2, handle_playlistadd);
 	insert_command("playlistclear", PERMISSION_CONTROL, 1, 1, handle_playlistclear);
 	insert_command("playlistdelete", PERMISSION_CONTROL, 2, 2, handle_playlistdelete);
-	insert_command("playlistfind", PERMISSION_READ, 2, -1, handle_playlistfind);
+	insert_command("playlistfind", PERMISSION_READ, 1, -1, handle_playlistfind);
 	insert_command("playlistid", PERMISSION_READ, 0, 1, handle_playlistid);
 	insert_command("playlistinfo", PERMISSION_READ, 0, 1, handle_playlistinfo);
 	insert_command("playlistmove", PERMISSION_CONTROL, 3, 3, handle_playlistmove);
-	insert_command("playlistsearch", PERMISSION_READ, 2, -1, handle_playlistsearch);
+	insert_command("playlistsearch", PERMISSION_READ, 1, -1, handle_playlistsearch);
 	insert_command("plchanges", PERMISSION_READ, 1, 2, handle_plchanges);
 	insert_command("plchangesposid", PERMISSION_READ, 1, 2, handle_plchangesposid);
 	insert_command("previous", PERMISSION_CONTROL, 0, 0, handle_previous);
@@ -209,9 +209,9 @@ build_command_map()
 	insert_command("rm", PERMISSION_CONTROL, 1, 1, handle_rm);
 	insert_command("save", PERMISSION_CONTROL, 1, 1, handle_save);
 #ifdef ENABLE_DATABASE
-	insert_command("search", PERMISSION_READ, 2, -1, handle_search);
-	insert_command("searchadd", PERMISSION_ADD, 2, -1, handle_searchadd);
-	insert_command("searchaddpl", PERMISSION_CONTROL, 3, -1, handle_searchaddpl);
+	insert_command("search", PERMISSION_READ, 1, -1, handle_search);
+	insert_command("searchadd", PERMISSION_ADD, 1, -1, handle_searchadd);
+	insert_command("searchaddpl", PERMISSION_CONTROL, 2, -1, handle_searchaddpl);
 #endif
 	insert_command("seek", PERMISSION_CONTROL, 2, 2, handle_seek);
 	insert_command("seekcur", PERMISSION_CONTROL, 1, 1, handle_seekcur);

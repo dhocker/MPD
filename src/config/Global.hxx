@@ -17,13 +17,42 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-#ifndef MPD_CONFIG_FILE_HXX
-#define MPD_CONFIG_FILE_HXX
+#ifndef MPD_CONFIG_GLOBAL_HXX
+#define MPD_CONFIG_GLOBAL_HXX
+
+#include "Option.hxx"
+#include "Compiler.h"
 
 class Path;
 struct ConfigData;
 
 void
-ReadConfigFile(ConfigData &data, Path path);
+config_global_init();
+
+void
+config_global_finish();
+
+gcc_const
+const ConfigData &
+GetGlobalConfig() noexcept;
+
+/**
+ * Call this function after all configuration has been evaluated.  It
+ * checks for unused parameters, and logs warnings.
+ */
+void
+config_global_check();
+
+void
+ReadConfigFile(Path path);
+
+const char *
+config_get_string(enum ConfigOption option,
+		  const char *default_value=nullptr) noexcept;
+
+unsigned
+config_get_positive(enum ConfigOption option, unsigned default_value);
+
+bool config_get_bool(enum ConfigOption option, bool default_value);
 
 #endif

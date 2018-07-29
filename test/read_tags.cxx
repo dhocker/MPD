@@ -18,6 +18,7 @@
  */
 
 #include "config.h"
+#include "config/Data.hxx"
 #include "event/Thread.hxx"
 #include "decoder/DecoderList.hxx"
 #include "decoder/DecoderPlugin.hxx"
@@ -27,9 +28,9 @@
 #include "tag/Generic.hxx"
 #include "fs/Path.hxx"
 #include "AudioFormat.hxx"
-#include "Log.hxx"
 #include "util/ScopeExit.hxx"
 #include "util/StringBuffer.hxx"
+#include "util/PrintException.hxx"
 
 #include <stdexcept>
 
@@ -92,10 +93,10 @@ try {
 	EventThread io_thread;
 	io_thread.Start();
 
-	input_stream_global_init(io_thread.GetEventLoop());
+	input_stream_global_init(ConfigData(), io_thread.GetEventLoop());
 	AtScopeExit() { input_stream_global_finish(); };
 
-	decoder_plugin_init_all();
+	decoder_plugin_init_all(ConfigData());
 	AtScopeExit() { decoder_plugin_deinit_all(); };
 
 	plugin = decoder_plugin_from_name(decoder_name);
@@ -108,8 +109,8 @@ try {
 	bool success;
 	try {
 		success = plugin->ScanFile(path, h);
-	} catch (const std::exception &e) {
-		LogError(e);
+	} catch (...) {
+		PrintException(std::current_exception());
 		success = false;
 	}
 
@@ -134,7 +135,7 @@ try {
 	}
 
 	return 0;
-} catch (const std::exception &e) {
-	LogError(e);
+} catch (...) {
+	PrintException(std::current_exception());
 	return EXIT_FAILURE;
 }

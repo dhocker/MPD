@@ -59,6 +59,7 @@
 #include "config/Option.hxx"
 #include "config/Domain.hxx"
 #include "util/RuntimeError.hxx"
+#include "util/ScopeExit.hxx"
 
 #ifdef ENABLE_DAEMON
 #include "unix/Daemon.hxx"
@@ -97,12 +98,12 @@
 #include "org_musicpd_Bridge.h"
 #endif
 
-#ifdef ENABLE_SYSTEMD_DAEMON
-#include <systemd/sd-daemon.h>
+#ifdef ENABLE_DBUS
+#include "lib/dbus/Init.hxx"
 #endif
 
-#ifdef ENABLE_DBUS
-#include <dbus/dbus.h>
+#ifdef ENABLE_SYSTEMD_DAEMON
+#include <systemd/sd-daemon.h>
 #endif
 
 #include <stdlib.h>
@@ -432,7 +433,8 @@ Instance::OnIdle(unsigned flags)
 
 #ifndef ANDROID
 
-int main(int argc, char *argv[])
+int
+main(int argc, char *argv[]) noexcept
 {
 #ifdef _WIN32
 	return win32_main(argc, argv);
@@ -444,13 +446,12 @@ int main(int argc, char *argv[])
 #endif
 
 static int
-mpd_main_after_fork(const ConfigData &raw_config, const Config &config);
+mpd_main_after_fork(const ConfigData &raw_config,
+		    const Config &config);
 
-#ifdef ANDROID
-static inline
-#endif
-int mpd_main(int argc, char *argv[])
-try {
+static inline int
+MainOrThrow(int argc, char *argv[])
+{
 	struct options options;
 
 #ifdef ENABLE_DAEMON
@@ -465,9 +466,12 @@ try {
 #endif
 #endif
 
-	IcuInit();
-
+	const ScopeIcuInit icu_init;
 	const ScopeNetInit net_init;
+
+#ifdef ENABLE_DBUS
+	const ODBus::ScopeInit dbus_init;
+#endif
 
 	config_global_init();
 
@@ -498,6 +502,10 @@ try {
 	log_init(raw_config, options.verbose, options.log_stderr);
 
 	instance = new Instance();
+	AtScopeExit() {
+		delete instance;
+		instance = nullptr;
+	};
 
 #ifdef ENABLE_NEIGHBOR_PLUGINS
 	instance->neighbors = new NeighborGlue();
@@ -522,18 +530,30 @@ try {
 #ifdef ENABLE_DAEMON
 	daemonize_set_user();
 	daemonize_begin(options.daemon);
+	AtScopeExit() { daemonize_finish(); };
 #endif
 
 	return mpd_main_after_fork(raw_config, config);
+}
 
-} catch (const std::exception &e) {
-	LogError(e);
-	return EXIT_FAILURE;
+#ifdef ANDROID
+static inline
+#endif
+int mpd_main(int argc, char *argv[]) noexcept
+{
+	AtScopeExit() { log_deinit(); };
+
+	try {
+		return MainOrThrow(argc, argv);
+	} catch (...) {
+		LogError(std::current_exception());
+		return EXIT_FAILURE;
+	}
 }
 
 static int
 mpd_main_after_fork(const ConfigData &raw_config, const Config &config)
-try {
+{
 	ConfigureFS(raw_config);
 
 	glue_mapper_init(raw_config);
@@ -697,26 +717,8 @@ try {
 #ifndef ANDROID
 	SignalHandlersFinish();
 #endif
-	delete instance;
-	instance = nullptr;
-
-#ifdef ENABLE_DAEMON
-	daemonize_finish();
-#endif
-
-	IcuFinish();
-
-	log_deinit();
-
-#ifdef ENABLE_DBUS
-	/* free libdbus memory to make memory leak checkers happy */
-	dbus_shutdown();
-#endif
 
 	return EXIT_SUCCESS;
-} catch (const std::exception &e) {
-	LogError(e);
-	return EXIT_FAILURE;
 }
 
 #ifdef ANDROID

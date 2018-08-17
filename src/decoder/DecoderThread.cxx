@@ -23,7 +23,7 @@
 #include "Bridge.hxx"
 #include "DecoderError.hxx"
 #include "DecoderPlugin.hxx"
-#include "DetachedSong.hxx"
+#include "song/DetachedSong.hxx"
 #include "MusicPipe.hxx"
 #include "fs/Traits.hxx"
 #include "fs/AllocatedPath.hxx"
@@ -536,9 +536,8 @@ DecoderControl::RunThread() noexcept
 			if (state == DecoderState::ERROR) {
 				try {
 					std::rethrow_exception(error);
-				} catch (const std::exception &e) {
-					LogError(e);
 				} catch (...) {
+					LogError(std::current_exception());
 				}
 			}
 

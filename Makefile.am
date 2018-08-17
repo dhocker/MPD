@@ -22,6 +22,7 @@ noinst_LIBRARIES = \
 	libpcm.a \
 	libbasic.a \
 	libconf.a \
+	libsong.a \
 	libtag.a \
 	libinput.a \
 	libfs.a \
@@ -53,6 +54,7 @@ src_mpd_LDADD = \
 	$(INPUT_LIBS) \
 	$(ARCHIVE_LIBS) \
 	$(OUTPUT_LIBS) \
+	libsong.a \
 	$(TAG_LIBS) \
 	$(FILTER_LIBS) \
 	$(ENCODER_LIBS) \
@@ -168,7 +170,6 @@ libmpd_a_SOURCES = \
 	src/queue/Listener.hxx \
 	src/PluginUnavailable.hxx \
 	src/ReplayGainGlobal.cxx src/ReplayGainGlobal.hxx \
-	src/DetachedSong.cxx src/DetachedSong.hxx \
 	src/LocateUri.cxx src/LocateUri.hxx \
 	src/SongUpdate.cxx \
 	src/SongLoader.cxx src/SongLoader.hxx \
@@ -184,7 +185,6 @@ libmpd_a_SOURCES = \
 	src/TimePrint.cxx src/TimePrint.hxx \
 	src/mixer/Volume.cxx src/mixer/Volume.hxx \
 	src/Chrono.hxx \
-	src/SongFilter.cxx src/SongFilter.hxx \
 	src/PlaylistFile.cxx src/PlaylistFile.hxx
 
 if ENABLE_CURL
@@ -205,6 +205,11 @@ libmpd_a_SOURCES += \
 	src/unix/PidFile.hxx
 endif
 
+if ENABLE_SYSTEMD_DAEMON
+libmpd_a_SOURCES += \
+	src/lib/systemd/Watchdog.cxx src/lib/systemd/Watchdog.hxx
+endif
+
 endif
 
 if ENABLE_DATABASE
@@ -213,7 +218,6 @@ libmpd_a_SOURCES += \
 	src/command/StorageCommands.cxx src/command/StorageCommands.hxx \
 	src/command/DatabaseCommands.cxx src/command/DatabaseCommands.hxx \
 	src/db/Count.cxx src/db/Count.hxx \
-	src/db/LightSong.cxx src/db/LightSong.hxx \
 	src/db/LightDirectory.hxx \
 	src/db/update/UpdateDomain.cxx src/db/update/UpdateDomain.hxx \
 	src/db/update/Config.cxx src/db/update/Config.hxx \
@@ -287,6 +291,7 @@ ALSA_SOURCES = \
 if ENABLE_DBUS
 noinst_LIBRARIES += libodbus.a
 libodbus_a_SOURCES = \
+	src/lib/dbus/Init.hxx \
 	src/lib/dbus/AppendIter.hxx \
 	src/lib/dbus/AsyncRequest.hxx \
 	src/lib/dbus/Connection.cxx src/lib/dbus/Connection.hxx \
@@ -342,7 +347,7 @@ libmpd.so: $(filter %.a,$(src_mpd_LDADD)) libmain.a
 	$(AM_V_CXXLD)$(CXXLD) -shared -Wl,--no-undefined,-shared,-Bsymbolic -llog -lz -o $@ $(AM_CXXFLAGS) $(CXXFLAGS) $(LDFLAGS) src/libmain_a-Main.o $(src_mpd_LDADD) $(LIBS)
 
 ANDROID_SDK_BUILD_TOOLS_VERSION = 27.0.0
-ANDROID_SDK_PLATFORM = android-17
+ANDROID_SDK_PLATFORM = android-21
 
 ANDROID_BUILD_TOOLS_DIR = $(ANDROID_SDK)/build-tools/$(ANDROID_SDK_BUILD_TOOLS_VERSION)
 ANDROID_SDK_PLATFORM_DIR = $(ANDROID_SDK)/platforms/$(ANDROID_SDK_PLATFORM)
@@ -389,7 +394,7 @@ android/build/include/org_musicpd_Bridge.h: android/build/classes.dex
 
 BUILT_SOURCES = android/build/include/org_musicpd_Bridge.h
 
-android/build/lib/armeabi-v7a/libmpd.so: libmpd.so
+android/build/lib/$(ANDROID_ABI)/libmpd.so: libmpd.so
 	mkdir -p $(@D)
 	rm -f $@
 	$(STRIP) -o $@ $<
@@ -399,7 +404,7 @@ android/build/res/drawable/icon.png: mpd.svg
 	rsvg-convert --width=48 --height=48 $< -o $@
 
 .DELETE_ON_ERROR: android/build/unsigned.apk
-android/build/unsigned.apk: android/build/classes.dex android/build/resources.apk android/build/lib/armeabi-v7a/libmpd.so
+android/build/unsigned.apk: android/build/classes.dex android/build/resources.apk android/build/lib/$(ANDROID_ABI)/libmpd.so
 	cp android/build/resources.apk $@
 	cd $(dir $@) && zip -q -r $(notdir $@) classes.dex lib
 
@@ -803,6 +808,8 @@ libstorage_a_SOURCES = \
 
 libstorage_a_CPPFLAGS = $(AM_CPPFLAGS) \
 	$(DBUS_CFLAGS) \
+	$(CURL_CFLAGS) \
+	$(EXPAT_CFLAGS) \
 	$(NFS_CFLAGS) \
 	$(SMBCLIENT_CFLAGS)
 
@@ -1018,7 +1025,26 @@ libconf_a_SOURCES = \
 	src/config/Migrate.cxx src/config/Migrate.hxx \
 	src/config/Templates.cxx src/config/Templates.hxx \
 	src/config/Domain.cxx src/config/Domain.hxx \
+	src/config/Net.cxx src/config/Net.hxx \
 	src/config/Option.hxx
+
+# the Song library
+
+libsong_a_SOURCES = \
+	src/song/DetachedSong.cxx src/song/DetachedSong.hxx \
+	src/song/ISongFilter.hxx \
+	src/song/UriSongFilter.hxx \
+	src/song/StringFilter.cxx src/song/StringFilter.hxx \
+	src/song/UriSongFilter.cxx src/song/UriSongFilter.hxx \
+	src/song/BaseSongFilter.cxx src/song/BaseSongFilter.hxx \
+	src/song/TagSongFilter.cxx src/song/TagSongFilter.hxx \
+	src/song/ModifiedSinceSongFilter.cxx src/song/ModifiedSinceSongFilter.hxx \
+	src/song/AudioFormatSongFilter.cxx src/song/AudioFormatSongFilter.hxx \
+	src/song/AndSongFilter.cxx src/song/AndSongFilter.hxx \
+	src/song/NotSongFilter.hxx \
+	src/song/OptimizeFilter.cxx src/song/OptimizeFilter.hxx \
+	src/song/Filter.cxx src/song/Filter.hxx \
+	src/song/LightSong.cxx src/song/LightSong.hxx
 
 # tag plugins
 
@@ -1226,7 +1252,7 @@ libdecoder_a_SOURCES += \
 	src/decoder/plugins/AudiofileDecoderPlugin.hxx
 endif
 
-if ENABLE_MIKMOD_DECODER
+if ENABLE_LIBMIKMOD
 libdecoder_a_SOURCES += \
 	src/decoder/plugins/MikmodDecoderPlugin.cxx \
 	src/decoder/plugins/MikmodDecoderPlugin.hxx
@@ -1911,11 +1937,12 @@ noinst_PROGRAMS += test/read_mixer
 endif
 
 test_ParseSongFilter_LDADD = \
+	libsong.a \
+	libpcm.a \
 	$(TAG_LIBS) \
 	$(ICU_LDADD) \
 	libutil.a
 test_ParseSongFilter_SOURCES = \
-	src/SongFilter.cxx \
 	test/ParseSongFilter.cxx
 
 test_read_conf_LDADD = \
@@ -1939,6 +1966,7 @@ if ENABLE_DATABASE
 
 test_DumpDatabase_LDADD = \
 	$(DB_LIBS) \
+	libsong.a \
 	$(TAG_LIBS) \
 	libconf.a \
 	libevent.a \
@@ -1958,9 +1986,7 @@ test_DumpDatabase_SOURCES = test/DumpDatabase.cxx \
 	src/AudioParser.cxx \
 	src/pcm/SampleFormat.cxx \
 	src/SongSave.cxx \
-	src/DetachedSong.cxx \
-	src/TagSave.cxx \
-	src/SongFilter.cxx
+	src/TagSave.cxx
 test_DumpDatabase_CPPFLAGS = $(AM_CPPFLAGS)
 
 if ENABLE_UPNP
@@ -2111,8 +2137,7 @@ test_dump_playlist_LDADD = \
 test_dump_playlist_SOURCES = test/dump_playlist.cxx \
 	src/Log.cxx src/LogBackend.cxx \
 	src/TagSave.cxx \
-	src/TagFile.cxx \
-	src/DetachedSong.cxx
+	src/TagFile.cxx
 
 if ENABLE_FLAC
 test_dump_playlist_SOURCES += \
@@ -2135,7 +2160,6 @@ test_run_decoder_LDADD = \
 	libutil.a
 test_run_decoder_SOURCES = test/run_decoder.cxx \
 	test/DumpDecoderClient.cxx test/DumpDecoderClient.hxx \
-	src/DetachedSong.cxx \
 	src/Log.cxx src/LogBackend.cxx \
 	src/ReplayGainInfo.cxx
 
@@ -2154,7 +2178,6 @@ test_read_tags_LDADD = \
 	libsystem.a \
 	libutil.a
 test_read_tags_SOURCES = test/read_tags.cxx \
-	src/DetachedSong.cxx \
 	src/Log.cxx src/LogBackend.cxx \
 	src/ReplayGainInfo.cxx
 
@@ -2185,7 +2208,6 @@ test_ContainerScan_LDADD = \
 	libsystem.a \
 	libutil.a
 test_ContainerScan_SOURCES = test/ContainerScan.cxx \
-	src/DetachedSong.cxx \
 	src/SongSave.cxx src/TagSave.cxx \
 	src/Log.cxx src/LogBackend.cxx \
 	src/ReplayGainInfo.cxx \
@@ -2447,7 +2469,6 @@ if ENABLE_DATABASE
 test_test_translate_song_SOURCES = \
 	src/playlist/PlaylistSong.cxx \
 	src/PlaylistError.cxx \
-	src/DetachedSong.cxx \
 	src/SongLoader.cxx \
 	src/LocateUri.cxx \
 	src/Log.cxx \
@@ -2477,7 +2498,6 @@ test_test_protocol_LDADD = \
 
 test_test_queue_priority_SOURCES = \
 	src/queue/Queue.cxx \
-	src/DetachedSong.cxx \
 	test/test_queue_priority.cxx
 test_test_queue_priority_CPPFLAGS = $(AM_CPPFLAGS) $(CPPUNIT_CFLAGS)
 test_test_queue_priority_CXXFLAGS = $(AM_CXXFLAGS) -Wno-error=deprecated-declarations

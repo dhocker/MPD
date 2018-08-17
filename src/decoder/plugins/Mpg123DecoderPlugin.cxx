@@ -27,6 +27,7 @@
 #include "tag/MixRamp.hxx"
 #include "fs/Path.hxx"
 #include "util/Domain.hxx"
+#include "util/ScopeExit.hxx"
 #include "util/StringView.hxx"
 #include "Log.hxx"
 
@@ -63,10 +64,7 @@ static bool
 mpd_mpg123_open(mpg123_handle *handle, const char *path_fs,
 		AudioFormat &audio_format)
 {
-	/* mpg123_open() wants a writable string :-( */
-	char *const path2 = const_cast<char *>(path_fs);
-
-	int error = mpg123_open(handle, path2);
+	int error = mpg123_open(handle, path_fs);
 	if (error != MPG123_OK) {
 		FormatWarning(mpg123_domain,
 			      "libmpg123 failed to open %s: %s",
@@ -196,11 +194,11 @@ mpd_mpg123_file_decode(DecoderClient &client, Path path_fs)
 		return;
 	}
 
+	AtScopeExit(handle) { mpg123_delete(handle); };
+
 	AudioFormat audio_format;
-	if (!mpd_mpg123_open(handle, path_fs.c_str(), audio_format)) {
-		mpg123_delete(handle);
+	if (!mpd_mpg123_open(handle, path_fs.c_str(), audio_format))
 		return;
-	}
 
 	const off_t num_samples = mpg123_length(handle);
 
@@ -272,10 +270,6 @@ mpd_mpg123_file_decode(DecoderClient &client, Path path_fs)
 			cmd = DecoderCommand::NONE;
 		}
 	} while (cmd == DecoderCommand::NONE);
-
-	/* cleanup */
-
-	mpg123_delete(handle);
 }
 
 static bool
@@ -290,28 +284,25 @@ mpd_mpg123_scan_file(Path path_fs, TagHandler &handler) noexcept
 		return false;
 	}
 
+	AtScopeExit(handle) { mpg123_delete(handle); };
+
 	AudioFormat audio_format;
 	try {
 		if (!mpd_mpg123_open(handle, path_fs.c_str(), audio_format)) {
-			mpg123_delete(handle);
 			return false;
 		}
 	} catch (...) {
-		mpg123_delete(handle);
 		return false;
 	}
 
 	const off_t num_samples = mpg123_length(handle);
 	if (num_samples <= 0) {
-		mpg123_delete(handle);
 		return false;
 	}
 
 	handler.OnAudioFormat(audio_format);
 
 	/* ID3 tag support not yet implemented */
-
-	mpg123_delete(handle);
 
 	const auto duration =
 		SongTime::FromScale<uint64_t>(num_samples,

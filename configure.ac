@@ -16,7 +16,7 @@ AC_CONFIG_MACRO_DIR([m4])
 
 AC_DEFINE(PROTOCOL_VERSION, "0.21.0", [The MPD protocol version])
 
-GIT_COMMIT=`GIT_DIR="$srcdir/.git" git describe --dirty --always 2>/dev/null`
+GIT_COMMIT=`cd "$srcdir" && git describe --dirty --always 2>/dev/null`
 if test x$GIT_COMMIT != x; then
 	AC_DEFINE_UNQUOTED(GIT_COMMIT, ["$GIT_COMMIT"], [The current git commit])
 fi
@@ -186,6 +186,7 @@ AC_ARG_WITH([android-sdk],
 		[Directory for Android SDK]),
 		[], [with_android_sdk=no])
 
+android_abi=""
 if test x$host_is_android = xyes; then
 	if test x$with_android_sdk = xno; then
 		AC_MSG_ERROR([Android build requires option --with-android-sdk=DIR])
@@ -194,9 +195,15 @@ if test x$host_is_android = xyes; then
 	if ! test -x $with_android_sdk/tools/android; then
 		AC_MSG_ERROR([Android SDK not found in $with_android_sdk])
 	fi
+
+	AS_CASE([$host_cpu],
+		[i686], [android_abi="x86"],
+		[aarch64], [android_abi="arm64-v8a"],
+		[android_abi="armeabi-v7a"])
 fi
 
 AC_SUBST(ANDROID_SDK, [$with_android_sdk])
+AC_SUBST(ANDROID_ABI, [$android_abi])
 
 dnl ---------------------------------------------------------------------------
 dnl Language Checks
@@ -316,7 +323,7 @@ else
 fi
 
 default_enable_daemon=yes
-if test x$host_is_android = xyes || test x$host_is_android = xyes; then
+if test x$host_is_android = xyes || test x$host_is_windows = xyes; then
 	default_enable_daemon=no
 fi
 AC_ARG_ENABLE(daemon,
@@ -380,11 +387,6 @@ AC_ARG_ENABLE(tidal,
 AC_ARG_ENABLE([libwrap],
 	AS_HELP_STRING([--enable-libwrap], [use libwrap]),,
 	[enable_libwrap=auto])
-
-AC_ARG_ENABLE(mikmod,
-	AS_HELP_STRING([--enable-mikmod],
-		[enable the mikmod decoder (default: disable)]),,
-	enable_mikmod=no)
 
 AC_ARG_ENABLE(openal,
 	AS_HELP_STRING([--enable-openal],
@@ -472,7 +474,7 @@ AC_ARG_ENABLE(icu,
 		[enable libicu for Unicode (default: auto)]),,
 	enable_icu=auto)
 
-MPD_AUTO_PKG(icu, ICU, [icu-i18n], [libicu], [libicu not found])
+MPD_AUTO_PKG(icu, ICU, [icu-i18n >= 50], [libicu], [libicu not found])
 MPD_DEFINE_CONDITIONAL(enable_icu, HAVE_ICU, [libicu])
 
 AC_ARG_ENABLE(iconv,
@@ -911,7 +913,7 @@ MPD_ENABLE_AUTO_LIB(aac, FAAD, faad, NeAACDecOpen, [-lfaad], [],
 
 dnl ---------------------------------- ffmpeg ---------------------------------
 MPD_ENABLE_AUTO_PKG(ffmpeg, FFMPEG,
-	[libavformat >= 53.17 libavcodec >= 53.25 libavutil >= 51.17],
+	[libavformat >= 56.1 libavcodec >= 56.1 libavutil >= 54.3],
 	[ffmpeg decoder library], [libavformat+libavcodec+libavutil not found])
 
 dnl ----------------------------------- FLAC ----------------------------------
@@ -949,18 +951,8 @@ MPD_ENABLE_AUTO_PKG(mpg123, MPG123, [libmpg123],
 	[libmpg123 decoder plugin], [libmpg123 not found])
 
 dnl -------------------------------- libmikmod --------------------------------
-if test x$enable_mikmod = xyes; then
-	AC_PATH_PROG(LIBMIKMOD_CONFIG, libmikmod-config)
-	if test x$LIBMIKMOD_CONFIG != x ; then
-		AC_SUBST(LIBMIKMOD_CFLAGS, `$LIBMIKMOD_CONFIG --cflags`)
-		AC_SUBST(LIBMIKMOD_LIBS, `$LIBMIKMOD_CONFIG --libs`)
-		AC_DEFINE(ENABLE_MIKMOD_DECODER, 1, [Define for mikmod support])
-	else
-		enable_mikmod=no
-	fi
-fi
-
-AM_CONDITIONAL(ENABLE_MIKMOD_DECODER, test x$enable_mikmod = xyes)
+MPD_ENABLE_AUTO_PKG(mikmod, LIBMIKMOD, [libmikmod >= 3.2],
+	[MikMod decoder plugin], [libmikmod not found])
 
 dnl -------------------------------- libmodplug -------------------------------
 MPD_ENABLE_AUTO_PKG(modplug, MODPLUG, [libmodplug],
@@ -1071,10 +1063,11 @@ if test x$enable_sidplay != xno && test x$found_sidplayfp = xno; then
 fi
 
 if test x$enable_sidplay = xyes; then
-	SIDPLAY_LIBS="$SIDPLAY_LIBS -lresid-builder"
 	AC_DEFINE(ENABLE_SIDPLAY, 1, [Define for libsidplayfp or libsidplay2 support])
 	if test x$found_sidplayfp = xyes; then
 		AC_DEFINE(HAVE_SIDPLAYFP, 1, [Define if libsidplayfp is used instead of libsidplay2])
+	else
+		SIDPLAY_LIBS="$SIDPLAY_LIBS -lresid-builder"
 	fi
 fi
 

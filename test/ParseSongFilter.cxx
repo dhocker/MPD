@@ -23,7 +23,7 @@
  */
 
 #include "config.h"
-#include "SongFilter.hxx"
+#include "song/Filter.hxx"
 #include "util/ConstBuffer.hxx"
 #include "util/PrintException.hxx"
 
@@ -41,6 +41,7 @@ try {
 
 	SongFilter filter;
 	filter.Parse(ConstBuffer<const char *>(argv + 1, argc - 1));
+	filter.Optimize();
 
 	puts(filter.ToExpression().c_str());
 	return EXIT_SUCCESS;

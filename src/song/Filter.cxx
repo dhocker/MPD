@@ -18,8 +18,15 @@
  */
 
 #include "config.h"
-#include "SongFilter.hxx"
-#include "db/LightSong.hxx"
+#include "Filter.hxx"
+#include "NotSongFilter.hxx"
+#include "UriSongFilter.hxx"
+#include "BaseSongFilter.hxx"
+#include "TagSongFilter.hxx"
+#include "ModifiedSinceSongFilter.hxx"
+#include "AudioFormatSongFilter.hxx"
+#include "LightSong.hxx"
+#include "AudioParser.hxx"
 #include "tag/ParseName.hxx"
 #include "tag/Tag.hxx"
 #include "util/CharUtil.hxx"
@@ -44,13 +51,17 @@
 #define LOCATE_TAG_FILE_KEY_OLD "filename"
 #define LOCATE_TAG_ANY_KEY      "any"
 
-/**
- * Limit the search to files within the given directory.
- */
-#define LOCATE_TAG_BASE_TYPE (TAG_NUM_OF_ITEM_TYPES + 1)
-#define LOCATE_TAG_MODIFIED_SINCE (TAG_NUM_OF_ITEM_TYPES + 2)
-#define LOCATE_TAG_FILE_TYPE	TAG_NUM_OF_ITEM_TYPES+10
-#define LOCATE_TAG_ANY_TYPE     TAG_NUM_OF_ITEM_TYPES+20
+enum {
+	/**
+	 * Limit the search to files within the given directory.
+	 */
+	LOCATE_TAG_BASE_TYPE = TAG_NUM_OF_ITEM_TYPES + 1,
+
+	LOCATE_TAG_MODIFIED_SINCE,
+	LOCATE_TAG_AUDIO_FORMAT,
+	LOCATE_TAG_FILE_TYPE,
+	LOCATE_TAG_ANY_TYPE,
+};
 
 /**
  * @return #TAG_NUM_OF_ITEM_TYPES on error
@@ -72,122 +83,15 @@ locate_parse_type(const char *str) noexcept
 	if (strcmp(str, "modified-since") == 0)
 		return LOCATE_TAG_MODIFIED_SINCE;
 
+	if (StringEqualsCaseASCII(str, "AudioFormat"))
+		return LOCATE_TAG_AUDIO_FORMAT;
+
 	return tag_name_parse_i(str);
-}
-
-bool
-StringFilter::Match(const char *s) const noexcept
-{
-#if !CLANG_CHECK_VERSION(3,6)
-	/* disabled on clang due to -Wtautological-pointer-compare */
-	assert(s != nullptr);
-#endif
-
-	if (fold_case) {
-		return fold_case.IsIn(s);
-	} else {
-		return StringIsEqual(s, value.c_str());
-	}
-}
-
-std::string
-UriSongFilter::ToExpression() const noexcept
-{
-	return std::string("(" LOCATE_TAG_FILE_KEY " ") + (negated ? "!=" : "==") + " \"" + filter.GetValue() + "\")";
-}
-
-bool
-UriSongFilter::Match(const LightSong &song) const noexcept
-{
-	return filter.Match(song.GetURI().c_str()) != negated;
-}
-
-std::string
-BaseSongFilter::ToExpression() const noexcept
-{
-	return "(base \"" + value + "\")";
-}
-
-bool
-BaseSongFilter::Match(const LightSong &song) const noexcept
-{
-	return uri_is_child_or_same(value.c_str(), song.GetURI().c_str());
-}
-
-std::string
-TagSongFilter::ToExpression() const noexcept
-{
-	const char *name = type == TAG_NUM_OF_ITEM_TYPES
-		? LOCATE_TAG_ANY_KEY
-		: tag_item_names[type];
-
-	return std::string("(") + name + " " + (negated ? "!=" : "==") + " \"" + filter.GetValue() + "\")";
-}
-
-bool
-TagSongFilter::MatchNN(const TagItem &item) const noexcept
-{
-	return (type == TAG_NUM_OF_ITEM_TYPES || item.type == type) &&
-		filter.Match(item.value);
-}
-
-bool
-TagSongFilter::MatchNN(const Tag &tag) const noexcept
-{
-	bool visited_types[TAG_NUM_OF_ITEM_TYPES];
-	std::fill_n(visited_types, size_t(TAG_NUM_OF_ITEM_TYPES), false);
-
-	for (const auto &i : tag) {
-		visited_types[i.type] = true;
-
-		if (MatchNN(i))
-			return true;
-	}
-
-	if (type < TAG_NUM_OF_ITEM_TYPES && !visited_types[type]) {
-		/* If the search critieron was not visited during the
-		   sweep through the song's tag, it means this field
-		   is absent from the tag or empty. Thus, if the
-		   searched string is also empty
-		   then it's a match as well and we should return
-		   true. */
-		if (filter.empty())
-			return true;
-
-		if (type == TAG_ALBUM_ARTIST && visited_types[TAG_ARTIST]) {
-			/* if we're looking for "album artist", but
-			   only "artist" exists, use that */
-			for (const auto &item : tag)
-				if (item.type == TAG_ARTIST &&
-				    filter.Match(item.value))
-					return true;
-		}
-	}
-
-	return false;
-}
-
-bool
-TagSongFilter::Match(const LightSong &song) const noexcept
-{
-	return MatchNN(song.tag) != negated;
-}
-
-std::string
-ModifiedSinceSongFilter::ToExpression() const noexcept
-{
-	return std::string("(modified-since \"") + FormatISO8601(value).c_str() + "\")";
-}
-
-bool
-ModifiedSinceSongFilter::Match(const LightSong &song) const noexcept
-{
-	return song.mtime >= value;
 }
 
 SongFilter::SongFilter(TagType tag, const char *value, bool fold_case)
 {
-	items.emplace_back(std::make_unique<TagSongFilter>(tag, value,
+	and_filter.AddItem(std::make_unique<TagSongFilter>(tag, value,
 							   fold_case, false));
 }
 
@@ -199,22 +103,7 @@ SongFilter::~SongFilter()
 std::string
 SongFilter::ToExpression() const noexcept
 {
-	auto i = items.begin();
-	const auto end = items.end();
-
-	if (std::next(i) == end)
-		return (*i)->ToExpression();
-
-	std::string e("(");
-	e += (*i)->ToExpression();
-
-	for (++i; i != end; ++i) {
-		e += " AND ";
-		e += (*i)->ToExpression();
-	}
-
-	e.push_back(')');
-	return e;
+	return and_filter.ToExpression();
 }
 
 static std::chrono::system_clock::time_point
@@ -247,14 +136,21 @@ FirstNonTagNameChar(const char *s) noexcept
 }
 
 static auto
-ExpectFilterType(const char *&s)
+ExpectWord(const char *&s)
 {
+	const char *begin = s;
 	const char *end = FirstNonTagNameChar(s);
 	if (end == s)
-		throw std::runtime_error("Tag name expected");
+		throw std::runtime_error("Word expected");
 
-	const std::string name(s, end);
 	s = StripLeft(end);
+	return std::string(begin, end);
+}
+
+static auto
+ExpectFilterType(const char *&s)
+{
+	const auto name = ExpectWord(s);
 
 	const auto type = locate_parse_type(name.c_str());
 	if (type == TAG_NUM_OF_ITEM_TYPES)
@@ -293,8 +189,45 @@ SongFilter::ParseExpression(const char *&s, bool fold_case)
 
 	s = StripLeft(s + 1);
 
-	if (*s == '(')
-		throw std::runtime_error("Nested expressions not yet implemented");
+	if (*s == '(') {
+		auto first = ParseExpression(s, fold_case);
+		if (*s == ')') {
+			++s;
+			return first;
+		}
+
+		if (ExpectWord(s) != "AND")
+			throw std::runtime_error("'AND' expected");
+
+		auto and_filter = std::make_unique<AndSongFilter>();
+		and_filter->AddItem(std::move(first));
+
+		while (true) {
+			and_filter->AddItem(ParseExpression(s, fold_case));
+
+			if (*s == ')') {
+				++s;
+				return and_filter;
+			}
+
+			if (ExpectWord(s) != "AND")
+				throw std::runtime_error("'AND' expected");
+		}
+	}
+
+	if (*s == '!') {
+		s = StripLeft(s + 1);
+
+		if (*s != '(')
+			throw std::runtime_error("'(' expected");
+
+		auto inner = ParseExpression(s, fold_case);
+		if (*s != ')')
+			throw std::runtime_error("')' expected");
+		s = StripLeft(s + 1);
+
+		return std::make_unique<NotSongFilter>(std::move(inner));
+	}
 
 	auto type = ExpectFilterType(s);
 
@@ -311,6 +244,25 @@ SongFilter::ParseExpression(const char *&s, bool fold_case)
 		s = StripLeft(s + 1);
 
 		return std::make_unique<BaseSongFilter>(std::move(value));
+	} else if (type == LOCATE_TAG_AUDIO_FORMAT) {
+		bool mask;
+		if (s[0] == '=' && s[1] == '=')
+			mask = false;
+		else if (s[0] == '=' && s[1] == '~')
+			mask = true;
+		else
+			throw std::runtime_error("'==' or '=~' expected");
+
+		s = StripLeft(s + 2);
+
+		const auto value = ParseAudioFormat(ExpectQuoted(s).c_str(),
+						    mask);
+
+		if (*s != ')')
+			throw std::runtime_error("')' expected");
+		s = StripLeft(s + 1);
+
+		return std::make_unique<AudioFormatSongFilter>(value);
 	} else {
 		bool negated = false;
 		if (s[0] == '!' && s[1] == '=')
@@ -352,15 +304,15 @@ SongFilter::Parse(const char *tag_string, const char *value, bool fold_case)
 		if (!uri_safe_local(value))
 			throw std::runtime_error("Bad URI");
 
-		items.emplace_back(std::make_unique<BaseSongFilter>(value));
+		and_filter.AddItem(std::make_unique<BaseSongFilter>(value));
 		break;
 
 	case LOCATE_TAG_MODIFIED_SINCE:
-		items.emplace_back(std::make_unique<ModifiedSinceSongFilter>(ParseTimeStamp(value)));
+		and_filter.AddItem(std::make_unique<ModifiedSinceSongFilter>(ParseTimeStamp(value)));
 		break;
 
 	case LOCATE_TAG_FILE_TYPE:
-		items.emplace_back(std::make_unique<UriSongFilter>(value,
+		and_filter.AddItem(std::make_unique<UriSongFilter>(value,
 								   fold_case,
 								   false));
 		break;
@@ -369,7 +321,7 @@ SongFilter::Parse(const char *tag_string, const char *value, bool fold_case)
 		if (tag == LOCATE_TAG_ANY_TYPE)
 			tag = TAG_NUM_OF_ITEM_TYPES;
 
-		items.emplace_back(std::make_unique<TagSongFilter>(TagType(tag),
+		and_filter.AddItem(std::make_unique<TagSongFilter>(TagType(tag),
 								   value,
 								   fold_case,
 								   false));
@@ -391,7 +343,7 @@ SongFilter::Parse(ConstBuffer<const char *> args, bool fold_case)
 			if (*end != 0)
 				throw std::runtime_error("Unparsed garbage after expression");
 
-			items.emplace_back(std::move(f));
+			and_filter.AddItem(std::move(f));
 			continue;
 		}
 
@@ -404,20 +356,22 @@ SongFilter::Parse(ConstBuffer<const char *> args, bool fold_case)
 	} while (!args.empty());
 }
 
+void
+SongFilter::Optimize() noexcept
+{
+	OptimizeSongFilter(and_filter);
+}
+
 bool
 SongFilter::Match(const LightSong &song) const noexcept
 {
-	for (const auto &i : items)
-		if (!i->Match(song))
-			return false;
-
-	return true;
+	return and_filter.Match(song);
 }
 
 bool
 SongFilter::HasFoldCase() const noexcept
 {
-	for (const auto &i : items) {
+	for (const auto &i : and_filter.GetItems()) {
 		if (auto t = dynamic_cast<const TagSongFilter *>(i.get())) {
 			if (t->GetFoldCase())
 				return true;
@@ -433,7 +387,7 @@ SongFilter::HasFoldCase() const noexcept
 bool
 SongFilter::HasOtherThanBase() const noexcept
 {
-	for (const auto &i : items) {
+	for (const auto &i : and_filter.GetItems()) {
 		const auto *f = dynamic_cast<const BaseSongFilter *>(i.get());
 		if (f == nullptr)
 			return true;
@@ -445,7 +399,7 @@ SongFilter::HasOtherThanBase() const noexcept
 const char *
 SongFilter::GetBase() const noexcept
 {
-	for (const auto &i : items) {
+	for (const auto &i : and_filter.GetItems()) {
 		const auto *f = dynamic_cast<const BaseSongFilter *>(i.get());
 		if (f != nullptr)
 			return f->GetValue();
@@ -460,7 +414,7 @@ SongFilter::WithoutBasePrefix(const char *_prefix) const noexcept
 	const StringView prefix(_prefix);
 	SongFilter result;
 
-	for (const auto &i : items) {
+	for (const auto &i : and_filter.GetItems()) {
 		const auto *f = dynamic_cast<const BaseSongFilter *>(i.get());
 		if (f != nullptr) {
 			const char *s = StringAfterPrefix(f->GetValue(), prefix);
@@ -472,14 +426,14 @@ SongFilter::WithoutBasePrefix(const char *_prefix) const noexcept
 					++s;
 
 					if (*s != 0)
-						result.items.emplace_back(std::make_unique<BaseSongFilter>(s));
+						result.and_filter.AddItem(std::make_unique<BaseSongFilter>(s));
 
 					continue;
 				}
 			}
 		}
 
-		result.items.emplace_back(i->Clone());
+		result.and_filter.AddItem(i->Clone());
 	}
 
 	return result;

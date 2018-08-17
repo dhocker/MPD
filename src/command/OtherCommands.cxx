@@ -26,7 +26,7 @@
 #include "db/Uri.hxx"
 #include "storage/StorageInterface.hxx"
 #include "LocateUri.hxx"
-#include "DetachedSong.hxx"
+#include "song/DetachedSong.hxx"
 #include "SongPrint.hxx"
 #include "TagPrint.hxx"
 #include "TagStream.hxx"
@@ -179,8 +179,8 @@ handle_lsinfo_relative(Client &client, Response &r, const char *uri)
 	if (isRootDirectory(uri)) {
 		try {
 			print_spl_list(r, ListPlaylistFiles());
-		} catch (const std::exception &e) {
-			LogError(e);
+		} catch (...) {
+			LogError(std::current_exception());
 		}
 	} else {
 #ifndef ENABLE_DATABASE

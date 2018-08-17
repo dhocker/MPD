@@ -481,6 +481,8 @@ Example:
 Other Settings
 --------------
 
+.. _metadata_to_use:
+
 .. list-table::
    :widths: 20 80
    :header-rows: 1
@@ -488,7 +490,20 @@ Other Settings
    * - Setting
      - Description
    * - **metadata_to_use TAG1,TAG2,...**
-     - Use only the specified tags, and ignore the others. This setting can reduce the database size and :program:`MPD`'s memory usage by omitting unused tags. By default, all tags but comment are enabled. The special value "none" disables all tags.
+     - Use only the specified tags, and ignore the others. This
+       setting can reduce the database size and :program:`MPD`'s
+       memory usage by omitting unused tags. By default, all tags but
+       comment are enabled. The special value "none" disables all
+       tags.
+
+       If the setting starts with ``+`` or ``-``, then the following
+       tags will be added or remoted to/from the current set of tags.
+       This example just enables the "comment" tag without disabling all
+       the other supported tags
+
+         metadata_to_use "+comment"
+
+       Section :ref:`tags` contains a list of supported tags.
 
 The State File
 ~~~~~~~~~~~~~~
@@ -702,6 +717,8 @@ Mounting is only possible with the simple database plugin and a :code:`cache_dir
         
 This requires migrating from the old :code:`db_file` setting to a database section. The cache directory must exist, and :program:`MPD` will put one file per mount there, which will be reused when the same storage is used again later.
 
+.. _tags:
+
 Metadata
 --------
 
@@ -728,6 +745,9 @@ When scanning or playing a song, :program:`MPD` parses its metadata. The followi
 * **musicbrainz_trackid**: the track id in the `MusicBrainz <https://picard.musicbrainz.org/docs/mappings/>`_ database.
 * **musicbrainz_releasetrackid**: the release track id in the `MusicBrainz <https://picard.musicbrainz.org/docs/mappings/>`_ database.
 * **musicbrainz_workid**: the work id in the `MusicBrainz <https://picard.musicbrainz.org/docs/mappings/>`_ database.
+
+The :ref:`metadata_to_use <metadata_to_use>` setting can be used to
+enable or disable certain tags.
 
 The queue
 ---------
@@ -1328,6 +1348,10 @@ C64 SID decoder based on `libsidplayfp <https://sourceforge.net/projects/sidplay
      - This is the default playing time in seconds for songs not in the songlength database, or in case you're not using a database. A value of 0 means play indefinitely.
    * - **filter yes|no**
      - Turns the SID filter emulation on or off.
+   * - **kernal**
+     - Only libsidplayfp. Roms are not embedded in libsidplayfp - please note https://sourceforge.net/p/sidplay-residfp/news/2013/01/released-libsidplayfp-100beta1/ But some SID tunes require rom images to play. Make C64 rom dumps from your own vintage gear or use rom files from Frodo or VICE emulation software tarballs. Absolute path to kernal rom image file.
+   * - **basic**
+     - Only libsidplayfp. Absolute path to basic rom image file.
 
 sndfile
 ~~~~~~~
@@ -1705,7 +1729,7 @@ It is highly recommended to configure a fixed format, because a stream cannot sw
    * - **port P**
      - Binds the HTTP server to the specified port.
    * - **bind_to_address ADDR**
-     - Binds the HTTP server to the specified address (IPv4 or IPv6). Multiple addresses in parallel are not supported.
+     - Binds the HTTP server to the specified address (IPv4, IPv6 or UNIX socket). Multiple addresses in parallel are not supported.
    * - **encoder NAME**
      - Chooses an encoder plugin. A list of encoder plugins can be found in the encoder plugin reference :ref:`encoder_plugins`.
    * - **max_clients MC**

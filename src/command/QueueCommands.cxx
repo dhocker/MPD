@@ -23,9 +23,9 @@
 #include "CommandError.hxx"
 #include "db/DatabaseQueue.hxx"
 #include "db/Selection.hxx"
-#include "SongFilter.hxx"
+#include "song/Filter.hxx"
 #include "SongLoader.hxx"
-#include "DetachedSong.hxx"
+#include "song/DetachedSong.hxx"
 #include "LocateUri.hxx"
 #include "queue/Playlist.hxx"
 #include "PlaylistPrint.hxx"
@@ -272,6 +272,7 @@ handle_playlist_match(Client &client, Request args, Response &r,
 			GetFullMessage(std::current_exception()).c_str());
 		return CommandResult::ERROR;
 	}
+	filter.Optimize();
 
 	playlist_print_find(r, client.GetPlaylist(), filter);
 	return CommandResult::OK;

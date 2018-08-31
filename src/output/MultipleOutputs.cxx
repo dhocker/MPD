@@ -20,9 +20,11 @@
 #include "config.h"
 #include "MultipleOutputs.hxx"
 #include "Filtered.hxx"
+#include "Defaults.hxx"
 #include "Domain.hxx"
 #include "MusicPipe.hxx"
 #include "MusicChunk.hxx"
+#include "filter/Factory.hxx"
 #include "config/Block.hxx"
 #include "config/Data.hxx"
 #include "config/Option.hxx"
@@ -51,9 +53,13 @@ static std::unique_ptr<FilteredAudioOutput>
 LoadOutput(EventLoop &event_loop,
 	   const ReplayGainConfig &replay_gain_config,
 	   MixerListener &mixer_listener,
-	   const ConfigBlock &block)
+	   const ConfigBlock &block,
+	   const AudioOutputDefaults &defaults,
+	   FilterFactory *filter_factory)
 try {
 	return audio_output_new(event_loop, replay_gain_config, block,
+				defaults,
+				filter_factory,
 				mixer_listener);
 } catch (...) {
 	if (block.line > 0)
@@ -67,11 +73,13 @@ static AudioOutputControl *
 LoadOutputControl(EventLoop &event_loop,
 		  const ReplayGainConfig &replay_gain_config,
 		  MixerListener &mixer_listener,
-		  AudioOutputClient &client, const ConfigBlock &block)
+		  AudioOutputClient &client, const ConfigBlock &block,
+		  const AudioOutputDefaults &defaults,
+		  FilterFactory *filter_factory)
 {
 	auto output = LoadOutput(event_loop, replay_gain_config,
 				 mixer_listener,
-				 block);
+				 block, defaults, filter_factory);
 	auto *control = new AudioOutputControl(std::move(output), client);
 
 	try {
@@ -91,12 +99,16 @@ MultipleOutputs::Configure(EventLoop &event_loop,
 			   const ReplayGainConfig &replay_gain_config,
 			   AudioOutputClient &client)
 {
+	const AudioOutputDefaults defaults(config);
+	FilterFactory filter_factory(config);
+
 	for (const auto &block : config.GetBlockList(ConfigBlockOption::AUDIO_OUTPUT)) {
 		block.SetUsed();
 		auto *output = LoadOutputControl(event_loop,
 						 replay_gain_config,
 						 mixer_listener,
-						 client, block);
+						 client, block, defaults,
+						 &filter_factory);
 		if (FindByName(output->GetName()) != nullptr)
 			throw FormatRuntimeError("output devices with identical "
 						 "names: %s", output->GetName());
@@ -110,7 +122,8 @@ MultipleOutputs::Configure(EventLoop &event_loop,
 		auto *output = LoadOutputControl(event_loop,
 						 replay_gain_config,
 						 mixer_listener,
-						 client, empty);
+						 client, empty, defaults,
+						 nullptr);
 		outputs.push_back(output);
 	}
 }
@@ -120,12 +133,14 @@ MultipleOutputs::AddNullOutput(EventLoop &event_loop,
 			       const ReplayGainConfig &replay_gain_config,
 			       AudioOutputClient &client)
 {
+	const AudioOutputDefaults defaults;
+
 	ConfigBlock block;
 	block.AddBlockParam("type", "null");
 
 	auto *output = LoadOutputControl(event_loop, replay_gain_config,
 					 mixer_listener,
-					 client, block);
+					 client, block, defaults, nullptr);
 	outputs.push_back(output);
 }
 

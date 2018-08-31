@@ -1,5 +1,5 @@
 /*
- * Copyright 2003-2017 The Music Player Daemon Project
+ * Copyright 2003-2018 The Music Player Daemon Project
  * http://www.musicpd.org
  *
  * This program is free software; you can redistribute it and/or modify
@@ -17,16 +17,24 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-#include "config.h"
-#ifdef USE_EPOLL
-#include "EPollFD.hxx"
-#include "Error.hxx"
+#ifndef MPD_FILTER_FACTORY_HXX
+#define MPD_FILTER_FACTORY_HXX
 
-EPollFD::EPollFD()
-	:fd(::epoll_create1(EPOLL_CLOEXEC))
-{
-	if (fd < 0)
-		throw MakeErrno("epoll_create1() failed");
-}
+#include "check.h"
 
-#endif /* USE_EPOLL */
+#include <memory>
+
+struct ConfigData;
+class PreparedFilter;
+
+class FilterFactory {
+	const ConfigData &config;
+
+public:
+	explicit FilterFactory(const ConfigData &_config) noexcept
+		:config(_config) {}
+
+	std::unique_ptr<PreparedFilter> MakeFilter(const char *name);
+};
+
+#endif

@@ -48,13 +48,14 @@
 #include "AudioParser.hxx"
 #include "pcm/PcmConvert.hxx"
 #include "unix/SignalHandlers.hxx"
-#include "system/FatalError.hxx"
 #include "thread/Slack.hxx"
 #include "net/Init.hxx"
 #include "lib/icu/Init.hxx"
-#include "config/Global.hxx"
+#include "config/File.hxx"
+#include "config/Check.hxx"
 #include "config/Data.hxx"
 #include "config/Param.hxx"
+#include "config/Path.hxx"
 #include "config/Defaults.hxx"
 #include "config/Option.hxx"
 #include "config/Domain.hxx"
@@ -94,6 +95,7 @@
 #include "java/File.hxx"
 #include "android/Environment.hxx"
 #include "android/Context.hxx"
+#include "android/LogListener.hxx"
 #include "fs/FileSystem.hxx"
 #include "org_musicpd_Bridge.h"
 #endif
@@ -127,6 +129,7 @@ static constexpr unsigned DEFAULT_BUFFER_BEFORE_PLAY = 10;
 
 #ifdef ANDROID
 Context *context;
+LogListener *logListener;
 #endif
 
 Instance *instance;
@@ -283,9 +286,9 @@ initialize_decoder_and_player(const ConfigData &config,
 		char *test;
 		long tmp = strtol(param->value.c_str(), &test, 10);
 		if (*test != '\0' || tmp <= 0 || tmp == LONG_MAX)
-			FormatFatalError("buffer size \"%s\" is not a "
-					 "positive integer, line %i",
-					 param->value.c_str(), param->line);
+			throw FormatRuntimeError("buffer size \"%s\" is not a "
+						 "positive integer, line %i",
+						 param->value.c_str(), param->line);
 		buffer_size = tmp * KILOBYTE;
 
 		if (buffer_size < MIN_BUFFER_SIZE) {
@@ -300,8 +303,8 @@ initialize_decoder_and_player(const ConfigData &config,
 	const unsigned buffered_chunks = buffer_size / CHUNK_SIZE;
 
 	if (buffered_chunks >= 1 << 15)
-		FormatFatalError("buffer size \"%lu\" is too big",
-				 (unsigned long)buffer_size);
+		throw FormatRuntimeError("buffer size \"%lu\" is too big",
+					 (unsigned long)buffer_size);
 
 	float perc;
 	param = config.GetParam(ConfigOption::BUFFER_BEFORE_PLAY);
@@ -309,10 +312,10 @@ initialize_decoder_and_player(const ConfigData &config,
 		char *test;
 		perc = strtod(param->value.c_str(), &test);
 		if (*test != '%' || perc < 0 || perc > 100) {
-			FormatFatalError("buffered before play \"%s\" is not "
-					 "a positive percentage and less "
-					 "than 100 percent, line %i",
-					 param->value.c_str(), param->line);
+			throw FormatRuntimeError("buffered before play \"%s\" is not "
+						 "a positive percentage and less "
+						 "than 100 percent, line %i",
+						 param->value.c_str(), param->line);
 		}
 
 		if (perc > 80) {
@@ -473,7 +476,7 @@ MainOrThrow(int argc, char *argv[])
 	const ODBus::ScopeInit dbus_init;
 #endif
 
-	config_global_init();
+	ConfigData raw_config;
 
 #ifdef ANDROID
 	(void)argc;
@@ -484,13 +487,13 @@ MainOrThrow(int argc, char *argv[])
 		const auto config_path =
 			sdcard / Path::FromFS("mpd.conf");
 		if (FileExists(config_path))
-			ReadConfigFile(config_path);
+			ReadConfigFile(raw_config, config_path);
 	}
 #else
-	ParseCommandLine(argc, argv, options);
+	ParseCommandLine(argc, argv, options, raw_config);
 #endif
 
-	const auto &raw_config = GetGlobalConfig();
+	InitPathParser(raw_config);
 	const auto config = LoadConfig(raw_config);
 
 #ifdef ENABLE_DAEMON
@@ -616,9 +619,7 @@ mpd_main_after_fork(const ConfigData &raw_config, const Config &config)
 	if (create_db) {
 		/* the database failed to load: recreate the
 		   database */
-		unsigned job = instance->update->Enqueue("", true);
-		if (job == 0)
-			FatalError("directory update failed");
+		instance->update->Enqueue("", true);
 	}
 #endif
 
@@ -641,7 +642,7 @@ mpd_main_after_fork(const ConfigData &raw_config, const Config &config)
 	}
 #endif
 
-	config_global_check();
+	Check(raw_config);
 
 	/* enable all audio outputs (if not already done by
 	   playlist_state_restore() */
@@ -711,7 +712,6 @@ mpd_main_after_fork(const ConfigData &raw_config, const Config &config)
 #ifdef ENABLE_ARCHIVE
 	archive_plugin_deinit_all();
 #endif
-	config_global_finish();
 	instance->rtio_thread.Stop();
 	instance->io_thread.Stop();
 #ifndef ANDROID
@@ -725,16 +725,19 @@ mpd_main_after_fork(const ConfigData &raw_config, const Config &config)
 
 gcc_visibility_default
 JNIEXPORT void JNICALL
-Java_org_musicpd_Bridge_run(JNIEnv *env, jclass, jobject _context)
+Java_org_musicpd_Bridge_run(JNIEnv *env, jclass, jobject _context, jobject _logListener)
 {
 	Java::Init(env);
 	Java::File::Initialise(env);
 	Environment::Initialise(env);
 
 	context = new Context(env, _context);
+	if (_logListener != nullptr)
+		logListener = new LogListener(env, _logListener);
 
 	mpd_main(0, nullptr);
 
+	delete logListener;
 	delete context;
 	Environment::Deinitialise(env);
 }

@@ -138,6 +138,7 @@ haiku*)
 	;;
 esac
 
+AM_CONDITIONAL([LINUX], [test x$host_is_linux = xyes])
 AM_CONDITIONAL([ANDROID], [test x$host_is_android = xyes])
 AM_CONDITIONAL([HAVE_WINDOWS], [test x$host_is_windows = xyes])
 
@@ -239,10 +240,6 @@ fi
 
 AC_SEARCH_LIBS([socket], [network socket])
 AC_SEARCH_LIBS([gethostbyname], [nsl])
-
-if test x$host_is_linux = xyes; then
-	AC_CHECK_FUNCS(pipe2 accept4 linkat)
-fi
 
 AC_CHECK_FUNCS(getpwnam_r getpwuid_r)
 AC_CHECK_FUNCS(initgroups)
@@ -587,9 +584,7 @@ if test x$enable_qobuz != xno || test x$enable_soundcloud != xno || test x$enabl
 fi
 
 dnl --------------------------------- inotify ---------------------------------
-AC_CHECK_FUNCS(inotify_init inotify_init1)
-
-if test x$ac_cv_func_inotify_init = xno; then
+if test x$host_is_linux = xno; then
 	enable_inotify=no
 fi
 
@@ -743,7 +738,7 @@ MPD_ENABLE_AUTO_PKG_LIB(smbclient, SMBCLIENT, [smbclient >= 0.2],
 	[smbclient input plugin], [libsmbclient not found])
 
 dnl ----------------------------------- NFS -----------------------------
-MPD_ENABLE_AUTO_PKG(nfs, NFS, [libnfs],
+MPD_ENABLE_AUTO_PKG(nfs, NFS, [libnfs >= 1.11],
 	[NFS input plugin], [libnfs not found])
 
 dnl --------------------------------- Qobuz -----------------------------------

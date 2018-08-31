@@ -23,14 +23,12 @@
 #include "check.h"
 #include "Reader.hxx"
 #include "fs/AllocatedPath.hxx"
-#include "Compiler.h"
-
-#ifndef _WIN32
-#include "system/FileDescriptor.hxx"
-#endif
+#include "util/Compiler.h"
 
 #ifdef _WIN32
 #include <windows.h>
+#else
+#include "system/UniqueFileDescriptor.hxx"
 #endif
 
 class Path;
@@ -42,34 +40,30 @@ class FileReader final : public Reader {
 #ifdef _WIN32
 	HANDLE handle;
 #else
-	FileDescriptor fd;
+	UniqueFileDescriptor fd;
 #endif
 
 public:
 	explicit FileReader(Path _path);
 
 #ifdef _WIN32
-	FileReader(FileReader &&other)
+	FileReader(FileReader &&other) noexcept
 		:path(std::move(other.path)),
-		 handle(other.handle) {
-		other.handle = INVALID_HANDLE_VALUE;
-	}
-#else
-	FileReader(FileReader &&other)
-		:path(std::move(other.path)),
-		 fd(other.fd) {
-		other.fd.SetUndefined();
-	}
-#endif
+		 handle(std::exchange(other.handle, INVALID_HANDLE_VALUE)) {}
 
-	~FileReader() {
+	~FileReader() noexcept {
 		if (IsDefined())
 			Close();
 	}
+#else
+	FileReader(FileReader &&other) noexcept
+		:path(std::move(other.path)),
+		 fd(std::move(other.fd)) {}
+#endif
 
 
 protected:
-	bool IsDefined() const {
+	bool IsDefined() const noexcept {
 #ifdef _WIN32
 		return handle != INVALID_HANDLE_VALUE;
 #else
@@ -79,12 +73,12 @@ protected:
 
 public:
 #ifndef _WIN32
-	FileDescriptor GetFD() const {
+	FileDescriptor GetFD() const noexcept {
 		return fd;
 	}
 #endif
 
-	void Close();
+	void Close() noexcept;
 
 	FileInfo GetFileInfo() const;
 

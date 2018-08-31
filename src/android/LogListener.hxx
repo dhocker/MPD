@@ -1,5 +1,5 @@
 /*
- * Copyright 2003-2017 The Music Player Daemon Project
+ * Copyright 2003-2018 The Music Player Daemon Project
  * http://www.musicpd.org
  *
  * This program is free software; you can redistribute it and/or modify
@@ -17,42 +17,16 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-#ifndef MPD_CONFIG_GLOBAL_HXX
-#define MPD_CONFIG_GLOBAL_HXX
+#ifndef MPD_ANDROID_LOG_LISTENER_HXX
+#define MPD_ANDROID_LOG_LISTENER_HXX
 
-#include "Option.hxx"
-#include "Compiler.h"
+#include "java/Object.hxx"
 
-class Path;
-struct ConfigData;
+class LogListener : public Java::Object {
+public:
+	LogListener(JNIEnv *env, jobject obj):Java::Object(env, obj) {}
 
-void
-config_global_init();
-
-void
-config_global_finish();
-
-gcc_const
-const ConfigData &
-GetGlobalConfig() noexcept;
-
-/**
- * Call this function after all configuration has been evaluated.  It
- * checks for unused parameters, and logs warnings.
- */
-void
-config_global_check();
-
-void
-ReadConfigFile(Path path);
-
-const char *
-config_get_string(enum ConfigOption option,
-		  const char *default_value=nullptr) noexcept;
-
-unsigned
-config_get_positive(enum ConfigOption option, unsigned default_value);
-
-bool config_get_bool(enum ConfigOption option, bool default_value);
+	void OnLog(JNIEnv *env, int priority, const char *fmt, ...) const;
+};
 
 #endif

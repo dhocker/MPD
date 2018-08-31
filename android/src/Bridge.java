@@ -25,6 +25,12 @@ import android.content.Context;
  * Bridge to native code.
  */
 public class Bridge {
-	public static native void run(Context context);
+
+	/* used by jni */
+	public interface LogListener {
+		public void onLog(int priority, String msg);
+	}
+
+	public static native void run(Context context, LogListener logListener);
 	public static native void shutdown();
 }

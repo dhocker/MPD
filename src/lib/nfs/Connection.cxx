@@ -47,9 +47,21 @@ NfsConnection::CancellableCallback::Stat(nfs_context *ctx,
 {
 	assert(connection.GetEventLoop().IsInside());
 
-	int result = nfs_stat_async(ctx, path, Callback, this);
+	int result = nfs_stat64_async(ctx, path, Callback, this);
 	if (result < 0)
-		throw FormatRuntimeError("nfs_stat_async() failed: %s",
+		throw FormatRuntimeError("nfs_stat64_async() failed: %s",
+					 nfs_get_error(ctx));
+}
+
+inline void
+NfsConnection::CancellableCallback::Lstat(nfs_context *ctx,
+					  const char *path)
+{
+	assert(connection.GetEventLoop().IsInside());
+
+	int result = nfs_lstat64_async(ctx, path, Callback, this);
+	if (result < 0)
+		throw FormatRuntimeError("nfs_lstat64_async() failed: %s",
 					 nfs_get_error(ctx));
 }
 
@@ -223,6 +235,23 @@ NfsConnection::Stat(const char *path, NfsCallback &callback)
 	auto &c = callbacks.Add(callback, *this, false);
 	try {
 		c.Stat(context, path);
+	} catch (...) {
+		callbacks.Remove(c);
+		throw;
+	}
+
+	ScheduleSocket();
+}
+
+void
+NfsConnection::Lstat(const char *path, NfsCallback &callback)
+{
+	assert(GetEventLoop().IsInside());
+	assert(!callbacks.Contains(callback));
+
+	auto &c = callbacks.Add(callback, *this, false);
+	try {
+		c.Lstat(context, path);
 	} catch (...) {
 		callbacks.Remove(c);
 		throw;

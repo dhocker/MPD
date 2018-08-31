@@ -1,5 +1,5 @@
 /*
- * Copyright 2003-2017 The Music Player Daemon Project
+ * Copyright 2003-2018 The Music Player Daemon Project
  * http://www.musicpd.org
  *
  * This program is free software; you can redistribute it and/or modify
@@ -18,40 +18,10 @@
  */
 
 #include "config.h"
-#include "Global.hxx"
-#include "Migrate.hxx"
+#include "Check.hxx"
 #include "Data.hxx"
-#include "Block.hxx"
-#include "File.hxx"
-#include "Path.hxx"
 #include "Domain.hxx"
-#include "fs/Path.hxx"
-#include "util/RuntimeError.hxx"
 #include "Log.hxx"
-
-static ConfigData config_data;
-
-void config_global_finish(void)
-{
-	config_data.Clear();
-}
-
-void config_global_init(void)
-{
-}
-
-const ConfigData &
-GetGlobalConfig() noexcept
-{
-	return config_data;
-}
-
-void
-ReadConfigFile(Path path)
-{
-	ReadConfigFile(config_data, path);
-	Migrate(config_data);
-}
 
 static void
 Check(const ConfigBlock &block)
@@ -70,27 +40,10 @@ Check(const ConfigBlock &block)
 	}
 }
 
-void config_global_check(void)
+void
+Check(const ConfigData &config_data) noexcept
 {
 	for (const auto &list : config_data.blocks)
 		for (const auto &block : list)
 			Check(block);
-}
-
-const char *
-config_get_string(ConfigOption option, const char *default_value) noexcept
-{
-	return config_data.GetString(option, default_value);
-}
-
-unsigned
-config_get_positive(ConfigOption option, unsigned default_value)
-{
-	return config_data.GetPositive(option, default_value);
-}
-
-bool
-config_get_bool(ConfigOption option, bool default_value)
-{
-	return config_data.GetBool(option, default_value);
 }

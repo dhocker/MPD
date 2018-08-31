@@ -20,7 +20,7 @@
 #ifndef MPD_FILTER_LOAD_CHAIN_HXX
 #define MPD_FILTER_LOAD_CHAIN_HXX
 
-struct ConfigData;
+class FilterFactory;
 class PreparedFilter;
 
 /**
@@ -36,7 +36,7 @@ class PreparedFilter;
  */
 void
 filter_chain_parse(PreparedFilter &chain,
-		   const ConfigData &config,
+		   FilterFactory &factory,
 		   const char *spec);
 
 #endif

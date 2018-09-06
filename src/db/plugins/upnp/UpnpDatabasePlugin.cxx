@@ -27,6 +27,7 @@
 #include "db/Interface.hxx"
 #include "db/DatabasePlugin.hxx"
 #include "db/Selection.hxx"
+#include "db/VHelper.hxx"
 #include "db/DatabaseError.hxx"
 #include "db/LightDirectory.hxx"
 #include "song/LightSong.hxx"
@@ -63,7 +64,7 @@ class UpnpSong : UpnpSongData, public LightSong {
 	std::string real_uri2;
 
 public:
-	UpnpSong(UPnPDirObject &&object, std::string &&_uri)
+	UpnpSong(UPnPDirObject &&object, std::string &&_uri) noexcept
 		:UpnpSongData(std::move(_uri), std::move(object.tag)),
 		 LightSong(UpnpSongData::uri.c_str(), UpnpSongData::tag),
 		 real_uri2(std::move(object.url)) {
@@ -77,19 +78,19 @@ class UpnpDatabase : public Database {
 	UPnPDeviceDirectory *discovery;
 
 public:
-	explicit UpnpDatabase(EventLoop &_event_loop)
+	explicit UpnpDatabase(EventLoop &_event_loop) noexcept
 		:Database(upnp_db_plugin),
 		 event_loop(_event_loop) {}
 
 	static Database *Create(EventLoop &main_event_loop,
 				EventLoop &io_event_loop,
 				DatabaseListener &listener,
-				const ConfigBlock &block);
+				const ConfigBlock &block) noexcept;
 
 	void Open() override;
-	void Close() override;
+	void Close() noexcept override;
 	const LightSong *GetSong(const char *uri_utf8) const override;
-	void ReturnSong(const LightSong *song) const override;
+	void ReturnSong(const LightSong *song) const noexcept override;
 
 	void Visit(const DatabaseSelection &selection,
 		   VisitDirectory visit_directory,
@@ -148,7 +149,7 @@ private:
 Database *
 UpnpDatabase::Create(EventLoop &, EventLoop &io_event_loop,
 		     gcc_unused DatabaseListener &listener,
-		     const ConfigBlock &)
+		     const ConfigBlock &) noexcept
 {
 	return new UpnpDatabase(io_event_loop);
 }
@@ -169,14 +170,14 @@ UpnpDatabase::Open()
 }
 
 void
-UpnpDatabase::Close()
+UpnpDatabase::Close() noexcept
 {
 	delete discovery;
 	UpnpClientGlobalFinish();
 }
 
 void
-UpnpDatabase::ReturnSong(const LightSong *_song) const
+UpnpDatabase::ReturnSong(const LightSong *_song) const noexcept
 {
 	assert(_song != nullptr);
 
@@ -220,7 +221,7 @@ UpnpDatabase::GetSong(const char *uri) const
  * Double-quote a string, adding internal backslash escaping.
  */
 static void
-dquote(std::string &out, const char *in)
+dquote(std::string &out, const char *in) noexcept
 {
 	out.push_back('"');
 
@@ -333,7 +334,7 @@ visitSong(const UPnPDirObject &meta, const char *path,
  */
 static std::string
 songPath(const std::string &servername,
-	 const std::string &objid)
+	 const std::string &objid) noexcept
 {
 	return servername + "/" + rootid + "/" + objid;
 }
@@ -576,6 +577,15 @@ UpnpDatabase::VisitServer(const ContentDirectoryService &server,
 	}
 }
 
+gcc_const
+static DatabaseSelection
+CheckSelection(DatabaseSelection selection) noexcept
+{
+	selection.uri.clear();
+	selection.filter = nullptr;
+	return selection;
+}
+
 // Deal with the possibly multiple servers, call VisitServer if needed.
 void
 UpnpDatabase::Visit(const DatabaseSelection &selection,
@@ -583,6 +593,8 @@ UpnpDatabase::Visit(const DatabaseSelection &selection,
 		    VisitSong visit_song,
 		    VisitPlaylist visit_playlist) const
 {
+	DatabaseVisitorHelper helper(CheckSelection(selection), visit_song);
+
 	auto vpath = SplitString(selection.uri.c_str(), '/');
 	if (vpath.empty()) {
 		for (const auto &server : discovery->GetDirectories()) {
@@ -598,6 +610,7 @@ UpnpDatabase::Visit(const DatabaseSelection &selection,
 					    visit_playlist);
 		}
 
+		helper.Commit();
 		return;
 	}
 
@@ -608,6 +621,7 @@ UpnpDatabase::Visit(const DatabaseSelection &selection,
 	auto server = discovery->GetServer(servername.c_str());
 	VisitServer(server, std::move(vpath), selection,
 		    visit_directory, visit_song, visit_playlist);
+	helper.Commit();
 }
 
 void

@@ -17,14 +17,35 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-#ifndef MPD_DATABASE_HELPERS_HXX
-#define MPD_DATABASE_HELPERS_HXX
+#ifndef MPD_PROTOCOL_RANGE_ARG_HXX
+#define MPD_PROTOCOL_RANGE_ARG_HXX
 
-class Database;
-struct DatabaseSelection;
-struct DatabaseStats;
+#include "check.h"
 
-DatabaseStats
-GetStats(const Database &db, const DatabaseSelection &selection);
+#include <limits>
+
+struct RangeArg {
+	unsigned start, end;
+
+	static constexpr RangeArg All() {
+		return { 0, std::numeric_limits<unsigned>::max() };
+	}
+
+	constexpr bool operator==(RangeArg other) const noexcept {
+		return start == other.start && end == other.end;
+	}
+
+	constexpr bool operator!=(RangeArg other) const noexcept {
+		return !(*this == other);
+	}
+
+	constexpr bool IsAll() const noexcept {
+		return *this == All();
+	}
+
+	constexpr bool Contains(unsigned i) const noexcept {
+		return i >= start && i < end;
+	}
+};
 
 #endif

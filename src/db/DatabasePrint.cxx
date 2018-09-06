@@ -1,5 +1,5 @@
 /*
- * Copyright 2003-2017 The Music Player Daemon Project
+ * Copyright 2003-2018 The Music Player Daemon Project
  * http://www.musicpd.org
  *
  * This program is free software; you can redistribute it and/or modify
@@ -24,6 +24,7 @@
 #include "TimePrint.hxx"
 #include "TagPrint.hxx"
 #include "client/Response.hxx"
+#include "protocol/RangeArg.hxx"
 #include "Partition.hxx"
 #include "song/DetachedSong.hxx"
 #include "song/Filter.hxx"
@@ -143,48 +144,12 @@ PrintPlaylistFull(Response &r, bool base,
 		time_print(r, "Last-Modified", playlist.mtime);
 }
 
-gcc_pure
-static bool
-CompareNumeric(const char *a, const char *b) noexcept
-{
-	long a_value = strtol(a, nullptr, 10);
-	long b_value = strtol(b, nullptr, 10);
-
-	return a_value < b_value;
-}
-
-gcc_pure
-static bool
-CompareTags(TagType type, bool descending, const Tag &a, const Tag &b) noexcept
-{
-	const char *a_value = a.GetSortValue(type);
-	const char *b_value = b.GetSortValue(type);
-
-	if (descending) {
-		using std::swap;
-		swap(a_value, b_value);
-	}
-
-	switch (type) {
-	case TAG_DISC:
-	case TAG_TRACK:
-		return CompareNumeric(a_value, b_value);
-
-	default:
-		return strcmp(a_value, b_value) < 0;
-	}
-}
-
 void
 db_selection_print(Response &r, Partition &partition,
 		   const DatabaseSelection &selection,
-		   bool full, bool base,
-		   TagType sort, bool descending,
-		   unsigned window_start, unsigned window_end)
+		   bool full, bool base)
 {
 	const Database &db = partition.GetDatabaseOrThrow();
-
-	unsigned i = 0;
 
 	using namespace std::placeholders;
 	const auto d = selection.filter == nullptr
@@ -198,73 +163,7 @@ db_selection_print(Response &r, Partition &partition,
 			    std::ref(r), base, _1, _2)
 		: VisitPlaylist();
 
-	if (sort == TAG_NUM_OF_ITEM_TYPES) {
-		if (window_start > 0 ||
-		    window_end < (unsigned)std::numeric_limits<int>::max())
-			s = [s, window_start, window_end, &i](const LightSong &song){
-				const bool in_window = i >= window_start && i < window_end;
-				++i;
-				if (in_window)
-					s(song);
-			};
-
-		db.Visit(selection, d, s, p);
-	} else {
-		// TODO: allow the database plugin to sort internally
-
-		/* the client has asked us to sort the result; this is
-		   pretty expensive, because instead of streaming the
-		   result to the client, we need to copy it all into
-		   this std::vector, and then sort it */
-		std::vector<DetachedSong> songs;
-
-		{
-			auto collect_songs = [&songs](const LightSong &song){
-				songs.emplace_back(song);
-			};
-
-			db.Visit(selection, d, collect_songs, p);
-		}
-
-		if (sort == TagType(SORT_TAG_LAST_MODIFIED))
-			std::stable_sort(songs.begin(), songs.end(),
-					 [descending](const DetachedSong &a, const DetachedSong &b){
-						 return descending
-							 ? a.GetLastModified() > b.GetLastModified()
-							 : a.GetLastModified() < b.GetLastModified();
-					 });
-		else
-			std::stable_sort(songs.begin(), songs.end(),
-					 [sort, descending](const DetachedSong &a,
-							    const DetachedSong &b){
-						 return CompareTags(sort, descending,
-								    a.GetTag(),
-								    b.GetTag());
-					 });
-
-		if (window_end < songs.size())
-			songs.erase(std::next(songs.begin(), window_end),
-				    songs.end());
-
-		if (window_start >= songs.size())
-			return;
-
-		songs.erase(songs.begin(),
-			    std::next(songs.begin(), window_start));
-
-		for (const auto &song : songs)
-			s((LightSong)song);
-	}
-}
-
-void
-db_selection_print(Response &r, Partition &partition,
-		   const DatabaseSelection &selection,
-		   bool full, bool base)
-{
-	db_selection_print(r, partition, selection, full, base,
-			   TAG_NUM_OF_ITEM_TYPES, false,
-			   0, std::numeric_limits<int>::max());
+	db.Visit(selection, d, s, p);
 }
 
 static void

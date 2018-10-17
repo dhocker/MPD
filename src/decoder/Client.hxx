@@ -21,7 +21,7 @@
 #define MPD_DECODER_CLIENT_HXX
 
 #include "check.h"
-#include "DecoderCommand.hxx"
+#include "Command.hxx"
 #include "Chrono.hxx"
 #include "input/Ptr.hxx"
 #include "util/Compiler.h"
@@ -115,7 +115,7 @@ public:
 	 * use this function if it thinks that adding to the time stamp based
 	 * on the buffer size won't work.
 	 */
-	virtual void SubmitTimestamp(double t) = 0;
+	virtual void SubmitTimestamp(FloatDuration t) = 0;
 
 	/**
 	 * This function is called by the decoder plugin when it has

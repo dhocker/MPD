@@ -14,6 +14,7 @@ ver 0.21 (not yet released)
   - proxy: require libmpdclient 2.9
   - proxy: forward `sort` and `window` to server
 * player
+  - hard-code "buffer_before_play" to 1 second, independent of audio format
   - "one-shot" single mode
 * input
   - curl: download to buffer instead of throttling transfer
@@ -45,6 +46,8 @@ ver 0.21 (not yet released)
   - opus: support for sending metadata using ogg stream chaining
 * systemd watchdog support
 * require GCC 6
+* build with Meson instead of autotools
+* use GTest instead of cppunit
 
 ver 0.20.22 (not yet released)
 * storage

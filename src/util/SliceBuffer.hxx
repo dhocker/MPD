@@ -87,6 +87,14 @@ public:
 		return n_allocated == buffer.size();
 	}
 
+	void DiscardMemory() noexcept {
+		assert(empty());
+
+		n_initialized = 0;
+		buffer.Discard();
+		available = nullptr;
+	}
+
 	template<typename... Args>
 	T *Allocate(Args&&... args) {
 		assert(n_initialized <= buffer.size());
@@ -131,9 +139,7 @@ public:
 		/* give memory back to the kernel when the last slice
 		   was freed */
 		if (n_allocated == 0) {
-			buffer.Discard();
-			n_initialized = 0;
-			available = nullptr;
+			DiscardMemory();
 		}
 	}
 };

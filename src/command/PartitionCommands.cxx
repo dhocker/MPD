@@ -25,7 +25,6 @@
 #include "IdleFlags.hxx"
 #include "client/Client.hxx"
 #include "client/Response.hxx"
-#include "player/Thread.hxx"
 #include "util/CharUtil.hxx"
 
 CommandResult
@@ -103,7 +102,6 @@ handle_newpartition(Client &client, Request request, Response &response)
 					 // TODO: use real configuration
 					 16384,
 					 1024,
-					 128,
 					 AudioFormat::Undefined(),
 					 ReplayGainConfig());
 	auto &partition = instance.partitions.back();
@@ -111,8 +109,6 @@ handle_newpartition(Client &client, Request request, Response &response)
 					ReplayGainConfig(),
 					partition.pc);
 	partition.UpdateEffectiveReplayGainMode();
-	StartPlayerThread(partition.pc);
-	partition.pc.LockUpdateAudio();
 
 	instance.EmitIdle(IDLE_PARTITION);
 

@@ -24,13 +24,14 @@
 #include <utility>
 #include <cstdint>
 
+using FloatDuration = std::chrono::duration<double>;
+
 /**
  * A time stamp within a song.  Granularity is 1 millisecond and the
  * maximum value is about 49 days.
  */
 class SongTime : public std::chrono::duration<std::uint32_t, std::milli> {
 	typedef std::chrono::duration<std::uint32_t, std::milli> Base;
-	typedef Base::rep rep;
 
 public:
 	SongTime() = default;
@@ -40,6 +41,11 @@ public:
 
 	static constexpr SongTime zero() {
 		return SongTime(Base::zero());
+	}
+
+	template<typename D>
+	static constexpr SongTime Cast(D src) {
+		return SongTime(std::chrono::duration_cast<Base>(src));
 	}
 
 	static constexpr SongTime FromS(unsigned s) {
@@ -114,7 +120,6 @@ public:
  */
 class SignedSongTime : public std::chrono::duration<std::int32_t, std::milli> {
 	typedef std::chrono::duration<std::int32_t, std::milli> Base;
-	typedef Base::rep rep;
 
 public:
 	SignedSongTime() = default;
@@ -136,6 +141,11 @@ public:
 	 */
 	static constexpr SignedSongTime Negative() {
 		return SignedSongTime(-1);
+	}
+
+	template<typename D>
+	static constexpr SongTime Cast(D src) {
+		return SongTime(std::chrono::duration_cast<Base>(src));
 	}
 
 	static constexpr SignedSongTime FromS(int s) {

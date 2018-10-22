@@ -1,6 +1,6 @@
 upnp_dep = dependency('libupnp', required: get_option('upnp'))
-conf.set('ENABLE_UPNP', upnp_dep.found())
-if not upnp_dep.found()
+conf.set('ENABLE_UPNP', upnp_dep.found() and expat_dep.found())
+if (not upnp_dep.found()) or (not expat_dep.found())
   subdir_done()
 endif
 

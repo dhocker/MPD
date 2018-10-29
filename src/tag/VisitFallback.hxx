@@ -17,29 +17,44 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-#ifndef INPUT_ERROR_HXX
-#define INPUT_ERROR_HXX
+#ifndef MPD_TAG_VISIT_FALLBACK_HXX
+#define MPD_TAG_VISIT_FALLBACK_HXX
 
-#include "check.h"
-#include "util/Compiler.h"
+#include "Fallback.hxx"
+#include "Tag.hxx"
 
-#include <exception>
-
-/**
- * Was this exception thrown because the requested file does not
- * exist?  This function attempts to recognize exceptions thrown by
- * various input plugins.
- */
-#ifndef __clang__
-/* the "pure" attribute must be disabled because it triggers a clang
-   bug, wrongfully leading to std::terminate() even though the
-   function catches all exceptions thrown by std::rethrow_exception();
-   this can be reproduced with clang 7 from Android NDK r18b and on
-   clang 6 on FreeBSD
-   (https://github.com/MusicPlayerDaemon/MPD/issues/373) */
-gcc_pure
-#endif
+template<typename F>
 bool
-IsFileNotFound(std::exception_ptr e) noexcept;
+VisitTagType(const Tag &tag, TagType type, F &&f) noexcept
+{
+	bool found = false;
+
+	for (const auto &item : tag) {
+		if (item.type == type) {
+			found = true;
+			f(item.value);
+		}
+	}
+
+	return found;
+}
+
+template<typename F>
+bool
+VisitTagWithFallback(const Tag &tag, TagType type, F &&f) noexcept
+{
+	return ApplyTagWithFallback(type,
+				    [&](TagType type2) {
+					    return VisitTagType(tag, type2, f);
+				    });
+}
+
+template<typename F>
+void
+VisitTagWithFallbackOrEmpty(const Tag &tag, TagType type, F &&f) noexcept
+{
+	if (!VisitTagWithFallback(tag, type, f))
+		f("");
+}
 
 #endif

@@ -9,7 +9,6 @@ tag_sources = [
   'FixString.cxx',
   'Pool.cxx',
   'Table.cxx',
-  'Set.cxx',
   'Format.cxx',
   'VorbisComment.cxx',
   'ReplayGain.cxx',
@@ -27,11 +26,15 @@ if libid3tag_dep.found()
   tag_sources += [
     'Id3Load.cxx',
     'Id3Scan.cxx',
+    'Id3ReplayGain.cxx',
     'Rva2.cxx',
     'Riff.cxx',
     'Aiff.cxx',
   ]
 endif
+
+chromaprint_dep = dependency('libchromaprint', required: get_option('chromaprint'))
+conf.set('ENABLE_CHROMAPRINT', chromaprint_dep.found())
 
 tag = static_library(
   'tag',

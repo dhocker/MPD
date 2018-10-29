@@ -207,6 +207,7 @@ The following tags are supported by
 * **performer**: the artist who performed the song.
 * **comment**: a human-readable comment about this song. The exact meaning of this tag is not well-defined.
 * **disc**: the decimal disc number in a multi-disc album.
+* **label**: the name of the label or publisher.
 * **musicbrainz_artistid**: the artist id in the `MusicBrainz <https://picard.musicbrainz.org/docs/mappings/>`_ database.
 * **musicbrainz_albumid**: the album id in the `MusicBrainz <https://picard.musicbrainz.org/docs/mappings/>`_ database.
 * **musicbrainz_albumartistid**: the album artist id in the `MusicBrainz <https://picard.musicbrainz.org/docs/mappings/>`_ database.
@@ -730,6 +731,10 @@ The music database
 
      count group artist
      count title Echoes group artist
+
+    A group with an empty value contains counts of matching song which
+    don't this group tag.  It exists only if at least one such song is
+    found.
 
 .. _command_find:
 

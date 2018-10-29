@@ -1,5 +1,5 @@
 /*
- * Copyright 2003-2017 The Music Player Daemon Project
+ * Copyright 2003-2018 The Music Player Daemon Project
  * http://www.musicpd.org
  *
  * This program is free software; you can redistribute it and/or modify
@@ -17,24 +17,15 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-#include "config.h"
-#include "ScanTags.hxx"
-#include "RemoteTagScanner.hxx"
-#include "InputPlugin.hxx"
-#include "Registry.hxx"
+#ifndef MPD_TAG_ID3_REPLAY_GAIN_HXX
+#define MPD_TAG_ID3_REPLAY_GAIN_HXX
 
-std::unique_ptr<RemoteTagScanner>
-InputScanTags(const char *uri, RemoteTagHandler &handler)
-{
-	input_plugins_for_each_enabled(plugin) {
-		if (plugin->scan_tags == nullptr || !plugin->SupportsUri(uri))
-			continue;
+#include "check.h"
 
-		auto scanner = plugin->scan_tags(uri, handler);
-		if (scanner)
-			return scanner;
-	}
+struct id3_tag;
+struct ReplayGainInfo;
 
-	/* unsupported URI */
-	return nullptr;
-}
+bool
+Id3ToReplayGainInfo(ReplayGainInfo &rgi, const struct id3_tag *tag) noexcept;
+
+#endif

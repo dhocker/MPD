@@ -21,6 +21,7 @@
 #include "TagSongFilter.hxx"
 #include "LightSong.hxx"
 #include "tag/Tag.hxx"
+#include "tag/Fallback.hxx"
 
 std::string
 TagSongFilter::ToExpression() const noexcept
@@ -53,6 +54,24 @@ TagSongFilter::MatchNN(const Tag &tag) const noexcept
 	}
 
 	if (type < TAG_NUM_OF_ITEM_TYPES && !visited_types[type]) {
+		bool result = false;
+		if (ApplyTagFallback(type,
+				     [&](TagType tag2) {
+			     if (!visited_types[tag2])
+				     return false;
+
+			     for (const auto &item : tag) {
+				     if (item.type == tag2 &&
+					 filter.Match(item.value)) {
+					     result = true;
+					     break;
+				     }
+			     }
+
+			     return true;
+		     }))
+			return result;
+
 		/* If the search critieron was not visited during the
 		   sweep through the song's tag, it means this field
 		   is absent from the tag or empty. Thus, if the
@@ -61,15 +80,6 @@ TagSongFilter::MatchNN(const Tag &tag) const noexcept
 		   true. */
 		if (filter.empty())
 			return true;
-
-		if (type == TAG_ALBUM_ARTIST && visited_types[TAG_ARTIST]) {
-			/* if we're looking for "album artist", but
-			   only "artist" exists, use that */
-			for (const auto &item : tag)
-				if (item.type == TAG_ARTIST &&
-				    filter.Match(item.value))
-					return true;
-		}
 	}
 
 	return false;

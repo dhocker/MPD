@@ -30,6 +30,10 @@ When installed this way, :program:`MPD` by default looks for music in :file:`/va
    Ironically, the :program:`MPD` version in Debian "*unstable*" is
    more stable than the version in Debian "*stable*".
 
+<<<<<<< Updated upstream
+=======
+When installed this way, :program:`MPD` by default looks for music in :file:`/var/lib/mpd/music/`; this may not be correct. Look at your :file:`/etc/mpd.conf` file...
+>>>>>>> Stashed changes
 
 Installing on Android
 ---------------------
@@ -79,10 +83,59 @@ In any case, you need:
   <https://ninja-build.org/>`__
 * Boost 1.58
 * pkg-config
+<<<<<<< Updated upstream
 
 Each plugin usually needs a codec library, which you also need to
 install. Check the :doc:`plugins` for details about required libraries
 
+Meson/Ninja Build Tools
+```````````````````````
+
+MPD uses the Meson/Ninja tools for building. This tool set works quite differently from
+autotools (autogen, configure, etc.). If you are unfamiliar with Meson, you might
+want to look at some of its `documentation <https://mesonbuild.com/Quick-guide.html>`_
+before you start trying to configure and build.
+=======
+>>>>>>> Stashed changes
+
+The meson_options.txt file lists all of the options and features supported by
+the MPD build process. If you find that you need to disable or enable an option or
+feature you can look through this file to find the information you will need to
+enable/disable/set an option or feature.
+
+The build sequence typically goes something like this:
+
+.. code-block:: none
+
+ # Configure the build
+ meson . output/release --buildtype=debugoptimized -Db_ndebug=true
+ # Show the resulting configuration settings
+ meson configure output/release
+ # Do the actual building
+ ninja -C output/release
+
+This sequence is run from the root of the repo. It will create output/release as a
+subdirectory. The results of the configuration and build will go there (including
+documentation).
+
+Configuration setting changes are done using the "meson configure" command.
+For example, if you wanted to disable the iso9660 feature and build the documentation,
+you would use the following:
+
+.. code-block:: none
+
+ meson configure output/release -Diso9660=disabled
+ meson configure output/release -Ddocumentation=true
+
+If you want to see the complete configuration you can always run:
+
+.. code-block:: none
+
+ meson configure output/release
+
+<<<<<<< Updated upstream
+Finally, if you want to install MPD to the standard location:
+=======
 Meson/Ninja Build Tools
 ```````````````````````
 
@@ -127,6 +180,16 @@ If you want to see the complete configuration you can always run:
  meson configure output/release
 
 Finally, if you want to install MPD to the standard location:
+
+.. code-block:: none
+
+ ninja -C output/release install
+
+Compiling for Linux/Debian/Ubuntu
+`````````````````````````````````
+
+For example, the following installs a fairly complete list of build dependencies on Debian Jessie or Stretch:
+>>>>>>> Stashed changes
 
 .. code-block:: none
 
@@ -278,8 +341,12 @@ To enable socket activation, type:
     systemctl enable mpd.socket
     systemctl start mpd.socket
 
+<<<<<<< Updated upstream
 In this configuration, :program:`MPD` will ignore the :ref:`listener
 settings <listeners>` (``bind_to_address`` and ``port``).
+=======
+In this configuration, :program:`MPD` will ignore the :dfn:`bind_to_address` and :dfn:`port` settings.
+>>>>>>> Stashed changes
 
 systemd user unit
 -----------------
@@ -362,9 +429,14 @@ If a music directory is configured, one database plugin is used. To configure th
         plugin "simple"
         path "/var/lib/mpd/db"
     }
+<<<<<<< Updated upstream
     
 More information can be found in the :ref:`database_plugins`
 reference.
+=======
+
+More information can be found in the database plugin reference :ref`database_plugins`.
+>>>>>>> Stashed changes
 
 Configuring neighbor plugins
 ----------------------------
@@ -376,8 +448,13 @@ All neighbor plugins are disabled by default to avoid unwanted overhead. To enab
     neighbors {
         plugin "smbclient"
     }
+<<<<<<< Updated upstream
       
 More information can be found in the :ref:`neighbor_plugin` reference.
+=======
+
+More information can be found in the neighbor plugin reference :ref:`neighbor_plugin`.
+>>>>>>> Stashed changes
 
 Configuring input plugins
 -------------------------
@@ -406,7 +483,11 @@ The following table lists the input options valid for all plugins:
      - Allows you to disable a input plugin without recompiling. By default, all plugins are enabled.
 
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
 More information can be found in the :ref:`input_plugins` reference.
+=======
+More information can be found in the input plugin reference :ref:`input_plugins`.
+>>>>>>> Stashed changes
 =======
 More information can be found in the input plugin reference :ref:`input_plugins`.
 >>>>>>> Stashed changes
@@ -436,14 +517,22 @@ The following table lists the decoder options valid for all plugins:
    * - **enabled yes|no**
      - Allows you to disable a decoder plugin without recompiling. By default, all plugins are enabled.
 
+<<<<<<< Updated upstream
 More information can be found in the :ref:`decoder_plugins` reference.
+=======
+More information can be found in the decoder plugin reference :ref:`decoder_plugins`.
+>>>>>>> Stashed changes
 
 Configuring encoder plugins
 ---------------------------
 
 Encoders are used by some of the output plugins (such as shout). The encoder settings are included in the audio_output section.
 
+<<<<<<< Updated upstream
 More information can be found in the :ref:`encoder_plugins` reference.
+=======
+More information can be found in the encoder plugin reference :ref:`encoder_plugins`.
+>>>>>>> Stashed changes
 
 Configuring audio outputs
 -------------------------
@@ -882,6 +971,11 @@ Mounting is only possible with the simple database plugin and a :code:`cache_dir
       path "~/.mpd/db"
       cache_directory "~/.mpd/cache"
     }
+<<<<<<< Updated upstream
+=======
+
+This requires migrating from the old :code:`db_file` setting to a database section. The cache directory must exist, and :program:`MPD` will put one file per mount there, which will be reused when the same storage is used again later.
+>>>>>>> Stashed changes
 
 This requires migrating from the old :code:`db_file` setting to a database section. The cache directory must exist, and :program:`MPD` will put one file per mount there, which will be reused when the same storage is used again later.
 

@@ -1,8 +1,8 @@
 project(
   'mpd',
   ['c', 'cpp'],
-  version: '0.21',
-  meson_version: '>= 0.47',
+  version: '0.21.3',
+  meson_version: '>= 0.47.2',
   default_options: [
     'c_std=c99',
     'cpp_std=c++14'
@@ -61,6 +61,12 @@ test_cxxflags = test_common_flags + [
   # type"
   '-Wno-noexcept-type',
 ]
+
+if compiler.get_id() == 'clang'
+  # Workaround for clang bug
+  # https://bugs.llvm.org/show_bug.cgi?id=32611
+  test_cxxflags += '-funwind-tables'
+endif
 
 test_cflags = test_common_flags + [
   '-Wmissing-prototypes',
@@ -166,6 +172,11 @@ inc = include_directories(
 )
 
 boost_dep = dependency('boost', version: '>= 1.58')
+if boost_dep.version() == '1.67'
+  # https://github.com/MusicPlayerDaemon/MPD/pull/384
+  # https://github.com/boostorg/lockfree/commit/12726cda009a855073b9bedbdce57b6ce7763da2
+  warning('Your Boost version 1.67 is known to be buggy, and the MPD build will fail. Please upgrade to Boost 1.68 or later.')
+endif
 
 sources = [
   version_cxx,
@@ -304,8 +315,8 @@ subdir('src/lib/gcrypt')
 subdir('src/lib/wrap')
 subdir('src/lib/nfs')
 subdir('src/lib/oss')
+subdir('src/lib/pcre')
 subdir('src/lib/pulse')
-subdir('src/lib/roar')
 subdir('src/lib/sndio')
 subdir('src/lib/sqlite')
 subdir('src/lib/systemd')

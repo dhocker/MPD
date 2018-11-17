@@ -1,5 +1,5 @@
 /*
- * Copyright 2003-2017 The Music Player Daemon Project
+ * Copyright 2003-2018 The Music Player Daemon Project
  * http://www.musicpd.org
  *
  * This program is free software; you can redistribute it and/or modify
@@ -98,8 +98,11 @@ class HttpdClient final
 
 	/**
 	 * If the current metadata was already sent to the client.
+	 *
+	 * Initialized to `true` because there is no metadata #Page
+	 * pending to be sent.
 	 */
-	bool metadata_sent = false;
+	bool metadata_sent = true;
 
 	/**
 	 * The amount of streaming data between each metadata block

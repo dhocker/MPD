@@ -1,6 +1,7 @@
 song = static_library(
   'song',
   'DetachedSong.cxx',
+  'Escape.cxx',
   'StringFilter.cxx',
   'UriSongFilter.cxx',
   'BaseSongFilter.cxx',
@@ -18,6 +19,7 @@ song_dep = declare_dependency(
   link_with: song,
   dependencies: [
     icu_dep,
+    pcre_dep,
     tag_dep,
     util_dep,
   ],

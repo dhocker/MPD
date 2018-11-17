@@ -1,14 +1,14 @@
-================================
-The Music Player Daemon protocol
-================================
+########
+Protocol
+########
 
 General protocol syntax
-#######################
+***********************
 
 Protocol overview
 =================
 
-The ``MPD`` command protocol exchanges
+The :program:`MPD` command protocol exchanges
 line-based text records between client and server over TCP.
 Once the client is connected to the server, they conduct a
 conversation until the client closes the connection. The
@@ -152,10 +152,15 @@ of:
   ``VALUE`` in ``AlbumArtist``
   and falls back to ``Artist`` tags if
   ``AlbumArtist`` does not exist.
-  ``VALUE`` is what to find.  The
-  `find` commands specify an exact value
-  and are case-sensitive; the `search`
-  commands specify a sub string and ignore case.
+  ``VALUE`` is what to find.
+
+- ``(TAG contains 'VALUE')`` checks if the given value is a substring
+  of the tag value.
+
+- ``(TAG =~ 'VALUE')`` and ``(TAG !~ 'VALUE')`` use a Perl-compatible
+  regular expression instead of doing a simple string comparison.
+  (This feature is only available if :program:`MPD` was compiled with
+  :file:`libpcre`)
 
 - ``(file == 'VALUE')``: match the full song URI
   (relative to the music directory).
@@ -175,22 +180,58 @@ of:
   matches the audio format with the given mask (i.e. one
   or more attributes may be "*").
 
-- ``(!EXPRESSION)``: negate an expression.
+- ``(!EXPRESSION)``: negate an expression.  Note that each expression
+  must be enclosed in parantheses, e.g. :code:`(!(artist == 'VALUE'))`
+  (which is equivalent to :code:`(artist != 'VALUE')`)
 
 - ``(EXPRESSION1 AND EXPRESSION2 ...)``: combine two or
-  more expressions with logical "and".
+  more expressions with logical "and".  Note that each expression must
+  be enclosed in parantheses, e.g. :code:`((artist == 'FOO') AND
+  (album == 'BAR'))`
+
+The :command:`find` commands are case sensitive, which
+:command:`search` and related commands ignore case.
 
 Prior to MPD 0.21, the syntax looked like this::
 
  find TYPE VALUE
+
+Escaping String Values
+----------------------
+
+String values are quoted with single or double quotes, and special
+characters within those values must be escaped with the backslash
+(``\``).  Keep in mind that the backslash is also the escape character
+on the protocol level, which means you may need to use double
+backslash.
+
+Example expression which matches an artist named ``foo'bar"``::
+
+ (artist "foo\'bar\"")
+
+At the protocol level, the command must look like this::
+
+ find "(artist \"foo\\'bar\\\"\")"
+
+The double quotes enclosing the artist name must be escaped because
+they are inside a double-quoted ``find`` parameter.  The single quote
+inside that artist name must be escaped with two backslashes; one to
+escape the single quote, and another one because the backslash inside
+the string inside the parameter needs to be escaped as well.  The
+double quote has three confusing backslashes: two to build one
+backslash, and another one to escape the double quote on the protocol
+level.  Phew!
+
+To reduce confusion, you should use a library such as `libmpdclient
+<https://www.musicpd.org/libs/libmpdclient/>`_ which escapes command
+arguments for you.
 
 .. _tags:
 
 Tags
 ====
 
-The following tags are supported by
-``MPD``:
+The following tags are supported by :program:`MPD`:
 
 * **artist**: the artist name. Its meaning is not well-defined; see "*composer*" and "*performer*" for more specific tags.
 * **artistsort**: same as artist, but for sorting. This usually omits prefixes such as "The".
@@ -216,7 +257,7 @@ The following tags are supported by
 * **musicbrainz_workid**: the work id in the `MusicBrainz <https://picard.musicbrainz.org/docs/mappings/>`_ database.
 
 There can be multiple values for some of these tags.  For
-example, ``MPD`` may return multiple
+example, :program:`MPD` may return multiple
 lines with a ``performer`` tag.  A tag value is
 a UTF-8 string.
 
@@ -254,21 +295,22 @@ may contain :ref:`song tags <tags>` and other metadata, specifically:
   "*2008-09-28T20:04:57Z*"
 
 Recipes
-#######
+*******
 
 Queuing
 =======
 
-Often, users run ``MPD`` with :ref:`random <command_random>` enabled,
-but want to be able to insert songs "before" the rest of the playlist.
-That is commonly called "queuing".
+Often, users run :program:`MPD` with :ref:`random <command_random>`
+enabled, but want to be able to insert songs "before" the rest of the
+playlist.  That is commonly called "queuing".
 
-``MPD`` implements this by allowing the client to specify a "priority"
-for each song in the playlist (commands :ref:`priod <command_prio>`
-and :ref:`priodid <command_prioid>`).  A higher priority means that
-the song is going to be played before the other songs.
+:program:`MPD` implements this by allowing the client to specify a
+"priority" for each song in the playlist (commands :ref:`priod
+<command_prio>` and :ref:`priodid <command_prioid>`).  A higher
+priority means that the song is going to be played before the other
+songs.
 
-In "random" mode, ``MPD`` maintains an
+In "random" mode, :program:`MPD` maintains an
 internal randomized sequence of songs.  In this sequence,
 songs with a higher priority come first, and all songs with
 the same priority are shuffled (by default, all songs are
@@ -285,7 +327,7 @@ effect on the sequence.  During playback, a song's priority is
 reset to zero.
 
 Command reference
-#################
+*****************
 
 .. note:: For manipulating playlists and playing, there are two sets of
    commands.  One set uses the song id of a song in the playlist,
@@ -293,9 +335,9 @@ Command reference
    commands using song ids should be used instead of the commands
    that manipulate and control playback based on playlist
    position. Using song ids is a safer method when multiple
-   clients are interacting with ``MPD``.
+   clients are interacting with :program:`MPD`.
 
-Querying ``MPD``'s status
+Querying :program:`MPD`'s status
 ================================
 
 :command:`clearerror`
@@ -310,7 +352,7 @@ Querying ``MPD``'s status
 
 :command:`idle [SUBSYSTEMS...]` [#since_0_14]_
     Waits until there is a noteworthy change in one or more
-    of ``MPD``'s subsystems.  As soon
+    of :program:`MPD`'s subsystems.  As soon
     as there is one, it lists all changed systems in a line
     in the format ``changed:
     SUBSYSTEM``, where SUBSYSTEM is one of the
@@ -319,7 +361,7 @@ Querying ``MPD``'s status
     - ``database``: the song database has been modified after :ref:`update <command_update>`.
     - ``update``: a database update has started or finished.  If the database was modified during the update, the ``database`` event is also emitted.
     - ``stored_playlist``: a stored playlist has been modified, renamed, created or deleted
-    - ``playlist``: the current playlist has been modified
+    - ``playlist``: the queue (i.e. the current playlist) has been modified
     - ``player``: the player has been started, stopped or seeked
     - ``mixer``: the volume has been changed
     - ``output``: an audio output has been added, removed or modified (e.g. renamed, enabled or disabled)
@@ -340,11 +382,11 @@ Querying ``MPD``'s status
     to wait for events as long as mpd runs.  The
     `idle` command can be canceled by
     sending the command `noidle` (no other
-    commands are allowed). ``MPD``
+    commands are allowed). :program:`MPD`
     will then leave `idle` mode and print
     results immediately; might be empty at this time.
     If the optional ``SUBSYSTEMS`` argument
-    is used, ``MPD`` will only send
+    is used, :program:`MPD` will only send
     notifications when something changed in one of the
     specified subsytems.
 
@@ -354,19 +396,21 @@ Querying ``MPD``'s status
     Reports the current status of the player and the volume
     level.
 
-    - ``volume``: ``0-100`` or ``-1`` if the volume cannot be determined
+    - ``volume``: ``0-100`` (deprecated: ``-1`` if the volume cannot
+      be determined)
     - ``repeat``: ``0`` or ``1``
     - ``random``: ``0`` or ``1``
-    - ``single`` [#since_0_15]_: ``0``, ``1``, or ``oneshot`` [#since_0_20]_
+    - ``single`` [#since_0_15]_: ``0``, ``1``, or ``oneshot`` [#since_0_21]_
     - ``consume`` [#since_0_15]_: ``0`` or ``1``
     - ``playlist``: 31-bit unsigned integer, the playlist version number
     - ``playlistlength``: integer, the length of the playlist
-    - ``state``: ``play``, ``stop, or ``pause``
+    - ``state``: ``play``, ``stop``, or ``pause``
     - ``song``: playlist song number of the current song stopped on or playing
     - ``songid``: playlist songid of the current song stopped on or playing
     - ``nextsong`` [#since_0_15]_: playlist song number of the next song to be played
     - ``nextsongid`` [#since_0_15]_: playlist songid of the next song to be played
     - ``time``: total time elapsed (of current playing/paused song)
+      (deprecated, use ``elapsed`` instead)
     - ``elapsed`` [#since_0_16]_: Total time elapsed within the current song, but with higher resolution.
     - ``duration`` [#since_0_20]_: Duration of the current song in seconds.
     - ``bitrate``: instantaneous bitrate in kbps
@@ -376,6 +420,10 @@ Querying ``MPD``'s status
     - ``audio``: The format emitted by the decoder plugin during playback, format: ``*samplerate:bits:channels*``. Check the user manual for a detailed explanation.
     - ``updating_db``: ``job id``
     - ``error``: if there is an error, returns message here
+
+    :program:`MPD` may omit lines which have no (known) value.  Older
+    :program:`MPD` versions used to have a "magic" value for
+    "unknown", e.g. ":samp:`volume: -1`".
 
 :command:`stats`
     Displays statistics.
@@ -423,7 +471,7 @@ Playback options
 
 :command:`single {STATE}` [#since_0_15]_
     Sets single state to ``STATE``,
-    ``STATE`` should be 0 or 1.
+    ``STATE`` should be ``0``, ``1`` or ``oneshot`` [#since_0_20]_.
     When single is activated, playback is stopped after current song, or
     song is repeated if the 'repeat' mode is enabled.
 
@@ -490,8 +538,36 @@ Controlling playback
 :command:`stop`
     Stops playing.
 
-The current playlist
-====================
+The Queue
+=========
+
+.. note:: The "queue" used to be called "current playlist" or just
+          "playlist", but that was deemed confusing, because
+          "playlists" are also files containing a sequence of songs.
+          Those "playlist files" or "stored playlists" can be
+          :ref:`loaded into the queue <command_load>` and the queue
+          can be :ref:`saved into a playlist file <command_save>`, but
+          they are not to be confused with the queue.
+
+          Many of the command names in this section reflect the old
+          naming convention, but for the sake of compatibility, we
+          cannot rename commands.
+
+There are two ways to address songs within the queue: by their
+position and by their id.
+
+The position is a 0-based index.  It is unstable by design: if you
+move, delete or insert songs, all following indices will change, and a
+client can never be sure what song is behind a given index/position.
+
+Song ids on the other hand are stable: an id is assigned to a song
+when it is added, and will stay the same, no matter how much it is
+moved around.  Adding the same song twice will assign different ids to
+them, and a deleted-and-readded song will have a new id.  This way, a
+client can always be sure the correct song is being used.
+
+Many commands come in two flavors, one for each address type.
+Whenever possible, ids should be used.
 
 :command:`add {URI}`
     Adds the file ``URI`` to the playlist
@@ -507,7 +583,7 @@ The current playlist
      OK
 
 :command:`clear`
-    Clears the current playlist.
+    Clears the queue.
 
 .. _command_delete:
 
@@ -532,13 +608,13 @@ The current playlist
 
 :command:`playlist`
 
-    Displays the current playlist.
+    Displays the queue.
 
     Do not use this, instead use :ref:`playlistinfo
     <command_playlistinfo>`.
 
 :command:`playlistfind {TAG} {NEEDLE}`
-    Finds songs in the current playlist with strict
+    Finds songs in the queue with strict
     matching.
 
 :command:`playlistid {SONGID}`
@@ -556,7 +632,7 @@ The current playlist
 
 :command:`playlistsearch {TAG} {NEEDLE}`
     Searches case-insensitively for partial matches in the
-    current playlist.
+    queue.
 
 :command:`plchanges {VERSION} [START:END]`
     Displays changed songs currently in the playlist since
@@ -593,7 +669,7 @@ The current playlist
     but address the songs with their id.
 
 :command:`rangeid {ID} {START:END}` [#since_0_19]_
-    Since ``MPD``
+    Since :program:`MPD`
     0.19 Specifies the portion of the
     song that shall be played.  ``START`` and
     ``END`` are offsets in seconds
@@ -603,7 +679,7 @@ The current playlist
     playing cannot be manipulated this way.
 
 :command:`shuffle [START:END]`
-    Shuffles the current playlist.
+    Shuffles the queue.
     ``START:END`` is optional and specifies
     a range of songs.
 
@@ -657,6 +733,8 @@ remote playlists (absolute URI with a supported scheme).
     between clients and the server, clients should not
     compare this value with their local clock.
 
+.. _command_load:
+
 :command:`load {NAME} [START:END]`
     Loads the playlist into the current queue.  Playlist
     plugins are supported.  A range may be specified to load
@@ -687,8 +765,10 @@ remote playlists (absolute URI with a supported scheme).
     Removes the playlist `NAME.m3u` from
     the playlist directory.
 
+.. _command_save:
+
 :command:`save {NAME}`
-    Saves the current playlist to
+    Saves the queue to
     `NAME.m3u` in the playlist directory.
 
 The music database
@@ -773,7 +853,7 @@ The music database
 :command:`list {TYPE} {FILTER} [group {GROUPTYPE}]`
     Lists unique tags values of the specified type.
     ``TYPE`` can be any tag supported by
-    ``MPD`` or
+    :program:`MPD` or
     *file*.
 
     Additional arguments may specify a :ref:`filter <filter_syntax>`.
@@ -792,10 +872,10 @@ The music database
     ``URI``.
 
     Do not use this command.  Do not manage a client-side
-    copy of ``MPD``'s database.  That
+    copy of :program:`MPD`'s database.  That
     is fragile and adds huge overhead.  It will break with
     large databases.  Instead, query
-    ``MPD`` whenever you need
+    :program:`MPD` whenever you need
     something.
 
 .. _command_listallinfo:
@@ -806,16 +886,16 @@ The music database
     as :ref:`lsinfo <command_lsinfo>`
 
     Do not use this command.  Do not manage a client-side
-    copy of ``MPD``'s database.  That
+    copy of :program:`MPD`'s database.  That
     is fragile and adds huge overhead.  It will break with
     large databases.  Instead, query
-    ``MPD`` whenever you need
+    :program:`MPD` whenever you need
     something.
 
 :command:`listfiles {URI}`
     Lists the contents of the directory
     ``URI``, including files are not
-    recognized by ``MPD``.
+    recognized by :program:`MPD`.
     ``URI`` can be a path relative to the
     music directory or an URI understood by one of the
     storage plugins.  The response contains at least one
@@ -922,7 +1002,7 @@ Multiple storages can be "mounted" together, similar to the
 `mount` command on many operating
 systems, but without cooperation from the kernel.  No
 superuser privileges are necessary, beause this mapping exists
-only inside the ``MPD`` process
+only inside the :program:`MPD` process
 
 .. _command_mount:
 
@@ -965,15 +1045,15 @@ Stickers
 
 "Stickers" [#since_0_15]_ are pieces of
 information attached to existing
-``MPD`` objects (e.g. song files,
+:program:`MPD` objects (e.g. song files,
 directories, albums).  Clients can create arbitrary name/value
-pairs.  ``MPD`` itself does not assume
+pairs.  :program:`MPD` itself does not assume
 any special meaning in them.
 
 The goal is to allow clients to share additional (possibly
 dynamic) information about songs, which is neither stored on
 the client (not available to other clients), nor stored in the
-song files (``MPD`` has no write
+song files (:program:`MPD` has no write
 access).
 
 Client developers should create a standard for common sticker
@@ -1015,14 +1095,21 @@ Connection settings
 ===================
 
 :command:`close`
-    Closes the connection to ``MPD``.
-    ``MPD`` will try to send the
+    Closes the connection to :program:`MPD`.
+    :program:`MPD` will try to send the
     remaining output buffer before it actually closes the
     connection, but that cannot be guaranteed.  This command
     will not generate a response.
 
+    Clients should not use this command; instead, they should just
+    close the socket.
+
 :command:`kill`
-    Kills ``MPD``.
+    Kills :program:`MPD`.
+
+    Do not use this command.  Send ``SIGTERM`` to :program:`MPD`
+    instead, or better: let your service manager handle :program:`MPD`
+    shutdown (e.g. :command:`systemctl stop mpd`).
 
 :command:`password {PASSWORD}`
     This is used for authentication with the server.
@@ -1056,7 +1143,7 @@ Connection settings
 
 :command:`tagtypes clear`
     Clear the list of tag types this client is interested
-    in.  This means that ``MPD`` will
+    in.  This means that :program:`MPD` will
     not send any tags to this client.
 
 :command:`tagtypes all`
@@ -1201,3 +1288,4 @@ idle event.
 .. [#since_0_16] Since :program:`MPD` 0.16
 .. [#since_0_19] Since :program:`MPD` 0.20
 .. [#since_0_20] Since :program:`MPD` 0.20
+.. [#since_0_21] Since :program:`MPD` 0.21

@@ -1,5 +1,5 @@
 /*
- * Copyright 2003-2017 The Music Player Daemon Project
+ * Copyright 2003-2018 The Music Player Daemon Project
  * http://www.musicpd.org
  *
  * This program is free software; you can redistribute it and/or modify
@@ -17,17 +17,12 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-#ifndef MPD_ROAR_OUTPUT_PLUGIN_H
-#define MPD_ROAR_OUTPUT_PLUGIN_H
+#ifndef MPD_FS_XDG_HXX
+#define MPD_FS_XDG_HXX
 
-class RoarOutput;
-
-extern const struct AudioOutputPlugin roar_output_plugin;
-
-int
-roar_output_get_volume(RoarOutput &roar);
-
-void
-roar_output_set_volume(RoarOutput &roar, unsigned volume);
+// Use X Desktop guidelines where applicable
+#if !defined(__APPLE__) && !defined(_WIN32) && !defined(ANDROID)
+#define USE_XDG
+#endif
 
 #endif

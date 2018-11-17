@@ -1,5 +1,5 @@
 /*
- * Copyright 2003-2017 The Music Player Daemon Project
+ * Copyright 2003-2018 The Music Player Daemon Project
  * http://www.musicpd.org
  *
  * This program is free software; you can redistribute it and/or modify
@@ -35,13 +35,6 @@
 
 #ifndef PACKAGE_VERSION
 #error config.h missing
-#endif
-
-#if defined(__linux__) && !defined(NDEBUG) && defined(ENABLE_LARGEFILE) && \
-	defined(_FEATURES_H) && defined(__i386__) && \
-	!defined(__USE_FILE_OFFSET64)
-/* on i386, check if LFS is enabled */
-#error config.h was included too late
 #endif
 
 #endif

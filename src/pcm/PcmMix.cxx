@@ -1,5 +1,5 @@
 /*
- * Copyright 2003-2017 The Music Player Daemon Project
+ * Copyright 2003-2018 The Music Player Daemon Project
  * http://www.musicpd.org
  *
  * This program is free software; you can redistribute it and/or modify
@@ -20,7 +20,7 @@
 #include "config.h"
 #include "PcmMix.hxx"
 #include "Volume.hxx"
-#include "PcmUtils.hxx"
+#include "Clamp.hxx"
 #include "Traits.hxx"
 #include "util/Clamp.hxx"
 
@@ -134,7 +134,7 @@ pcm_add_vol(PcmDither &dither, void *buffer1, const void *buffer2, size_t size,
 }
 
 template<SampleFormat F, class Traits=SampleTraits<F>>
-static typename Traits::value_type
+static constexpr typename Traits::value_type
 PcmAdd(typename Traits::value_type _a, typename Traits::value_type _b) noexcept
 {
 	typename Traits::sum_type a(_a), b(_b);

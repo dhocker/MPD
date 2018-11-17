@@ -1,5 +1,5 @@
 /*
- * Copyright 2003-2017 The Music Player Daemon Project
+ * Copyright 2003-2018 The Music Player Daemon Project
  * http://www.musicpd.org
  *
  * This program is free software; you can redistribute it and/or modify
@@ -291,12 +291,8 @@ PlayerControl::LockSeek(std::unique_ptr<DetachedSong> song, SongTime t)
 
 	assert(song != nullptr);
 
-	{
-		const std::lock_guard<Mutex> protect(mutex);
-		SeekLocked(std::move(song), t);
-	}
-
-	idle_add(IDLE_PLAYER);
+	const std::lock_guard<Mutex> protect(mutex);
+	SeekLocked(std::move(song), t);
 }
 
 void

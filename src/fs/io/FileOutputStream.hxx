@@ -46,6 +46,15 @@
 #include <windows.h>
 #endif
 
+#if defined(__linux__) && !defined(ANDROID)
+/* we don't use O_TMPFILE on Android because Android's braindead
+   SELinux policy disallows hardlinks
+   (https://android.googlesource.com/platform/external/sepolicy/+/85ce2c7),
+   even hardlinks from /proc/self/fd/N, which however is required to
+   use O_TMPFILE */
+#define HAVE_O_TMPFILE
+#endif
+
 class Path;
 
 class FileOutputStream final : public OutputStream {
@@ -57,7 +66,7 @@ class FileOutputStream final : public OutputStream {
 	FileDescriptor fd = FileDescriptor::Undefined();
 #endif
 
-#ifdef __linux__
+#ifdef HAVE_O_TMPFILE
 	/**
 	 * Was O_TMPFILE used?  If yes, then linkat() must be used to
 	 * create a link to this file.

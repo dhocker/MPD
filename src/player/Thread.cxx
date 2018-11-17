@@ -1,5 +1,5 @@
 /*
- * Copyright 2003-2017 The Music Player Daemon Project
+ * Copyright 2003-2018 The Music Player Daemon Project
  * http://www.musicpd.org
  *
  * This program is free software; you can redistribute it and/or modify
@@ -23,7 +23,8 @@
  * between the decoder thread and the output thread(s): it receives
  * #MusicChunk objects from the decoder, optionally mixes them
  * (cross-fading), applies software volume, and sends them to the
- * audio outputs via audio_output_all_play().
+ * audio outputs via PlayerOutputs::Play()
+ * (i.e. MultipleOutputs::Play()).
  *
  * It is controlled by the main thread (the playlist code), see
  * Control.hxx.  The playlist enqueues new songs into the player
@@ -606,6 +607,8 @@ Player::SeekDecoder() noexcept
 		pc.outputs.Cancel();
 	}
 
+	idle_add(IDLE_PLAYER);
+
 	if (!dc.IsSeekableCurrentSong(*pc.next_song)) {
 		/* the decoder is already decoding the "next" song -
 		   stop it and start the previous song again */
@@ -968,6 +971,15 @@ Player::Run() noexcept
 	pc.CommandFinished();
 
 	while (ProcessCommand()) {
+		if (decoder_starting) {
+			/* wait until the decoder is initialized completely */
+
+			if (!CheckDecoderStartup())
+				break;
+
+			continue;
+		}
+
 		if (buffering) {
 			/* buffering at the start of the song - wait
 			   until the buffer is large enough, to
@@ -983,15 +995,6 @@ Player::Run() noexcept
 				/* buffering is complete */
 				buffering = false;
 			}
-		}
-
-		if (decoder_starting) {
-			/* wait until the decoder is initialized completely */
-
-			if (!CheckDecoderStartup())
-				break;
-
-			continue;
 		}
 
 		if (dc.IsIdle() && queued && dc.pipe == pipe) {

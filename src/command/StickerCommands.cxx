@@ -1,5 +1,5 @@
 /*
- * Copyright 2003-2017 The Music Player Daemon Project
+ * Copyright 2003-2018 The Music Player Daemon Project
  * http://www.musicpd.org
  *
  * This program is free software; you can redistribute it and/or modify
@@ -103,7 +103,7 @@ handle_sticker_song(Response &r, Partition &partition, Request args)
 			? sticker_song_delete(*song)
 			: sticker_song_delete_value(*song, args[3]);
 		if (!ret) {
-			r.Error(ACK_ERROR_SYSTEM, "no such sticker");
+			r.Error(ACK_ERROR_NO_EXIST, "no such sticker");
 			return CommandResult::ERROR;
 		}
 

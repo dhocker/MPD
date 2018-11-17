@@ -19,16 +19,18 @@
 
 #include "config.h"
 #include "UriSongFilter.hxx"
+#include "Escape.hxx"
 #include "LightSong.hxx"
 
 std::string
 UriSongFilter::ToExpression() const noexcept
 {
-	return std::string("(file ") + (negated ? "!=" : "==") + " \"" + filter.GetValue() + "\")";
+	return std::string("(file ") + filter.GetOperator()
+		+ " \"" + EscapeFilterString(filter.GetValue()) + "\")";
 }
 
 bool
 UriSongFilter::Match(const LightSong &song) const noexcept
 {
-	return filter.Match(song.GetURI().c_str()) != negated;
+	return filter.Match(song.GetURI().c_str());
 }

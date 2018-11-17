@@ -1,5 +1,5 @@
 /*
- * Copyright 2003-2017 The Music Player Daemon Project
+ * Copyright 2003-2018 The Music Player Daemon Project
  * http://www.musicpd.org
  *
  * This program is free software; you can redistribute it and/or modify
@@ -34,8 +34,7 @@ template<SampleFormat F> struct SampleTraits;
  * and caps it if necessary.
  */
 template<SampleFormat F, class Traits=SampleTraits<F>>
-gcc_const
-static inline typename Traits::value_type
+constexpr typename Traits::value_type
 PcmClamp(typename Traits::long_type x) noexcept
 {
 	typedef typename Traits::value_type T;

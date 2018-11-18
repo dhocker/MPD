@@ -49,7 +49,7 @@ The following sections provide some direction for compiling and installing MPD
 on various OSes such as Ubuntu, macOS, Windows and Android.
 
 Acquire the Source Code
-```````````````````````
+~~~~~~~~~~~~~~~~~~~~~~~
 
 There are two ways to get the source code:
 
@@ -71,7 +71,7 @@ Or, clone the source from GitHub:
     cd MPD
 
 Basic Requirements
-``````````````````
+~~~~~~~~~~~~~~~~~~
 
 In any case, you need:
 
@@ -85,7 +85,7 @@ Each plugin usually needs a codec library, which you also need to
 install. Check the :doc:`plugins` for details about required libraries
 
 Meson/Ninja Build Tools
-```````````````````````
+~~~~~~~~~~~~~~~~~~~~~~~
 
 MPD uses the Meson/Ninja tools for building. This tool set works quite differently from
 autotools (autogen, configure, etc.). If you are unfamiliar with Meson, you might
@@ -128,7 +128,7 @@ If you want to see the complete configuration you can always run:
  meson configure output/release
 
 Meson/Ninja Build Tools
-```````````````````````
+~~~~~~~~~~~~~~~~~~~~~~~
 
 MPD uses the Meson/Ninja tools for building. This tool set works quite differently from
 autotools (autogen, configure, etc.). If you are unfamiliar with Meson, you might
@@ -177,7 +177,7 @@ Finally, if you want to install MPD to the standard location:
  ninja -C output/release install
 
 Compiling for Linux/Debian/Ubuntu
-`````````````````````````````````
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 For example, the following installs a fairly complete list of build dependencies on Debian Jessie or Stretch:
 
@@ -186,7 +186,7 @@ For example, the following installs a fairly complete list of build dependencies
  ninja -C output/release install
 
 Compiling for Linux/Debian/Ubuntu
-`````````````````````````````````
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 For example, the following installs a fairly complete list of build dependencies on Debian Jessie or Stretch:
 
@@ -244,13 +244,13 @@ And install:
  ninja -C output/release install
 
 Compiling for macOS
-```````````````````
+~~~~~~~~~~~~~~~~~~~
 
 Compiling for Raspberry Pi Raspbian
-```````````````````````````````````
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Compiling for Windows
-`````````````````````
+~~~~~~~~~~~~~~~~~~~~~
 
 Even though it does not "feel" like a Windows application, :program:`MPD` works well under Windows. Its build process follows the "Linux style" and may seem awkward for Windows people (who are not used to compiling their software, anyway).
 
@@ -287,7 +287,7 @@ mpd.exe with DLLs, you need to compile manually, without the
 :file:`build.py` script.
 
 Compiling for Android
-`````````````````````
+~~~~~~~~~~~~~~~~~~~~~
 
 :program:`MPD` can be compiled as an Android app. It can be installed easily with Google Play, but if you want to build it from source, follow this section.
 
@@ -415,7 +415,7 @@ If a music directory is configured, one database plugin is used. To configure th
         plugin "simple"
         path "/var/lib/mpd/db"
     }
-    
+
 More information can be found in the :ref:`database_plugins`
 reference.
 
@@ -429,7 +429,7 @@ All neighbor plugins are disabled by default to avoid unwanted overhead. To enab
     neighbors {
         plugin "smbclient"
     }
-      
+
 More information can be found in the :ref:`neighbor_plugin` reference.
 
 Configuring input plugins

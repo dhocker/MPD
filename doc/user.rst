@@ -127,59 +127,7 @@ If you want to see the complete configuration you can always run:
 
  meson configure output/release
 
-Meson/Ninja Build Tools
-~~~~~~~~~~~~~~~~~~~~~~~
-
-MPD uses the Meson/Ninja tools for building. This tool set works quite differently from
-autotools (autogen, configure, etc.). If you are unfamiliar with Meson, you might
-want to look at some of its `documentation <https://mesonbuild.com/Quick-guide.html>`_
-before you start trying to configure and build.
-
-The meson_options.txt file lists all of the options and features supported by
-the MPD build process. If you find that you need to disable or enable an option or
-feature you can look through this file to find the information you will need to
-enable/disable/set an option or feature.
-
-The build sequence typically goes something like this:
-
-.. code-block:: none
-
- # Configure the build
- meson . output/release --buildtype=debugoptimized -Db_ndebug=true
- # Show the resulting configuration settings
- meson configure output/release
- # Do the actual building
- ninja -C output/release
-
-This sequence is run from the root of the repo. It will create output/release as a
-subdirectory. The results of the configuration and build will go there (including
-documentation).
-
-Configuration setting changes are done using the "meson configure" command.
-For example, if you wanted to disable the iso9660 feature and build the documentation,
-you would use the following:
-
-.. code-block:: none
-
- meson configure output/release -Diso9660=disabled
- meson configure output/release -Ddocumentation=true
-
-If you want to see the complete configuration you can always run:
-
-.. code-block:: none
-
- meson configure output/release
-
 Finally, if you want to install MPD to the standard location:
-
-.. code-block:: none
-
- ninja -C output/release install
-
-Compiling for Linux/Debian/Ubuntu
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-For example, the following installs a fairly complete list of build dependencies on Debian Jessie or Stretch:
 
 .. code-block:: none
 

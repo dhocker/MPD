@@ -38,10 +38,11 @@ class TagMask;
 class Database {
 	const DatabasePlugin &plugin;
 
-public:
+protected:
 	Database(const DatabasePlugin &_plugin) noexcept
 		:plugin(_plugin) {}
 
+public:
 	/**
 	 * Free instance data.
          */
@@ -49,10 +50,6 @@ public:
 
 	const DatabasePlugin &GetPlugin() const noexcept {
 		return plugin;
-	}
-
-	bool IsPlugin(const DatabasePlugin &other) const noexcept {
-		return &plugin == &other;
 	}
 
 	/**
@@ -108,6 +105,11 @@ public:
 		return Visit(selection, VisitDirectory(), visit_song);
 	}
 
+	/**
+	 * Collect unique values of the given tag type.
+	 *
+	 * Throws on error.
+	 */
 	virtual std::map<std::string, std::set<std::string>> CollectUniqueTags(const DatabaseSelection &selection,
 									       TagType tag_type,
 									       TagType group=TAG_NUM_OF_ITEM_TYPES) const = 0;

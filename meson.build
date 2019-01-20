@@ -1,7 +1,7 @@
 project(
   'mpd',
   ['c', 'cpp'],
-  version: '0.21.4',
+  version: '0.21.5',
   meson_version: '>= 0.47.2',
   default_options: [
     'c_std=c99',
@@ -99,7 +99,7 @@ is_linux = host_machine.system() == 'linux'
 is_android = get_option('android_ndk') != ''
 is_darwin = host_machine.system() == 'darwin'
 is_windows = host_machine.system() == 'windows'
-is_haiku = host_machine.system() == 'haiku' # TODO is this correct?
+is_haiku = host_machine.system() == 'haiku'
 
 if is_android
   common_cppflags += '-DANDROID'
@@ -312,7 +312,6 @@ subdir('src/lib/curl')
 subdir('src/lib/expat')
 subdir('src/lib/ffmpeg')
 subdir('src/lib/gcrypt')
-subdir('src/lib/wrap')
 subdir('src/lib/nfs')
 subdir('src/lib/oss')
 subdir('src/lib/pcre')
@@ -432,7 +431,6 @@ mpd = build_target(
     systemd_dep,
     sqlite_dep,
     zeroconf_dep,
-    libwrap_dep,
     more_deps,
   ],
   link_args: link_args,

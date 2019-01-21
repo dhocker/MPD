@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2013-2014 Max Kellermann <max.kellermann@gmail.com>
+ * Copyright 2012-2019 Max Kellermann <max.kellermann@gmail.com>
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -27,60 +27,48 @@
  * OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef CAST_HXX
-#define CAST_HXX
+#include "net/AllocatedSocketAddress.hxx"
+#include "net/ToString.hxx"
 
-#include "OffsetPointer.hxx"
-#include "Compiler.h"
+#include <gtest/gtest.h>
 
-#include <stddef.h>
+#include <sys/un.h>
 
-template<typename T, typename U>
-constexpr T *
-OffsetCast(U *p, ptrdiff_t offset)
+TEST(LocalSocketAddress, Path)
 {
-	return reinterpret_cast<T *>(OffsetPointer(p, offset));
+	const char *path = "/run/foo/bar.socket";
+	AllocatedSocketAddress a;
+	a.SetLocal(path);
+	EXPECT_FALSE(a.IsNull());
+	EXPECT_TRUE(a.IsDefined());
+	EXPECT_EQ(a.GetFamily(), AF_LOCAL);
+	EXPECT_EQ(ToString(a), path);
+
+	const auto &sun = *(const struct sockaddr_un *)a.GetAddress();
+	EXPECT_STREQ(sun.sun_path, path);
+	EXPECT_EQ(sun.sun_path + strlen(path) + 1, (const char *)a.GetAddress() + a.GetSize());
 }
 
-template<typename T, typename U>
-constexpr T *
-OffsetCast(const U *p, ptrdiff_t offset)
-{
-	return reinterpret_cast<const T *>(OffsetPointer(p, offset));
-}
+#ifdef __linux__
 
-template<class C, class A>
-constexpr ptrdiff_t
-ContainerAttributeOffset(const C *null_c, const A C::*p)
+TEST(LocalSocketAddress, Abstract)
 {
-	return ptrdiff_t((const char *)&(null_c->*p) - (const char *)null_c);
-}
+	const char *path = "@foo.bar";
+	AllocatedSocketAddress a;
+	a.SetLocal(path);
+	EXPECT_FALSE(a.IsNull());
+	EXPECT_TRUE(a.IsDefined());
+	EXPECT_EQ(a.GetFamily(), AF_LOCAL);
+	EXPECT_EQ(ToString(a), path);
 
-template<class C, class A>
-constexpr ptrdiff_t
-ContainerAttributeOffset(const A C::*p)
-{
-	return ContainerAttributeOffset<C, A>(nullptr, p);
-}
+	const auto &sun = *(const struct sockaddr_un *)a.GetAddress();
 
-/**
- * Cast the given pointer to a struct member to its parent structure.
- */
-template<class C, class A>
-constexpr C &
-ContainerCast(A &a, const A C::*member)
-{
-	return *OffsetCast<C, A>(&a, -ContainerAttributeOffset<C, A>(member));
-}
+	/* Linux's abstract sockets start with a null byte, ... */
+	EXPECT_EQ(sun.sun_path[0], 0);
 
-/**
- * Cast the given pointer to a struct member to its parent structure.
- */
-template<class C, class A>
-constexpr const C &
-ContainerCast(const A &a, const A C::*member)
-{
-	return *OffsetCast<const C, const A>(&a, -ContainerAttributeOffset<C, A>(member));
+	/* ... but are not null-terminated */
+	EXPECT_EQ(memcmp(sun.sun_path + 1, path + 1, strlen(path) - 1), 0);
+	EXPECT_EQ(sun.sun_path + strlen(path), (const char *)a.GetAddress() + a.GetSize());
 }
 
 #endif

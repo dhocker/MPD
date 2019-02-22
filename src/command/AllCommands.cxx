@@ -314,11 +314,6 @@ command_init()
 	build_command_map();
 }
 
-void
-command_finish()
-{
-}
-
 static const struct command *
 command_lookup(const char *name)
 {

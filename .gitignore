@@ -55,5 +55,7 @@
 /*.tar.xz
 /mpd-*/
 .vscode/
+*.stderr
+*.stdout
 
 __pycache__/

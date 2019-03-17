@@ -1,5 +1,5 @@
 /*
- * Copyright 2003-2018 The Music Player Daemon Project
+ * Copyright 2003-2019 The Music Player Daemon Project
  * http://www.musicpd.org
  *
  * This program is free software; you can redistribute it and/or modify
@@ -17,34 +17,38 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-#include "StringFilter.hxx"
-#include "util/StringCompare.hxx"
+#ifndef MPD_FFMPEG_FRAME_HXX
+#define MPD_FFMPEG_FRAME_HXX
 
-#include <assert.h>
+extern "C" {
+#include <libavutil/frame.h>
+}
 
-bool
-StringFilter::MatchWithoutNegation(const char *s) const noexcept
-{
-	assert(s != nullptr);
+#include <new>
 
-#ifdef HAVE_PCRE
-	if (regex)
-		return regex->Match(s);
-#endif
+namespace Ffmpeg {
 
-	if (fold_case) {
-		return substring
-			? fold_case.IsIn(s)
-			: fold_case == s;
-	} else {
-		return substring
-			? StringFind(s, value.c_str()) != nullptr
-			: value == s;
+class Frame {
+	AVFrame *frame;
+
+public:
+	Frame():frame(av_frame_alloc()) {
+		if (frame == nullptr)
+			throw std::bad_alloc();
 	}
-}
 
-bool
-StringFilter::Match(const char *s) const noexcept
-{
-	return MatchWithoutNegation(s) != negated;
-}
+	~Frame() noexcept {
+		av_frame_free(&frame);
+	}
+
+	Frame(const Frame &) = delete;
+	Frame &operator=(const Frame &) = delete;
+
+	AVFrame &operator*() noexcept {
+		return *frame;
+	}
+};
+
+} // namespace Ffmpeg
+
+#endif

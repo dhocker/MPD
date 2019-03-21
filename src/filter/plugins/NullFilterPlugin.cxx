@@ -26,20 +26,10 @@
 
 #include "NullFilterPlugin.hxx"
 #include "filter/FilterPlugin.hxx"
-#include "filter/Filter.hxx"
+#include "filter/NullFilter.hxx"
 #include "filter/Prepared.hxx"
 #include "AudioFormat.hxx"
 #include "util/Compiler.h"
-#include "util/ConstBuffer.hxx"
-
-class NullFilter final : public Filter {
-public:
-	explicit NullFilter(const AudioFormat &af):Filter(af) {}
-
-	virtual ConstBuffer<void> FilterPCM(ConstBuffer<void> src) override {
-		return src;
-	}
-};
 
 class PreparedNullFilter final : public PreparedFilter {
 public:

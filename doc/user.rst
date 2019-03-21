@@ -76,7 +76,7 @@ Basic Requirements
 In any case, you need:
 
 * a C++14 compiler (e.g. gcc 6.0 or clang 3.9)
-* `Meson 0.47.2 <http://mesonbuild.com/>`__ and `Ninja
+* `Meson 0.49.0 <http://mesonbuild.com/>`__ and `Ninja
   <https://ninja-build.org/>`__
 * Boost 1.58
 * pkg-config
@@ -444,9 +444,13 @@ More information can be found in the :ref:`decoder_plugins` reference.
 Configuring encoder plugins
 ---------------------------
 
-Encoders are used by some of the output plugins (such as shout). The encoder settings are included in the audio_output section.
+Encoders are used by some of the output plugins (such as shout). The
+encoder settings are included in the ``audio_output`` section, see :ref:`config_audio_output`.
 
 More information can be found in the :ref:`encoder_plugins` reference.
+
+
+.. _config_audio_output:
 
 Configuring audio outputs
 -------------------------
@@ -500,6 +504,15 @@ The following table lists the audio_output options valid for all plugins:
        implement an external mixer :ref:`external_mixer`) or no mixer
        (:samp:`none`). By default, the hardware mixer is used for
        devices which support it, and none for the others.
+   * - **filters "name,...**"
+     - The specified configured filters are instantiated in the given
+       order.  Each filter name refers to a ``filter`` block, see
+       :ref:`config_filter`.
+
+More information can be found in the :ref:`output_plugins` reference.
+
+
+.. _config_filter:
 
 Configuring filters
 -------------------
@@ -515,6 +528,9 @@ To configure a filter, add a :code:`filter` block to :file:`mpd.conf`:
         name "software volume"
     }
 
+Configured filters may then be added to the ``filters`` setting of an
+``audio_output`` section, see :ref:`config_audio_output`.
+
 The following table lists the filter options valid for all plugins:
 
 .. list-table::
@@ -527,6 +543,9 @@ The following table lists the filter options valid for all plugins:
      - The name of the plugin
    * - **name**
      - The name of the filter
+
+More information can be found in the :ref:`filter_plugins` reference.
+
 
 Configuring playlist plugins
 ----------------------------

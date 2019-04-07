@@ -206,19 +206,21 @@ sources = [
   'src/decoder/DecoderPrint.cxx',
   'src/client/Listener.cxx',
   'src/client/Client.cxx',
-  'src/client/ClientEvent.cxx',
-  'src/client/ClientExpire.cxx',
-  'src/client/ClientGlobal.cxx',
-  'src/client/ClientIdle.cxx',
-  'src/client/ClientList.cxx',
-  'src/client/ClientNew.cxx',
-  'src/client/ClientProcess.cxx',
-  'src/client/ClientRead.cxx',
-  'src/client/ClientWrite.cxx',
-  'src/client/ClientMessage.cxx',
-  'src/client/ClientSubscribe.cxx',
-  'src/client/ClientFile.cxx',
+  'src/client/Config.cxx',
+  'src/client/Domain.cxx',
+  'src/client/Event.cxx',
+  'src/client/Expire.cxx',
+  'src/client/Idle.cxx',
+  'src/client/List.cxx',
+  'src/client/New.cxx',
+  'src/client/Process.cxx',
+  'src/client/Read.cxx',
+  'src/client/Write.cxx',
+  'src/client/Message.cxx',
+  'src/client/Subscribe.cxx',
+  'src/client/File.cxx',
   'src/client/Response.cxx',
+  'src/client/ThreadBackgroundCommand.cxx',
   'src/Listen.cxx',
   'src/LogInit.cxx',
   'src/LogBackend.cxx',
@@ -308,6 +310,7 @@ subdir('src/lib/smbclient')
 subdir('src/lib/zlib')
 
 subdir('src/lib/alsa')
+subdir('src/lib/chromaprint')
 subdir('src/lib/curl')
 subdir('src/lib/expat')
 subdir('src/lib/ffmpeg')
@@ -353,6 +356,13 @@ if sqlite_dep.found()
   ]
 endif
 
+if chromaprint_dep.found()
+  sources += [
+    'src/command/FingerprintCommands.cxx',
+    'src/lib/chromaprint/DecoderClient.cxx',
+  ]
+endif
+
 basic = static_library(
   'basic',
   'src/ReplayGainInfo.cxx',
@@ -390,6 +400,7 @@ more_deps = []
 if is_android
   subdir('src/java')
   target_type = 'shared_library'
+  target_name = 'mpd'
   link_args += [
     '-Wl,--no-undefined,-shared,-Bsymbolic',
     '-llog',
@@ -399,12 +410,20 @@ if is_android
     declare_dependency(sources: [classes_jar]),
     java_dep,
   ]
+elif is_haiku
+  target_type = 'executable'
+  target_name = 'mpd.nores'
+  link_args += [
+    '-lnetwork',
+    '-lbe',
+  ]
 else
   target_type = 'executable'
+  target_name = 'mpd'
 endif
 
 mpd = build_target(
-  'mpd',
+  target_name,
   sources,
   target_type: target_type,
   include_directories: inc,
@@ -432,6 +451,7 @@ mpd = build_target(
     sqlite_dep,
     zeroconf_dep,
     more_deps,
+    chromaprint_dep,
   ],
   link_args: link_args,
   install: not is_android and not is_haiku,
@@ -443,6 +463,14 @@ endif
 
 if is_haiku
   subdir('src/haiku')
+  custom_target(
+    'mpd',
+    output: 'mpd',
+    input: [mpd, rsrc],
+    command: [addres, '@OUTPUT@', '@INPUT0@', '@INPUT1@'],
+    install: true,
+    install_dir: get_option('bindir'),
+  )
 endif
 
 configure_file(output: 'config.h', configuration: conf)

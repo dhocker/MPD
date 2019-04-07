@@ -1,5 +1,5 @@
 /*
- * Copyright 2003-2018 The Music Player Daemon Project
+ * Copyright 2003-2019 The Music Player Daemon Project
  * http://www.musicpd.org
  *
  * This program is free software; you can redistribute it and/or modify
@@ -17,19 +17,16 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-#include "Client.hxx"
+#ifndef MPD_FINGERPRINT_COMMANDS_HXX
+#define MPD_FINGERPRINT_COMMANDS_HXX
 
-#include <string.h>
+#include "CommandResult.hxx"
 
-bool
-Client::Write(const void *data, size_t length)
-{
-	/* if the client is going to be closed, do nothing */
-	return !IsExpired() && FullyBufferedSocket::Write(data, length);
-}
+class Client;
+class Request;
+class Response;
 
-bool
-Client::Write(const char *data)
-{
-	return Write(data, strlen(data));
-}
+CommandResult
+handle_getfingerprint(Client &client, Request request, Response &response);
+
+#endif

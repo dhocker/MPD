@@ -17,23 +17,18 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-#include "ClientMessage.hxx"
-#include "util/CharUtil.hxx"
+#ifndef MPD_CLIENT_CONFIG_HXX
+#define MPD_CLIENT_CONFIG_HXX
 
-static constexpr bool
-valid_channel_char(const char ch) noexcept
-{
-	return IsAlphaNumericASCII(ch) ||
-		ch == '_' || ch == '-' || ch == '.' || ch == ':';
-}
+#include <chrono>
 
-bool
-client_message_valid_channel_name(const char *name) noexcept
-{
-	do {
-		if (!valid_channel_char(*name))
-			return false;
-	} while (*++name != 0);
+struct ConfigData;
 
-	return true;
-}
+extern std::chrono::steady_clock::duration client_timeout;
+extern size_t client_max_command_list_size;
+extern size_t client_max_output_buffer_size;
+
+void
+client_manager_init(const ConfigData &config);
+
+#endif

@@ -17,24 +17,32 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-#ifndef MPD_CLIENT_INTERNAL_HXX
-#define MPD_CLIENT_INTERNAL_HXX
-
 #include "Client.hxx"
-#include "command/CommandResult.hxx"
+#include "protocol/Ack.hxx"
+#include "fs/Path.hxx"
+#include "fs/FileInfo.hxx"
 
-#include <chrono>
+void
+Client::AllowFile(Path path_fs) const
+{
+#ifdef _WIN32
+	(void)path_fs;
 
-static constexpr unsigned CLIENT_MAX_SUBSCRIPTIONS = 16;
-static constexpr unsigned CLIENT_MAX_MESSAGES = 64;
+	throw ProtocolError(ACK_ERROR_PERMISSION, "Access denied");
+#else
+	if (uid >= 0 && (uid_t)uid == geteuid())
+		/* always allow access if user runs his own MPD
+		   instance */
+		return;
 
-extern const class Domain client_domain;
+	if (uid < 0)
+		/* unauthenticated client */
+		throw ProtocolError(ACK_ERROR_PERMISSION, "Access denied");
 
-extern std::chrono::steady_clock::duration client_timeout;
-extern size_t client_max_command_list_size;
-extern size_t client_max_output_buffer_size;
+	const FileInfo fi(path_fs);
 
-CommandResult
-client_process_line(Client &client, char *line);
-
+	if (fi.GetUid() != (uid_t)uid && (fi.GetMode() & 0444) != 0444)
+		/* client is not owner */
+		throw ProtocolError(ACK_ERROR_PERMISSION, "Access denied");
 #endif
+}

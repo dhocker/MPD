@@ -30,7 +30,9 @@
 class FfmpegFilter final : public Filter {
 	Ffmpeg::FilterGraph graph;
 	Ffmpeg::FilterContext buffer_src, buffer_sink;
-	Ffmpeg::Frame in_frame, out_frame;
+	Ffmpeg::Frame frame;
+
+	const int in_format, in_sample_rate, in_channels;
 
 	const size_t in_audio_frame_size;
 	const size_t out_audio_frame_size;

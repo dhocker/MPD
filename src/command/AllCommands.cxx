@@ -33,6 +33,7 @@
 #include "NeighborCommands.hxx"
 #include "ClientCommands.hxx"
 #include "PartitionCommands.hxx"
+#include "FingerprintCommands.hxx"
 #include "OtherCommands.hxx"
 #include "Permission.hxx"
 #include "tag/Type.h"
@@ -142,6 +143,9 @@ build_command_map()
 #ifdef ENABLE_DATABASE
 	insert_command("find", PERMISSION_READ, 1, -1, handle_find);
 	insert_command("findadd", PERMISSION_ADD, 1, -1, handle_findadd);
+#endif
+#ifdef ENABLE_CHROMAPRINT
+	insert_command("getfingerprint", PERMISSION_READ, 1, 1, handle_getfingerprint);
 #endif
 	insert_command("idle", PERMISSION_READ, 0, -1, handle_idle);
 	insert_command("kill", PERMISSION_ADMIN, -1, -1, handle_kill);

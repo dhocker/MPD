@@ -17,26 +17,50 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-#include "ClientInternal.hxx"
-#include "Log.hxx"
+#ifndef MPD_CLIENT_LIST_HXX
+#define MPD_CLIENT_LIST_HXX
 
-void
-Client::SetExpired() noexcept
-{
-	if (IsExpired())
-		return;
+#include "Client.hxx"
 
-	FullyBufferedSocket::Close();
-	timeout_event.Schedule(std::chrono::steady_clock::duration::zero());
-}
+#include <boost/intrusive/list.hpp>
 
-void
-Client::OnTimeout() noexcept
-{
-	if (!IsExpired()) {
-		assert(!idle_waiting);
-		FormatDebug(client_domain, "[%u] timeout", num);
+class ClientList {
+	typedef boost::intrusive::list<Client,
+				       boost::intrusive::constant_time_size<true>> List;
+
+	const unsigned max_size;
+
+	List list;
+
+public:
+	explicit ClientList(unsigned _max_size) noexcept
+		:max_size(_max_size) {}
+
+	~ClientList() noexcept {
+		CloseAll();
 	}
 
-	Close();
-}
+	List::iterator begin() noexcept {
+		return list.begin();
+	}
+
+	List::iterator end() noexcept {
+		return list.end();
+	}
+
+	bool IsFull() const noexcept {
+		return list.size() >= max_size;
+	}
+
+	void Add(Client &client) noexcept {
+		list.push_front(client);
+	}
+
+	void Remove(Client &client) noexcept;
+
+	void CloseAll() noexcept;
+
+	void IdleAdd(unsigned flags) noexcept;
+};
+
+#endif

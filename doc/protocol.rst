@@ -782,11 +782,12 @@ The music database
 ==================
 
 :command:`albumart {URI} {OFFSET}`
-    Searches the directory the file ``URI``
-    resides in and attempts to return a chunk of an album
+    Locate album art for the given song and return a chunk of an album
     art image file at offset ``OFFSET``.
-    Uses the filename "cover" with any of ".png, .jpg,
-    .tiff, .bmp".
+
+    This is currently implemented by searching the directory the file
+    resides in for a file called :file:`cover.png`, :file:`cover.jpg`,
+    :file:`cover.tiff` or :file:`cover.bmp`.
 
     Returns the file size and actual number
     of bytes read at the requested offset, followed
@@ -795,7 +796,7 @@ The music database
 
     Example::
 
-     albumart
+     albumart foo/bar.ogg 0
      size: 1024768
      binary: 8192
      <8192 bytes>
@@ -823,6 +824,17 @@ The music database
     don't this group tag.  It exists only if at least one such song is
     found.
 
+:command:`getfingerprint {URI}`
+
+    Calculate the song's audio fingerprint.  Example (abbreviated fingerprint)::
+
+      getfingerprint "foo/bar.ogg"
+      chromaprint: AQACcEmSREmWJJmkIT_6CCf64...
+      OK
+
+    This command is only available if MPD was built with
+    :file:`libchromaprint` (``-Dchromaprint=enabled``).
+
 .. _command_find:
 
 :command:`find {FILTER} [sort {TYPE}] [window {START:END}]`
@@ -849,7 +861,7 @@ The music database
 
 .. _command_findadd:
 
-:command:`findadd {FILTER}`
+:command:`findadd {FILTER} [sort {TYPE}] [window {START:END}]`
     Search the database for songs matching
     ``FILTER`` (see :ref:`Filters <filter_syntax>`) and add them to
     the queue.  Parameters have the same meaning as for
@@ -961,14 +973,14 @@ The music database
 
 .. _command_searchadd:
 
-:command:`searchadd {FILTER}`
+:command:`searchadd {FILTER} [sort {TYPE}] [window {START:END}]`
     Search the database for songs matching
     ``FILTER`` (see :ref:`Filters <filter_syntax>`) and add them to
     the queue.
 
     Parameters have the same meaning as for :ref:`search <command_search>`.
 
-:command:`searchaddpl {NAME} {FILTER}`
+:command:`searchaddpl {NAME} {FILTER} [sort {TYPE}] [window {START:END}]`
     Search the database for songs matching
     ``FILTER`` (see :ref:`Filters <filter_syntax>`) and add them to
     the playlist named ``NAME``.

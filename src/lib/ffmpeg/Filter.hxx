@@ -21,6 +21,7 @@
 #define MPD_FFMPEG_FILTER_HXX
 
 #include "Error.hxx"
+#include <new>
 
 extern "C" {
 #include <libavfilter/avfilter.h>

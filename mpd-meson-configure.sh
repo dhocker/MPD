@@ -1,7 +1,7 @@
 #! /bin/bash
 
 # Configure
-meson . output/release --buildtype=debugoptimized -Db_ndebug=true
+meson . output/release --buildtype=debugoptimized -Db_ndebug=true -Dupnp=disabled
 
 # Disable upnp (how to alter configuration)
 # upnp depends on expat and meson cannot find it

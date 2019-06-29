@@ -27,6 +27,7 @@ extern "C" {
 #include <libavfilter/avfilter.h>
 }
 
+#include <new>
 #include <utility>
 
 struct AudioFormat;

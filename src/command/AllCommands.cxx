@@ -1,5 +1,5 @@
 /*
- * Copyright 2003-2018 The Music Player Daemon Project
+ * Copyright 2003-2019 The Music Player Daemon Project
  * http://www.musicpd.org
  *
  * This program is free software; you can redistribute it and/or modify
@@ -38,6 +38,7 @@
 #include "Permission.hxx"
 #include "tag/Type.h"
 #include "Partition.hxx"
+#include "Instance.hxx"
 #include "client/Client.hxx"
 #include "client/Response.hxx"
 #include "util/Macros.hxx"
@@ -46,7 +47,7 @@
 
 #ifdef ENABLE_SQLITE
 #include "StickerCommands.hxx"
-#include "sticker/StickerDatabase.hxx"
+#include "sticker/Database.hxx"
 #endif
 
 #include <assert.h>
@@ -216,7 +217,7 @@ command_available(gcc_unused const Partition &partition,
 {
 #ifdef ENABLE_SQLITE
 	if (StringIsEqual(cmd->cmd, "sticker"))
-		return sticker_enabled();
+		return partition.instance.HasStickerDatabase();
 #endif
 
 #ifdef ENABLE_NEIGHBOR_PLUGINS

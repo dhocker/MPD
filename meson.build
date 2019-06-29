@@ -37,6 +37,8 @@ test_common_flags = [
   '-Wall',
   '-Wextra',
 
+  '-Wvla',
+
   '-fvisibility=hidden',
 
   '-ffast-math',
@@ -300,6 +302,7 @@ if enable_database
 endif
 
 subdir('src/util')
+subdir('src/time')
 subdir('src/system')
 subdir('src/thread')
 subdir('src/event')
@@ -350,8 +353,8 @@ endif
 if sqlite_dep.found()
   sources += [
     'src/command/StickerCommands.cxx',
-    'src/sticker/StickerDatabase.cxx',
-    'src/sticker/StickerPrint.cxx',
+    'src/sticker/Database.cxx',
+    'src/sticker/Print.cxx',
     'src/sticker/SongSticker.cxx',
   ]
 endif

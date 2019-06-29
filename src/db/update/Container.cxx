@@ -1,5 +1,5 @@
 /*
- * Copyright 2003-2018 The Music Player Daemon Project
+ * Copyright 2003-2019 The Music Player Daemon Project
  * http://www.musicpd.org
  *
  * This program is free software; you can redistribute it and/or modify
@@ -102,8 +102,7 @@ UpdateWalk::UpdateContainerFile(Directory &directory,
 		}
 
 		for (auto &vtrack : v) {
-			Song *song = Song::NewFrom(std::move(vtrack),
-						   *contdir);
+			auto song = Song::NewFrom(std::move(vtrack), *contdir);
 
 			// shouldn't be necessary but it's there..
 			song->mtime = info.mtime;
@@ -113,7 +112,7 @@ UpdateWalk::UpdateContainerFile(Directory &directory,
 
 			{
 				const ScopeDatabaseLock protect;
-				contdir->AddSong(song);
+				contdir->AddSong(std::move(song));
 			}
 
 			modified = true;

@@ -1,5 +1,5 @@
 /*
- * Copyright 2003-2018 The Music Player Daemon Project
+ * Copyright 2003-2019 The Music Player Daemon Project
  * http://www.musicpd.org
  *
  * This program is free software; you can redistribute it and/or modify
@@ -30,7 +30,9 @@
 #include "tag/ReplayGain.hxx"
 #include "tag/MixRamp.hxx"
 #include "ReplayGainInfo.hxx"
-#include "util/DivideString.hxx"
+#include "util/StringView.hxx"
+
+#include <assert.h>
 
 bool
 flac_parse_replay_gain(ReplayGainInfo &rgi,
@@ -96,10 +98,10 @@ flac_scan_comment(const FLAC__StreamMetadata_VorbisComment_Entry *entry,
 		  TagHandler &handler) noexcept
 {
 	if (handler.WantPair()) {
-		const char *comment = (const char *)entry->entry;
-		const DivideString split(comment, '=');
-		if (split.IsDefined() && !split.empty())
-			handler.OnPair(split.GetFirst(), split.GetSecond());
+		const StringView comment((const char *)entry->entry);
+		const auto split = StringView(comment).Split('=');
+		if (!split.first.empty() && !split.second.IsNull())
+			handler.OnPair(split.first, split.second);
 	}
 
 	for (const struct tag_table *i = xiph_tags; i->name != nullptr; ++i)

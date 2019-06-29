@@ -1,5 +1,5 @@
 /*
- * Copyright 2003-2018 The Music Player Daemon Project
+ * Copyright 2003-2019 The Music Player Daemon Project
  * http://www.musicpd.org
  *
  * This program is free software; you can redistribute it and/or modify
@@ -21,10 +21,10 @@
 #define MPD_INPUT_PLUGIN_HXX
 
 #include "Ptr.hxx"
+#include "thread/Mutex.hxx"
 #include "util/Compiler.h"
 
 struct ConfigBlock;
-class Mutex;
 class EventLoop;
 class RemoteTagScanner;
 class RemoteTagHandler;

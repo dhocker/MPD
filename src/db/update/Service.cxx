@@ -1,5 +1,5 @@
 /*
- * Copyright 2003-2018 The Music Player Daemon Project
+ * Copyright 2003-2019 The Music Player Daemon Project
  * http://www.musicpd.org
  *
  * This program is free software; you can redistribute it and/or modify
@@ -56,8 +56,6 @@ UpdateService::~UpdateService()
 
 	if (update_thread.IsDefined())
 		update_thread.Join();
-
-	delete walk;
 }
 
 void
@@ -151,7 +149,8 @@ UpdateService::StartThread(UpdateQueueItem &&i)
 	modified = false;
 
 	next = std::move(i);
-	walk = new UpdateWalk(config, GetEventLoop(), listener, *next.storage);
+	walk = std::make_unique<UpdateWalk>(config, GetEventLoop(), listener,
+					    *next.storage);
 
 	update_thread.Start();
 
@@ -248,8 +247,7 @@ UpdateService::RunDeferred() noexcept
 	if (update_thread.IsDefined())
 		update_thread.Join();
 
-	delete walk;
-	walk = nullptr;
+	walk.reset();
 
 	next.Clear();
 

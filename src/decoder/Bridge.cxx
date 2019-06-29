@@ -1,5 +1,5 @@
 /*
- * Copyright 2003-2018 The Music Player Daemon Project
+ * Copyright 2003-2019 The Music Player Daemon Project
  * http://www.musicpd.org
  *
  * This program is free software; you can redistribute it and/or modify
@@ -22,14 +22,17 @@
 #include "Domain.hxx"
 #include "Control.hxx"
 #include "song/DetachedSong.hxx"
-#include "pcm/PcmConvert.hxx"
+#include "pcm/Convert.hxx"
 #include "MusicPipe.hxx"
 #include "MusicBuffer.hxx"
 #include "MusicChunk.hxx"
-#include "pcm/PcmConvert.hxx"
 #include "tag/Tag.hxx"
 #include "Log.hxx"
 #include "input/InputStream.hxx"
+#include "input/LocalOpen.hxx"
+#include "input/cache/Manager.hxx"
+#include "input/cache/Stream.hxx"
+#include "fs/Path.hxx"
 #include "util/ConstBuffer.hxx"
 #include "util/StringBuffer.hxx"
 
@@ -47,6 +50,22 @@ DecoderBridge::~DecoderBridge() noexcept
 {
 	/* caller must flush the chunk */
 	assert(current_chunk == nullptr);
+}
+
+InputStreamPtr
+DecoderBridge::OpenLocal(Path path_fs, const char *uri_utf8)
+{
+	if (dc.input_cache != nullptr) {
+		auto lease = dc.input_cache->Get(uri_utf8, true);
+		if (lease) {
+			auto is = std::make_unique<CacheInputStream>(std::move(lease),
+								     dc.mutex);
+			is->SetHandler(&dc);
+			return is;
+		}
+	}
+
+	return OpenLocalInputStream(path_fs, dc.mutex);
 }
 
 bool
@@ -74,10 +93,10 @@ DecoderBridge::CheckCancelRead() const noexcept
  * one.
  */
 static DecoderCommand
-need_chunks(DecoderControl &dc) noexcept
+NeedChunks(DecoderControl &dc, std::unique_lock<Mutex> &lock) noexcept
 {
 	if (dc.command == DecoderCommand::NONE)
-		dc.Wait();
+		dc.Wait(lock);
 
 	return dc.command;
 }
@@ -85,8 +104,8 @@ need_chunks(DecoderControl &dc) noexcept
 static DecoderCommand
 LockNeedChunks(DecoderControl &dc) noexcept
 {
-	const std::lock_guard<Mutex> protect(dc.mutex);
-	return need_chunks(dc);
+	std::unique_lock<Mutex> lock(dc.mutex);
+	return NeedChunks(dc, lock);
 }
 
 MusicChunk *
@@ -127,7 +146,7 @@ DecoderBridge::FlushChunk() noexcept
 
 	const std::lock_guard<Mutex> protect(dc.mutex);
 	if (dc.client_is_waiting)
-		dc.client_cond.signal();
+		dc.client_cond.notify_one();
 }
 
 bool
@@ -310,7 +329,7 @@ DecoderBridge::CommandFinished() noexcept
 	}
 
 	dc.command = DecoderCommand::NONE;
-	dc.client_cond.signal();
+	dc.client_cond.notify_one();
 }
 
 SongTime
@@ -366,7 +385,7 @@ DecoderBridge::OpenUri(const char *uri)
 	auto is = InputStream::Open(uri, mutex);
 	is->SetHandler(&dc);
 
-	const std::lock_guard<Mutex> lock(mutex);
+	std::unique_lock<Mutex> lock(mutex);
 	while (true) {
 		if (dc.command == DecoderCommand::STOP)
 			throw StopDecoder();
@@ -377,7 +396,7 @@ DecoderBridge::OpenUri(const char *uri)
 			return is;
 		}
 
-		cond.wait(mutex);
+		cond.wait(lock);
 	}
 }
 
@@ -391,7 +410,7 @@ try {
 	if (length == 0)
 		return 0;
 
-	std::lock_guard<Mutex> lock(is.mutex);
+	std::unique_lock<Mutex> lock(is.mutex);
 
 	while (true) {
 		if (CheckCancelRead())
@@ -400,10 +419,10 @@ try {
 		if (is.IsAvailable())
 			break;
 
-		dc.cond.wait(is.mutex);
+		dc.cond.wait(lock);
 	}
 
-	size_t nbytes = is.Read(buffer, length);
+	size_t nbytes = is.Read(lock, buffer, length);
 	assert(nbytes > 0 || is.IsEOF());
 
 	return nbytes;

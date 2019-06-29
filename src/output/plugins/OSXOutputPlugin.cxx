@@ -1,5 +1,5 @@
 /*
- * Copyright 2003-2018 The Music Player Daemon Project
+ * Copyright 2003-2019 The Music Player Daemon Project
  * http://www.musicpd.org
  *
  * This program is free software; you can redistribute it and/or modify
@@ -26,7 +26,7 @@
 #include "util/Domain.hxx"
 #include "util/Manual.hxx"
 #include "util/ConstBuffer.hxx"
-#include "pcm/PcmExport.hxx"
+#include "pcm/Export.hxx"
 #include "thread/Mutex.hxx"
 #include "thread/Cond.hxx"
 #include "util/ByteOrder.hxx"
@@ -389,8 +389,12 @@ osx_output_set_device_format(AudioDeviceID dev_id, const AudioStreamBasicDescrip
 		throw FormatRuntimeError("Cannot get number of streams: %d\n", err);	
 	}	
 	
-	int n_streams = property_size / sizeof(AudioStreamID);	
-	AudioStreamID streams[n_streams];	
+	const size_t n_streams = property_size / sizeof(AudioStreamID);
+	static constexpr size_t MAX_STREAMS = 64;
+	if (n_streams > MAX_STREAMS)
+		throw std::runtime_error("Too many streams");
+
+	AudioStreamID streams[MAX_STREAMS];
 	err = AudioObjectGetPropertyData(dev_id, &aopa, 0, NULL, &property_size, streams);	
 	if (err != noErr) {	
 		throw FormatRuntimeError("Cannot get streams: %d\n", err);	
@@ -400,7 +404,7 @@ osx_output_set_device_format(AudioDeviceID dev_id, const AudioStreamBasicDescrip
 	int output_stream;
 	AudioStreamBasicDescription output_format;
 
-	for (int i = 0; i < n_streams; i++) {	
+	for (size_t i = 0; i < n_streams; i++) {
 		UInt32 direction;	
 		AudioStreamID stream = streams[i];
 		aopa.mSelector = kAudioStreamPropertyDirection;	
@@ -423,14 +427,18 @@ osx_output_set_device_format(AudioDeviceID dev_id, const AudioStreamBasicDescrip
 		if (err != noErr)
 			throw FormatRuntimeError("Unable to get format size s for stream %d. Error = %s", streams[i], err);
 
-		int format_count = property_size / sizeof(AudioStreamRangedDescription);
-		AudioStreamRangedDescription format_list[format_count];
+		const size_t format_count = property_size / sizeof(AudioStreamRangedDescription);
+		static constexpr size_t MAX_FORMATS = 256;
+		if (format_count > MAX_FORMATS)
+			throw std::runtime_error("Too many formats");
+
+		AudioStreamRangedDescription format_list[MAX_FORMATS];
 		err = AudioObjectGetPropertyData(stream, &aopa, 0, NULL, &property_size, format_list);
 		if (err != noErr)
 			throw FormatRuntimeError("Unable to get available formats for stream %d. Error = %s", streams[i], err);
 
 		float output_score = 0;
-		for (int j = 0; j < format_count; j++) {
+		for (size_t j = 0; j < format_count; j++) {
 			AudioStreamBasicDescription format_desc = format_list[j].mFormat;
 			std::string format_string;
 			
@@ -755,7 +763,6 @@ OSXOutput::Open(AudioFormat &audio_format)
 	PcmExport::Params params;
 	params.alsa_channel_order = true;
 	bool dop = dop_setting;
-	params.dop = false;
 #endif
 
 	memset(&asbd, 0, sizeof(asbd));
@@ -780,7 +787,7 @@ OSXOutput::Open(AudioFormat &audio_format)
 #ifdef ENABLE_DSD
 	if (dop && audio_format.format == SampleFormat::DSD) {
 		asbd.mBitsPerChannel = 24;
-		params.dop = true;
+		params.dsd_mode = PcmExport::DsdMode::DOP;
 		asbd.mSampleRate = params.CalcOutputSampleRate(audio_format.sample_rate);
 		asbd.mBytesPerPacket = 4 * audio_format.channels;
 
@@ -795,14 +802,14 @@ OSXOutput::Open(AudioFormat &audio_format)
 
 #ifdef ENABLE_DSD
 	if(audio_format.format == SampleFormat::DSD && sample_rate != asbd.mSampleRate) { // fall back to PCM in case sample_rate cannot be synchronized
-		params.dop = false;
+		params.dsd_mode = PcmExport::DsdMode::NONE;
 		audio_format.format = SampleFormat::S32;
 		asbd.mBitsPerChannel = 32;
 		asbd.mBytesPerPacket = audio_format.GetFrameSize();
 		asbd.mSampleRate = params.CalcOutputSampleRate(audio_format.sample_rate);
 		asbd.mBytesPerFrame = asbd.mBytesPerPacket;
 	}
-	dop_enabled = params.dop;
+	dop_enabled = params.dsd_mode == PcmExport::DsdMode::DOP;
 #endif
 
 	OSStatus status =
@@ -849,7 +856,7 @@ OSXOutput::Open(AudioFormat &audio_format)
         if (dop_enabled) {
 		pcm_export->Open(audio_format.format, audio_format.channels, params);
 		ring_buffer_size = std::max<size_t>(buffer_frame_size,
-						   MPD_OSX_BUFFER_TIME_MS * pcm_export->GetFrameSize(audio_format) * asbd.mSampleRate / 1000);
+						   MPD_OSX_BUFFER_TIME_MS * pcm_export->GetOutputFrameSize() * asbd.mSampleRate / 1000);
 	}
 #endif
 	ring_buffer = new boost::lockfree::spsc_queue<uint8_t>(ring_buffer_size);
@@ -879,17 +886,11 @@ OSXOutput::Play(const void *chunk, size_t size)
 #ifdef ENABLE_DSD
         if (dop_enabled) {
 		const auto e = pcm_export->Export({chunk, size});
-		/* the DoP (DSD over PCM) filter converts two frames
-		   at a time and ignores the last odd frame; if there
-		   was only one frame (e.g. the last frame in the
-		   file), the result is empty; to avoid an endless
-		   loop, bail out here, and pretend the one frame has
-		   been played */
-		if (e.size == 0)
+		if (e.empty())
 			return size;
 
 		size_t bytes_written = ring_buffer->push((const uint8_t *)e.data, e.size);
-		return pcm_export->CalcSourceSize(bytes_written);
+		return pcm_export->CalcInputSize(bytes_written);
 	}
 #endif
 	return ring_buffer->push((const uint8_t *)chunk, size);

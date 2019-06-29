@@ -1,5 +1,5 @@
 /*
- * Copyright 2003-2018 The Music Player Daemon Project
+ * Copyright 2003-2019 The Music Player Daemon Project
  * http://www.musicpd.org
  *
  * This program is free software; you can redistribute it and/or modify
@@ -52,6 +52,14 @@ struct ConfigData {
 	const ConfigParam *GetParam(ConfigOption option) const noexcept {
 		const auto &list = GetParamList(option);
 		return list.empty() ? nullptr : &list.front();
+	}
+
+	template<typename F>
+	auto With(ConfigOption option, F &&f) const {
+		const auto *param = GetParam(option);
+		return param != nullptr
+			? param->With(std::forward<F>(f))
+			: f(nullptr);
 	}
 
 	gcc_pure

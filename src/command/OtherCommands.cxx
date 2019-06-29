@@ -1,5 +1,5 @@
 /*
- * Copyright 2003-2018 The Music Player Daemon Project
+ * Copyright 2003-2019 The Music Player Daemon Project
  * http://www.musicpd.org
  *
  * This program is free software; you can redistribute it and/or modify
@@ -35,9 +35,10 @@
 #include "decoder/DecoderPrint.hxx"
 #include "ls.hxx"
 #include "mixer/Volume.hxx"
-#include "util/ChronoUtil.hxx"
+#include "time/ChronoUtil.hxx"
 #include "util/UriUtil.hxx"
 #include "util/StringAPI.hxx"
+#include "util/StringView.hxx"
 #include "fs/AllocatedPath.hxx"
 #include "Stats.hxx"
 #include "PlaylistFile.hxx"
@@ -147,7 +148,7 @@ public:
 	explicit PrintTagHandler(Response &_response) noexcept
 		:NullTagHandler(WANT_TAG), response(_response) {}
 
-	void OnTag(TagType type, const char *value) noexcept override {
+	void OnTag(TagType type, StringView value) noexcept override {
 		if (response.GetClient().tag_mask.Test(type))
 			tag_print(response, type, value);
 	}

@@ -1,5 +1,5 @@
 /*
- * Copyright 2003-2018 The Music Player Daemon Project
+ * Copyright 2003-2019 The Music Player Daemon Project
  * http://www.musicpd.org
  *
  * This program is free software; you can redistribute it and/or modify
@@ -26,7 +26,7 @@
 #include "lib/alsa/Version.hxx"
 #include "../OutputAPI.hxx"
 #include "mixer/MixerList.hxx"
-#include "pcm/PcmExport.hxx"
+#include "pcm/Export.hxx"
 #include "thread/Mutex.hxx"
 #include "thread/Cond.hxx"
 #include "util/Manual.hxx"
@@ -305,13 +305,14 @@ private:
 		const std::lock_guard<Mutex> lock(mutex);
 		/* notify the OutputThread that there is now
 		   room in ring_buffer */
-		cond.signal();
+		cond.notify_one();
 
 		return true;
 	}
 
 	snd_pcm_sframes_t WriteFromPeriodBuffer() noexcept {
-		assert(!period_buffer.IsEmpty());
+		assert(period_buffer.IsFull());
+		assert(period_buffer.GetFrames(out_frame_size) > 0);
 
 		auto frames_written = snd_pcm_writei(pcm, period_buffer.GetHead(),
 						     period_buffer.GetFrames(out_frame_size));
@@ -330,7 +331,7 @@ private:
 		const std::lock_guard<Mutex> lock(mutex);
 		error = std::current_exception();
 		active = false;
-		cond.signal();
+		cond.notify_one();
 	}
 
 	/* virtual methods from class MultiSocketMonitor */
@@ -558,12 +559,12 @@ AlsaOutput::SetupOrDop(AudioFormat &audio_format, PcmExport::Params &params
 	std::exception_ptr dop_error;
 	if (dop && audio_format.format == SampleFormat::DSD) {
 		try {
-			params.dop = true;
+			params.dsd_mode = PcmExport::DsdMode::DOP;
 			SetupDop(audio_format, params);
 			return;
 		} catch (...) {
 			dop_error = std::current_exception();
-			params.dop = false;
+			params.dsd_mode = PcmExport::DsdMode::NONE;
 		}
 	}
 
@@ -663,7 +664,7 @@ AlsaOutput::Open(AudioFormat &audio_format)
 	snd_pcm_nonblock(pcm, 1);
 
 #ifdef ENABLE_DSD
-	if (params.dop)
+	if (params.dsd_mode == PcmExport::DsdMode::DOP)
 		FormatDebug(alsa_output_domain, "DoP (DSD over PCM) enabled");
 #endif
 
@@ -674,7 +675,7 @@ AlsaOutput::Open(AudioFormat &audio_format)
 #ifndef NDEBUG
 	in_frame_size = audio_format.GetFrameSize();
 #endif
-	out_frame_size = pcm_export->GetFrameSize(audio_format);
+	out_frame_size = pcm_export->GetOutputFrameSize();
 
 	drain = false;
 
@@ -746,33 +747,54 @@ AlsaOutput::DrainInternal()
 	/* drain ring_buffer */
 	CopyRingToPeriodBuffer();
 
-	auto period_position = period_buffer.GetPeriodPosition(out_frame_size);
-	if (period_position > 0)
-		/* generate some silence to finish the partial
-		   period */
-		period_buffer.FillWithSilence(silence, out_frame_size);
-
 	/* drain period_buffer */
-	if (!period_buffer.IsEmpty()) {
-		auto frames_written = WriteFromPeriodBuffer();
-		if (frames_written < 0) {
-			if (frames_written == -EAGAIN)
-				return false;
+	if (!period_buffer.IsCleared()) {
+		if (!period_buffer.IsFull())
+			/* generate some silence to finish the partial
+			   period */
+			period_buffer.FillWithSilence(silence, out_frame_size);
 
-			throw FormatRuntimeError("snd_pcm_writei() failed: %s",
-						 snd_strerror(-frames_written));
+		/* drain period_buffer */
+		if (!period_buffer.IsDrained()) {
+			auto frames_written = WriteFromPeriodBuffer();
+			if (frames_written < 0) {
+				if (frames_written == -EAGAIN)
+					return false;
+
+				throw FormatRuntimeError("snd_pcm_writei() failed: %s",
+							 snd_strerror(-frames_written));
+			}
+
+			/* need to call CopyRingToPeriodBuffer() and
+			   WriteFromPeriodBuffer() again in the next
+			   iteration, so don't finish the drain just
+			   yet */
+			return false;
 		}
-
-		/* need to call CopyRingToPeriodBuffer() and
-		   WriteFromPeriodBuffer() again in the next
-		   iteration, so don't finish the drain just yet */
-		return period_buffer.IsEmpty();
 	}
 
 	if (!written)
 		/* if nothing has ever been written to the PCM, we
 		   don't need to drain it */
 		return true;
+
+	switch (snd_pcm_state(pcm)) {
+	case SND_PCM_STATE_PREPARED:
+	case SND_PCM_STATE_RUNNING:
+		/* these states require a call to snd_pcm_drain() */
+		break;
+
+	case SND_PCM_STATE_DRAINING:
+		/* already draining, but not yet finished; this is
+		   probably a spurious epoll event, and we should wait
+		   for the next one */
+		return false;
+
+	default:
+		/* all other states cannot be drained, and we're
+		   done */
+		return true;
+	}
 
 	/* .. and finally drain the ALSA hardware buffer */
 
@@ -796,7 +818,7 @@ AlsaOutput::DrainInternal()
 void
 AlsaOutput::Drain()
 {
-	const std::lock_guard<Mutex> lock(mutex);
+	std::unique_lock<Mutex> lock(mutex);
 
 	if (error)
 		std::rethrow_exception(error);
@@ -805,8 +827,7 @@ AlsaOutput::Drain()
 
 	Activate();
 
-	while (drain && active)
-		cond.wait(mutex);
+	cond.wait(lock, [this]{ return !drain || !active; });
 
 	if (error)
 		std::rethrow_exception(error);
@@ -840,7 +861,7 @@ AlsaOutput::Cancel() noexcept
 		   synchronization */
 
 		pcm_export->Reset();
-		assert(period_buffer.IsEmpty());
+		assert(period_buffer.IsCleared());
 		ring_buffer->reset();
 
 		return;
@@ -873,16 +894,10 @@ AlsaOutput::Play(const void *chunk, size_t size)
 	assert(size % in_frame_size == 0);
 
 	const auto e = pcm_export->Export({chunk, size});
-	if (e.size == 0)
-		/* the DoP (DSD over PCM) filter converts two frames
-		   at a time and ignores the last odd frame; if there
-		   was only one frame (e.g. the last frame in the
-		   file), the result is empty; to avoid an endless
-		   loop, bail out here, and pretend the one frame has
-		   been played */
+	if (e.empty())
 		return size;
 
-	const std::lock_guard<Mutex> lock(mutex);
+	std::unique_lock<Mutex> lock(mutex);
 
 	while (true) {
 		if (error)
@@ -891,7 +906,7 @@ AlsaOutput::Play(const void *chunk, size_t size)
 		size_t bytes_written = ring_buffer->push((const uint8_t *)e.data,
 							 e.size);
 		if (bytes_written > 0)
-			return pcm_export->CalcSourceSize(bytes_written);
+			return pcm_export->CalcInputSize(bytes_written);
 
 		/* now that the ring_buffer is full, we can activate
 		   the socket handlers to trigger the first
@@ -905,7 +920,7 @@ AlsaOutput::Play(const void *chunk, size_t size)
 
 		/* wait for the DispatchSockets() to make room in the
 		   ring_buffer */
-		cond.wait(mutex);
+		cond.wait(lock);
 	}
 }
 
@@ -956,14 +971,14 @@ try {
 			}
 
 			drain = false;
-			cond.signal();
+			cond.notify_one();
 			return;
 		}
 	}
 
 	CopyRingToPeriodBuffer();
 
-	if (period_buffer.IsEmpty()) {
+	if (!period_buffer.IsFull()) {
 		if (snd_pcm_state(pcm) == SND_PCM_STATE_PREPARED ||
 		    snd_pcm_avail(pcm) <= max_avail_frames) {
 			/* at SND_PCM_STATE_PREPARED (not yet switched
@@ -984,7 +999,7 @@ try {
 			{
 				const std::lock_guard<Mutex> lock(mutex);
 				active = false;
-				cond.signal();
+				cond.notify_one();
 			}
 
 			/* avoid race condition: see if data has

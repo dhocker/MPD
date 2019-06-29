@@ -1,5 +1,5 @@
 /*
- * Copyright 2003-2018 The Music Player Daemon Project
+ * Copyright 2003-2019 The Music Player Daemon Project
  * http://www.musicpd.org
  *
  * This program is free software; you can redistribute it and/or modify
@@ -21,10 +21,10 @@
 #define MPD_PLAYLIST_REGISTRY_HXX
 
 #include "input/Ptr.hxx"
+#include "thread/Mutex.hxx"
 #include "util/Compiler.h"
 
 struct ConfigData;
-class Mutex;
 class SongEnumerator;
 
 extern const struct playlist_plugin *const playlist_plugins[];

@@ -1,5 +1,5 @@
 /*
- * Copyright 2003-2018 The Music Player Daemon Project
+ * Copyright 2003-2019 The Music Player Daemon Project
  * http://www.musicpd.org
  *
  * This program is free software; you can redistribute it and/or modify
@@ -120,7 +120,7 @@ HttpdOutput::OnDeferredBroadcast() noexcept
 
 	/* wake up the client that may be waiting for the queue to be
 	   flushed */
-	cond.broadcast();
+	cond.notify_all();
 }
 
 void
@@ -277,9 +277,8 @@ HttpdOutput::BroadcastFromEncoder()
 {
 	/* synchronize with the IOThread */
 	{
-		const std::lock_guard<Mutex> lock(mutex);
-		while (!pages.empty())
-			cond.wait(mutex);
+		std::unique_lock<Mutex> lock(mutex);
+		cond.wait(lock, [this]{ return pages.empty(); });
 	}
 
 	bool empty = true;
@@ -398,7 +397,7 @@ HttpdOutput::CancelAllClients() noexcept
 	for (auto &client : clients)
 		client.CancelQueue();
 
-	cond.broadcast();
+	cond.notify_all();
 }
 
 void

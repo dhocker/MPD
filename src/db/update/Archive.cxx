@@ -1,5 +1,5 @@
 /*
- * Copyright 2003-2018 The Music Player Daemon Project
+ * Copyright 2003-2019 The Music Player Daemon Project
  * http://www.musicpd.org
  *
  * This program is free software; you can redistribute it and/or modify
@@ -82,11 +82,11 @@ UpdateWalk::UpdateArchiveTree(ArchiveFile &archive, Directory &directory,
 		//add file
 		Song *song = LockFindSong(directory, name);
 		if (song == nullptr) {
-			song = Song::LoadFromArchive(archive, name, directory);
-			if (song != nullptr) {
+			auto new_song = Song::LoadFromArchive(archive, name, directory);
+			if (new_song) {
 				{
 					const ScopeDatabaseLock protect;
-					directory.AddSong(song);
+					directory.AddSong(std::move(new_song));
 				}
 
 				modified = true;

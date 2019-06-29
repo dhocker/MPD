@@ -1,5 +1,5 @@
 /*
- * Copyright 2003-2018 The Music Player Daemon Project
+ * Copyright 2003-2019 The Music Player Daemon Project
  * http://www.musicpd.org
  *
  * This program is free software; you can redistribute it and/or modify
@@ -26,6 +26,7 @@
 #include "plugins/ZzipArchivePlugin.hxx"
 #include "util/Macros.hxx"
 
+#include <assert.h>
 #include <string.h>
 
 const ArchivePlugin *const archive_plugins[] = {
@@ -51,8 +52,7 @@ static bool archive_plugins_enabled[ARRAY_SIZE(archive_plugins) - 1];
 const ArchivePlugin *
 archive_plugin_from_suffix(const char *suffix) noexcept
 {
-	if (suffix == nullptr)
-		return nullptr;
+	assert(suffix != nullptr);
 
 	archive_plugins_for_each_enabled(plugin)
 		if (plugin->suffixes != nullptr &&

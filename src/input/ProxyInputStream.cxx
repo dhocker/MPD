@@ -1,5 +1,5 @@
 /*
- * Copyright 2003-2018 The Music Player Daemon Project
+ * Copyright 2003-2019 The Music Player Daemon Project
  * http://www.musicpd.org
  *
  * This program is free software; you can redistribute it and/or modify
@@ -46,7 +46,7 @@ ProxyInputStream::SetInput(InputStreamPtr _input) noexcept
 	   ready */
 	CopyAttributes();
 
-	set_input_cond.signal();
+	set_input_cond.notify_one();
 }
 
 void
@@ -89,17 +89,17 @@ ProxyInputStream::Update() noexcept
 }
 
 void
-ProxyInputStream::Seek(offset_type new_offset)
+ProxyInputStream::Seek(std::unique_lock<Mutex> &lock,
+		       offset_type new_offset)
 {
-	while (!input)
-		set_input_cond.wait(mutex);
+	set_input_cond.wait(lock, [this]{ return !!input; });
 
-	input->Seek(new_offset);
+	input->Seek(lock, new_offset);
 	CopyAttributes();
 }
 
 bool
-ProxyInputStream::IsEOF() noexcept
+ProxyInputStream::IsEOF() const noexcept
 {
 	return input && input->IsEOF();
 }
@@ -114,18 +114,18 @@ ProxyInputStream::ReadTag() noexcept
 }
 
 bool
-ProxyInputStream::IsAvailable() noexcept
+ProxyInputStream::IsAvailable() const noexcept
 {
 	return input && input->IsAvailable();
 }
 
 size_t
-ProxyInputStream::Read(void *ptr, size_t read_size)
+ProxyInputStream::Read(std::unique_lock<Mutex> &lock,
+		       void *ptr, size_t read_size)
 {
-	while (!input)
-		set_input_cond.wait(mutex);
+	set_input_cond.wait(lock, [this]{ return !!input; });
 
-	size_t nbytes = input->Read(ptr, read_size);
+	size_t nbytes = input->Read(lock, ptr, read_size);
 	CopyAttributes();
 	return nbytes;
 }

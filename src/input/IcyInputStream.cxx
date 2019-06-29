@@ -1,5 +1,5 @@
 /*
- * Copyright 2003-2018 The Music Player Daemon Project
+ * Copyright 2003-2019 The Music Player Daemon Project
  * http://www.musicpd.org
  *
  * This program is free software; you can redistribute it and/or modify
@@ -80,13 +80,14 @@ IcyInputStream::ReadTag() noexcept
 }
 
 size_t
-IcyInputStream::Read(void *ptr, size_t read_size)
+IcyInputStream::Read(std::unique_lock<Mutex> &lock,
+		     void *ptr, size_t read_size)
 {
 	if (!IsEnabled())
-		return ProxyInputStream::Read(ptr, read_size);
+		return ProxyInputStream::Read(lock, ptr, read_size);
 
 	while (true) {
-		size_t nbytes = ProxyInputStream::Read(ptr, read_size);
+		size_t nbytes = ProxyInputStream::Read(lock, ptr, read_size);
 		if (nbytes == 0)
 			return 0;
 

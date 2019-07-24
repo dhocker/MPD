@@ -34,7 +34,6 @@
 #include "util/StringCompare.hxx"
 #include "Log.hxx"
 
-#include <stdexcept>
 #include <memory>
 
 static constexpr Domain tidal_domain("tidal");
@@ -251,5 +250,6 @@ const InputPlugin tidal_input_plugin = {
 	InitTidalInput,
 	FinishTidalInput,
 	OpenTidalInput,
+	nullptr,
 	ScanTidalTags,
 };

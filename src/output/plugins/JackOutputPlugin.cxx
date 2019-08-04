@@ -20,12 +20,15 @@
 #include "config.h"
 #include "JackOutputPlugin.hxx"
 #include "../OutputAPI.hxx"
+#include "thread/Mutex.hxx"
 #include "util/ScopeExit.hxx"
 #include "util/ConstBuffer.hxx"
 #include "util/IterableSplitString.hxx"
 #include "util/RuntimeError.hxx"
 #include "util/Domain.hxx"
 #include "Log.hxx"
+
+#include <atomic>
 
 #include <assert.h>
 
@@ -57,6 +60,8 @@ struct JackOutput final : AudioOutput {
 
 	std::string destination_ports[MAX_PORTS];
 	unsigned num_destination_ports;
+	/* overrides num_destination_ports*/
+	bool auto_destination_ports;
 
 	size_t ringbuffer_size;
 
@@ -68,13 +73,23 @@ struct JackOutput final : AudioOutput {
 	jack_client_t *client;
 	jack_ringbuffer_t *ringbuffer[MAX_PORTS];
 
-	bool shutdown;
+	std::atomic_bool shutdown;
 
 	/**
 	 * While this flag is set, the "process" callback generates
 	 * silence.
 	 */
-	bool pause;
+	std::atomic_bool pause;
+
+	/**
+	 * Protects #error.
+	 */
+	Mutex mutex;
+
+	/**
+	 * The error reported to the "on_info_shutdown" callback.
+	 */
+	std::exception_ptr error;
 
 	explicit JackOutput(const ConfigBlock &block);
 
@@ -91,8 +106,10 @@ struct JackOutput final : AudioOutput {
 	 */
 	void Disconnect() noexcept;
 
-	void Shutdown() noexcept {
+	void Shutdown(std::exception_ptr e) noexcept {
+		const std::lock_guard<Mutex> lock(mutex);
 		shutdown = true;
+		error = std::move(e);
 	}
 
 	/**
@@ -200,6 +217,8 @@ JackOutput::JackOutput(const ConfigBlock &block)
 	} else {
 		num_destination_ports = 0;
 	}
+
+	auto_destination_ports = block.GetBlockValue("auto_destination_ports", true);
 
 	if (num_destination_ports > 0 &&
 	    num_destination_ports != num_source_ports)
@@ -338,11 +357,12 @@ mpd_jack_process(jack_nframes_t nframes, void *arg)
 }
 
 static void
-mpd_jack_shutdown(void *arg)
+mpd_jack_shutdown(jack_status_t, const char *reason, void *arg)
 {
 	JackOutput &jo = *(JackOutput *) arg;
 
-	jo.Shutdown();
+	jo.Shutdown(std::make_exception_ptr(FormatRuntimeError("JACK connection shutdown: %s",
+							       reason)));
 }
 
 static void
@@ -389,6 +409,7 @@ void
 JackOutput::Connect()
 {
 	shutdown = false;
+	error = {};
 
 	jack_status_t status;
 	client = jack_client_open(name, options, &status, server_name);
@@ -397,7 +418,7 @@ JackOutput::Connect()
 					 status);
 
 	jack_set_process_callback(client, mpd_jack_process, this);
-	jack_on_shutdown(client, mpd_jack_shutdown, this);
+	jack_on_info_shutdown(client, mpd_jack_shutdown, this);
 
 	for (unsigned i = 0; i < num_source_ports; ++i) {
 		ports[i] = jack_port_register(client,
@@ -498,6 +519,10 @@ JackOutput::Start()
 	const char *dports[MAX_PORTS], **jports;
 	unsigned num_dports;
 	if (num_destination_ports == 0) {
+		/* if user requests no auto connect, we are done */
+		if (!auto_destination_ports) {
+			return;
+		}
 		/* no output ports were configured - ask libjack for
 		   defaults */
 		jports = jack_get_ports(client, nullptr, nullptr,
@@ -539,7 +564,7 @@ JackOutput::Start()
 		std::fill(dports + num_dports, dports + audio_format.channels,
 			  dports[0]);
 	} else if (num_dports > audio_format.channels) {
-		if (audio_format.channels == 1 && num_dports > 2) {
+		if (audio_format.channels == 1 && num_dports >= 2) {
 			/* mono input file: connect the one source
 			   channel to the both destination channels */
 			duplicate_port = dports[1];
@@ -601,7 +626,7 @@ JackOutput::WriteSamples(const float *src, size_t n_frames)
 	const unsigned n_channels = audio_format.channels;
 
 	float *dest[MAX_CHANNELS];
-	size_t space = -1;
+	size_t space = SIZE_MAX;
 	for (unsigned i = 0; i < n_channels; ++i) {
 		jack_ringbuffer_data_t d[2];
 		jack_ringbuffer_get_write_vector(ringbuffer[i], d);
@@ -644,9 +669,11 @@ JackOutput::Play(const void *chunk, size_t size)
 	size /= frame_size;
 
 	while (true) {
-		if (shutdown)
-			throw std::runtime_error("Refusing to play, because "
-						 "there is no client thread");
+		{
+			const std::lock_guard<Mutex> lock(mutex);
+			if (error)
+				std::rethrow_exception(error);
+		}
 
 		size_t frames_written =
 			WriteSamples((const float *)chunk, size);
@@ -662,8 +689,11 @@ JackOutput::Play(const void *chunk, size_t size)
 inline bool
 JackOutput::Pause()
 {
-	if (shutdown)
-		return false;
+	{
+		const std::lock_guard<Mutex> lock(mutex);
+		if (error)
+			std::rethrow_exception(error);
+	}
 
 	pause = true;
 
